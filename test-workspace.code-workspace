@@ -1,0 +1,55 @@
+{
+  "folders": [
+    {
+      "path": "test-workspace/a",
+      "name": "PowerShell Test"
+    },
+    {
+      "path": "test-workspace/b",
+      "name": "Node.js Test"
+    }
+  ],
+  "settings": {
+    "copilot-debugger.defaultLaunchConfiguration": "Run test.ps1"
+  },
+  "launch": {
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Run test.ps1",
+        "type": "PowerShell",
+        "request": "launch",
+        "script": "${workspaceFolder:PowerShell Test}/test.ps1",
+        "cwd": "${workspaceFolder:PowerShell Test}",
+        "createTemporaryIntegratedConsole": true
+      },
+      {
+        "name": "Run test.js",
+        "type": "node",
+        "request": "launch",
+        "program": "${workspaceFolder:Node.js Test}/test.js",
+        "cwd": "${workspaceFolder:Node.js Test}",
+        "console": "integratedTerminal",
+        "internalConsoleOptions": "neverOpen"
+      }
+    ],
+    "compounds": [
+      {
+        "name": "Debug Both (Compound)",
+        "configurations": ["Run test.ps1", "Run test.js"],
+        "stopAll": true,
+        "presentation": {
+          "hidden": false,
+          "group": "compound",
+          "order": 1
+        }
+      }
+    ]
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-vscode.powershell",
+      "dkattan.copilot-debugger"
+    ]
+  }
+}

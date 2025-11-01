@@ -21,7 +21,6 @@ This is a VS Code extension that integrates with GitHub Copilot to provide debug
 
 - **Extension entry point**: `src/extension.ts` - Main activation logic and tool registration
 - **Language Model Tools**: Classes implementing VS Code's `LanguageModelTool` interface
-  - `SetBreakpointTool` - Sets breakpoints at specified file/line locations
   - `StartDebuggerTool` - Starts debugging sessions with optional configuration
   - `WaitForBreakpointTool` - Waits for breakpoint hits using Debug Adapter Protocol monitoring
   - `GetVariablesTool` - Retrieves all variables from active debug sessions using DAP
@@ -40,7 +39,6 @@ This is a VS Code extension that integrates with GitHub Copilot to provide debug
 ### File Structure
 
 - `src/extension.ts` - Main extension logic, activation, and tool registration only
-- `src/setBreakpointTool.ts` - SetBreakpointTool class and interface
 - `src/startDebuggerTool.ts` - StartDebuggerTool class and interface
 - `src/waitForBreakpointTool.ts` - WaitForBreakpointTool class and interface (requires debug-tracker-vscode)
 - `src/debugUtils.ts` - Shared DAP interfaces, types, and DAPHelpers utility class

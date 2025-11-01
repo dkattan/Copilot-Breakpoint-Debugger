@@ -1,0 +1,16 @@
+{
+  "requesterUsername": "dkattan",
+  "requesterAvatarIconUri": {
+    "$mid": 1,
+    "path": "/u/1424395",
+    "scheme": "https",
+    "authority": "avatars.githubusercontent.com",
+    "query": "v=4"
+  },
+  "responderUsername": "GitHub Copilot",
+  "responderAvatarIconUri": {
+    "id": "copilot"
+  },
+  "initialLocation": "panel",
+  "requests": []
+}

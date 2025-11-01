@@ -9,9 +9,21 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onLanguageModelTools"
+  ],
   "main": "./out/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "Copilot Debugger",
+      "properties": {
+        "copilot-debugger.defaultLaunchConfiguration": {
+          "type": "string",
+          "default": "",
+          "description": "Name of the default launch configuration to use when starting the debugger"
+        }
+      }
+    },
     "commands": [
       {
         "command": "copilot-debugger.helloWorld",
@@ -20,58 +32,112 @@
     ],
     "languageModelTools": [
       {
-        "name": "set_breakpoint",
-        "displayName": "Set Breakpoint",
-        "toolReferenceName": "setBreakpoint",
-        "canBeReferencedInPrompt": true,
-        "userDescription": "Set breakpoints",
-        "modelDescription": "Set a breakpoint",
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "file": {
-              "type": "string",
-              "description": "File path to set the breakpoint in"
-            },
-            "line": {
-              "type": "integer",
-              "description": "Line number to set the breakpoint at"
-            }
-          }
-        }
-      },
-      {
-        "name": "start_debugger",
+        "name": "start_debugger_with_breakpoints",
         "displayName": "Start Debugger",
         "toolReferenceName": "startDebugger",
         "canBeReferencedInPrompt": true,
-        "userDescription": "Start debugging session",
-        "modelDescription": "Start a debugging session",
+        "userDescription": "Start a debugging session and wait for first breakpoint with optional variable filtering and custom breakpoints.",
+        "modelDescription": "Start a debug session using the configured default launch configuration and wait until a breakpoint is hit, returning call stack and variables (optionally filtered).",
         "inputSchema": {
           "type": "object",
           "properties": {
-            "configuration": {
+            "workspaceFolder": {
               "type": "string",
-              "description": "Debug configuration name (optional, defaults to first available)"
+              "description": "Absolute path of workspace folder (defaults to first workspace)."
+            },
+            "variableFilter": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "List of variable name regex fragments to filter variables (joined with |)."
+            },
+            "timeout_seconds": {
+              "type": "integer",
+              "description": "Seconds to wait for initial breakpoint (default 60)."
+            },
+            "breakpointConfig": {
+              "type": "object",
+              "properties": {
+                "disableExisting": {
+                  "type": "boolean",
+                  "description": "If true, disables all existing breakpoints before adding new ones."
+                },
+                "breakpoints": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "description": "File path relative to workspace or absolute."
+                      },
+                      "line": {
+                        "type": "integer",
+                        "description": "1-based line number for the breakpoint."
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "line"
+                    ]
+                  },
+                  "description": "Optional list of breakpoints to add before starting session."
+                }
+              }
             }
-          }
+          },
+          "required": []
         }
       },
       {
-        "name": "wait_for_breakpoint",
-        "displayName": "Wait for Breakpoint",
-        "toolReferenceName": "waitForBreakpoint",
+        "name": "resume_debug_session",
+        "displayName": "Resume Debug Session",
+        "toolReferenceName": "resumeDebugSession",
         "canBeReferencedInPrompt": true,
-        "userDescription": "Wait for the next breakpoint hit during debugging",
-        "modelDescription": "Wait for the debugger to hit a breakpoint or stop execution",
+        "userDescription": "Resume a paused debug session optionally waiting for the next breakpoint and applying new breakpoint configuration.",
+        "modelDescription": "Resume execution of the specified debug session. Optionally wait for next stop and set/clear breakpoints before continuing.",
         "inputSchema": {
           "type": "object",
           "properties": {
-            "timeout": {
-              "type": "integer",
-              "description": "Optional timeout in seconds (default: 30)"
+            "sessionId": {
+              "type": "string",
+              "description": "ID of the debug session to resume."
+            },
+            "waitForStop": {
+              "type": "boolean",
+              "description": "If true, wait until the debugger stops again before returning."
+            },
+            "breakpointConfig": {
+              "type": "object",
+              "properties": {
+                "disableExisting": {
+                  "type": "boolean"
+                },
+                "breakpoints": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "line": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "line"
+                    ]
+                  }
+                }
+              }
             }
-          }
+          },
+          "required": [
+            "sessionId"
+          ]
         }
       },
       {
@@ -112,9 +178,9 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "pretest": "npm run compile && npm run lint",
+    "pretest": "npm run lint",
     "lint": "eslint src",
-    "test": "vscode-test",
+    "test": "npm run compile && node --enable-source-maps out/test/runTest.js",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
@@ -130,7 +196,8 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.3",
     "prettier": "^3.6.2",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "ts-node": "^10.9.2"
   },
   "dependencies": {
     "debug-tracker-vscode": "^0.0.15"

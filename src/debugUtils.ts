@@ -93,7 +93,7 @@ export class DAPHelpers {
         frame: topFrame,
         scopes: scopesResponse.scopes,
       };
-    } catch (error) {
+    } catch (_error) {
       return null;
     }
   }
@@ -102,24 +102,23 @@ export class DAPHelpers {
     session: vscode.DebugSession,
     variablesReference: number
   ): Promise<VariableInfo[]> {
+    let variablesResponse: any;
     try {
-      const variablesResponse = await session.customRequest('variables', {
+      variablesResponse = await session.customRequest('variables', {
         variablesReference,
       });
-
-      if (!variablesResponse.variables) {
-        return [];
-      }
-
-      return variablesResponse.variables.map((v: Variable) => ({
-        name: v.evaluateName || v.name,
-        value: v.value,
-        type: v.type,
-        isExpandable: v.variablesReference > 0,
-      }));
-    } catch (error) {
+    } catch {
       return [];
     }
+    if (!variablesResponse?.variables) {
+      return [];
+    }
+    return variablesResponse.variables.map((v: Variable) => ({
+      name: v.evaluateName || v.name,
+      value: v.value,
+      type: v.type,
+      isExpandable: v.variablesReference > 0,
+    }));
   }
 
   static async findVariableInScopes(

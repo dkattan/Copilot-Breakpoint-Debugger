@@ -14,7 +14,7 @@ export class GetVariablesTool
   implements LanguageModelTool<GetVariablesToolParameters>
 {
   async invoke(
-    options: LanguageModelToolInvocationOptions<GetVariablesToolParameters>
+    _options: LanguageModelToolInvocationOptions<GetVariablesToolParameters>
   ): Promise<LanguageModelToolResult> {
     try {
       // Check if there's an active debug session
@@ -62,7 +62,7 @@ export class GetVariablesTool
   }
 
   prepareInvocation?(
-    options: LanguageModelToolInvocationPrepareOptions<GetVariablesToolParameters>
+    _options: LanguageModelToolInvocationPrepareOptions<GetVariablesToolParameters>
   ): ProviderResult<vscode.PreparedToolInvocation> {
     return {
       invocationMessage: 'Getting all variables from debug session',

@@ -79,9 +79,9 @@ export class ExpandVariableTool
 
       const result = JSON.stringify(expandedData, null, 2);
       return DAPHelpers.createSuccessResult(result);
-    } catch (error) {
+    } catch (_error) {
       const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error occurred';
+        _error instanceof Error ? _error.message : 'Unknown error occurred';
       return DAPHelpers.createErrorResult(
         `Failed to expand variable: ${errorMessage}`
       );
@@ -93,25 +93,25 @@ export class ExpandVariableTool
     scopes: any[],
     variableName: string
   ): Promise<any | null> {
-    try {
-      for (const scope of scopes) {
-        const variablesResponse = await session.customRequest('variables', {
+    for (const scope of scopes) {
+      let variablesResponse: any;
+      try {
+        variablesResponse = await session.customRequest('variables', {
           variablesReference: scope.variablesReference,
         });
-
-        if (variablesResponse.variables) {
-          const foundVariable = variablesResponse.variables.find(
-            (v: any) => (v.evaluateName || v.name) === variableName
-          );
-          if (foundVariable) {
-            return foundVariable;
-          }
+      } catch {
+        continue; // Skip scopes that fail
+      }
+      if (variablesResponse?.variables) {
+        const foundVariable = variablesResponse.variables.find(
+          (v: any) => (v.evaluateName || v.name) === variableName
+        );
+        if (foundVariable) {
+          return foundVariable;
         }
       }
-      return null;
-    } catch (error) {
-      return null;
     }
+    return null;
   }
 
   prepareInvocation?(

@@ -1,0 +1,837 @@
+{
+  "breakpoint": {
+    "sessionId": "0407913e-3ea9-4fda-b4dc-e855e8962ecd",
+    "sessionName": "Run test.ps1",
+    "threadId": 1,
+    "reason": "breakpoint",
+    "frameId": 0,
+    "filePath": "/Users/darrenkattan/source/repos/vscode-copilot-debugger/test-workspace/test.ps1",
+    "line": 4
+  },
+  "callStack": {
+    "callStacks": [
+      {
+        "sessionId": "0407913e-3ea9-4fda-b4dc-e855e8962ecd",
+        "sessionName": "Run test.ps1",
+        "threads": [
+          {
+            "threadId": 1,
+            "threadName": "PowerShell Pipeline Thread",
+            "stackFrames": [
+              {
+                "id": 0,
+                "name": "<Breakpoint>",
+                "source": {
+                  "path": "/Users/darrenkattan/source/repos/vscode-copilot-debugger/test-workspace/test.ps1"
+                },
+                "line": 4,
+                "column": 1
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "variables": {
+    "sessionId": "0407913e-3ea9-4fda-b4dc-e855e8962ecd",
+    "frameId": 0,
+    "threadId": 1,
+    "variablesByScope": [
+      {
+        "scopeName": "Auto",
+        "variables": []
+      },
+      {
+        "scopeName": "Command",
+        "variables": [
+          {
+            "name": "$args",
+            "value": "[Object[0]]",
+            "type": "[System.Object[]]",
+            "evaluateName": "$args",
+            "variablesReference": 111
+          },
+          {
+            "name": "$input",
+            "value": "[ArrayListEnumeratorSimple]",
+            "type": "[System.Collections.ArrayList+ArrayListEnumeratorSimple]",
+            "evaluateName": "$input",
+            "variablesReference": 112
+          },
+          {
+            "name": "$PSBoundParameters",
+            "value": "[PSBoundParametersDictionary: 0]",
+            "type": "[System.Management.Automation.PSBoundParametersDictionary]",
+            "evaluateName": "$PSBoundParameters",
+            "variablesReference": 113
+          },
+          {
+            "name": "$MyInvocation",
+            "value": "[InvocationInfo]",
+            "type": "[System.Management.Automation.InvocationInfo]",
+            "evaluateName": "$MyInvocation",
+            "variablesReference": 114
+          },
+          {
+            "name": "$PSScriptRoot",
+            "value": "\"/Users/darrenkattan/source/repos/vscode-copilot-debugger/test-workspace\"",
+            "type": "[System.String]",
+            "evaluateName": "$PSScriptRoot",
+            "variablesReference": 0
+          },
+          {
+            "name": "$PSCommandPath",
+            "value": "\"/Users/darrenkattan/source/repos/vscode-copilot-debugger/test-workspace/test.ps1\"",
+            "type": "[System.String]",
+            "evaluateName": "$PSCommandPath",
+            "variablesReference": 0
+          }
+        ]
+      },
+      {
+        "scopeName": "Local",
+        "variables": [
+          {
+            "name": "$^",
+            "value": "$null",
+            "evaluateName": "$^",
+            "variablesReference": 0
+          },
+          {
+            "name": "$$",
+            "value": "$null",
+            "evaluateName": "$$",
+            "variablesReference": 0
+          },
+          {
+            "name": "$args",
+            "value": "[Object[0]]",
+            "type": "[System.Object[]]",
+            "evaluateName": "$args",
+            "variablesReference": 76
+          },
+          {
+            "name": "$ConfirmPreference",
+            "value": "High",
+            "type": "[System.Management.Automation.ConfirmImpact]",
+            "evaluateName": "$ConfirmPreference",
+            "variablesReference": 0
+          },
+          {
+            "name": "$DebugPreference",
+            "value": "SilentlyContinue",
+            "type": "[System.Management.Automation.ActionPreference]",
+            "evaluateName": "$DebugPreference",
+            "variablesReference": 0
+          },
+          {
+            "name": "$Error",
+            "value": "[ArrayList: 0]",
+            "type": "[System.Collections.ArrayList]",
+            "evaluateName": "$Error",
+            "variablesReference": 79
+          },
+          {
+            "name": "$ErrorActionPreference",
+            "value": "Continue",
+            "type": "[System.Management.Automation.ActionPreference]",
+            "evaluateName": "$ErrorActionPreference",
+            "variablesReference": 0
+          },
+          {
+            "name": "$ErrorView",
+            "value": "ConciseView",
+            "type": "[System.Management.Automation.ErrorView]",
+            "evaluateName": "$ErrorView",
+            "variablesReference": 0
+          },
+          {
+            "name": "$FormatEnumerationLimit",
+            "value": "4",
+            "type": "[System.Int32]",
+            "evaluateName": "$FormatEnumerationLimit",
+            "variablesReference": 0
+          },
+          {
+            "name": "$InformationPreference",
+            "value": "SilentlyContinue",
+            "type": "[System.Management.Automation.ActionPreference]",
+            "evaluateName": "$InformationPreference",
+            "variablesReference": 0
+          },
+          {
+            "name": "$input",
+            "value": "[ArrayListEnumeratorSimple]",
+            "type": "[System.Collections.ArrayList+ArrayListEnumeratorSimple]",
+            "evaluateName": "$input",
+            "variablesReference": 84
+          },
+          {
+            "name": "$MaximumHistoryCount",
+            "value": "4096",
+            "type": "[System.Int32]",
+            "evaluateName": "$MaximumHistoryCount",
+            "variablesReference": 0
+          },
+          {
+            "name": "$MyInvocation",
+            "value": "[InvocationInfo]",
+            "type": "[System.Management.Automation.InvocationInfo]",
+            "evaluateName": "$MyInvocation",
+            "variablesReference": 86
+          },
+          {
+            "name": "$NestedPromptLevel",
+            "value": "0",
+            "type": "[System.Int32]",
+            "evaluateName": "$NestedPromptLevel",
+            "variablesReference": 0
+          },
+          {
+            "name": "$OutputEncoding",
+            "value": "[UTF8EncodingSealed]",
+            "type": "[System.Text.UTF8Encoding+UTF8EncodingSealed]",
+            "evaluateName": "$OutputEncoding",
+            "variablesReference": 88
+          },
+          {
+            "name": "$ProgressPreference",
+            "value": "Continue",
+            "type": "[System.Management.Automation.ActionPreference]",
+            "evaluateName": "$ProgressPreference",
+            "variablesReference": 0
+          },
+          {
+            "name": "$PSBoundParameters",
+            "value": "[PSBoundParametersDictionary: 0]",
+            "type": "[System.Management.Automation.PSBoundParametersDictionary]",
+            "evaluateName": "$PSBoundParameters",
+            "variablesReference": 90
+          },
+          {
+            "name": "$PSCommandPath",
+            "value": "\"\"",
+            "type": "[System.String]",
+            "evaluateName": "$PSCommandPath",
+            "variablesReference": 0
+          },
+          {
+            "name": "$PSDebugContext",
+            "value": "[PSDebugContext]",
+            "type": "[System.Management.Automation.PSDebugContext]",
+            "evaluateName": "$PSDebugContext",
+            "variablesReference": 92
+          },
+          {
+            "name": "$PSDefaultParameterValues",
+            "value": "[DefaultParameterDictionary: 0]",
+            "type": "[System.Management.Automation.DefaultParameterDictionary]",
+            "evaluateName": "$PSDefaultParameterValues",
+            "variablesReference": 93
+          },
+          {
+            "name": "$psEditor",
+            "value": "[EditorObject]",
+            "type": "[Microsoft.PowerShell.EditorServices.Extensions.EditorObject]",
+            "evaluateName": "$psEditor",
+            "variablesReference": 94
+          },
+          {
+            "name": "$PSEmailServer",
+            "value": "\"\"",
+            "type": "[System.String]",
+            "evaluateName": "$PSEmailServer",
+            "variablesReference": 0
+          },
+          {
+            "name": "$PSNativeCommandArgumentPassing",
+            "value": "Standard",
+            "type": "[System.Management.Automation.NativeArgumentPassingStyle]",
+            "evaluateName": "$PSNativeCommandArgumentPassing",
+            "variablesReference": 0
+          },
+          {
+            "name": "$PSNativeCommandUseErrorActionPreference",
+            "value": "$false",
+            "type": "boolean",
+            "evaluateName": "$PSNativeCommandUseErrorActionPreference",
+            "variablesReference": 0
+          },
+          {
+            "name": "$PSScriptRoot",
+            "value": "\"\"",
+            "type": "[System.String]",
+            "evaluateName": "$PSScriptRoot",
+            "variablesReference": 0
+          },
+          {
+            "name": "$PSSessionApplicationName",
+            "value": "\"wsman\"",
+            "type": "[System.String]",
+            "evaluateName": "$PSSessionApplicationName",
+            "variablesReference": 0
+          },
+          {
+            "name": "$PSSessionConfigurationName",
+            "value": "\"http://schemas.microsoft.com/powershell/Microsoft.PowerShell\"",
+            "type": "[System.String]",
+            "evaluateName": "$PSSessionConfigurationName",
+            "variablesReference": 0
+          },
+          {
+            "name": "$PSSessionOption",
+            "value": "[PSSessionOption]",
+            "type": "[System.Management.Automation.Remoting.PSSessionOption]",
+            "evaluateName": "$PSSessionOption",
+            "variablesReference": 101
+          },
+          {
+            "name": "$PSStyle",
+            "value": "[PSStyle]",
+            "type": "[System.Management.Automation.PSStyle]",
+            "evaluateName": "$PSStyle",
+            "variablesReference": 102
+          },
+          {
+            "name": "$PWD",
+            "value": "/Users/darrenkattan/source/repos/vscode-copilot-debugger/test-workspace",
+            "type": "[System.Management.Automation.PathInfo]",
+            "evaluateName": "$PWD",
+            "variablesReference": 103
+          },
+          {
+            "name": "$Random",
+            "value": "37671780",
+            "type": "[System.Management.Automation.PSObject]",
+            "evaluateName": "$Random",
+            "variablesReference": 0
+          },
+          {
+            "name": "$StackTrace",
+            "value": "$null",
+            "evaluateName": "$StackTrace",
+            "variablesReference": 0
+          },
+          {
+            "name": "$VerbosePreference",
+            "value": "SilentlyContinue",
+            "type": "[System.Management.Automation.ActionPreference]",
+            "evaluateName": "$VerbosePreference",
+            "variablesReference": 0
+          },
+          {
+            "name": "$WarningPreference",
+            "value": "Continue",
+            "type": "[System.Management.Automation.ActionPreference]",
+            "evaluateName": "$WarningPreference",
+            "variablesReference": 0
+          },
+          {
+            "name": "$WhatIfPreference",
+            "value": "$false",
+            "type": "boolean",
+            "evaluateName": "$WhatIfPreference",
+            "variablesReference": 0
+          }
+        ]
+      },
+      {
+        "scopeName": "Script",
+        "variables": [
+          {
+            "name": "$^",
+            "value": "$null",
+            "evaluateName": "$^",
+            "variablesReference": 0
+          },
+          {
+            "name": "$$",
+            "value": "$null",
+            "evaluateName": "$$",
+            "variablesReference": 0
+          },
+          {
+            "name": "$args",
+            "value": "[Object[0]]",
+            "type": "[System.Object[]]",
+            "evaluateName": "$args",
+            "variablesReference": 40
+          },
+          {
+            "name": "$ConfirmPreference",
+            "value": "High",
+            "type": "[System.Management.Automation.ConfirmImpact]",
+            "evaluateName": "$ConfirmPreference",
+            "variablesReference": 0
+          },
+          {
+            "name": "$DebugPreference",
+            "value": "SilentlyContinue",
+            "type": "[System.Management.Automation.ActionPreference]",
+            "evaluateName": "$DebugPreference",
+            "variablesReference": 0
+          },
+          {
+            "name": "$Error",
+            "value": "[ArrayList: 0]",
+            "type": "[System.Collections.ArrayList]",
+            "evaluateName": "$Error",
+            "variablesReference": 43
+          },
+          {
+            "name": "$ErrorActionPreference",
+            "value": "Continue",
+            "type": "[System.Management.Automation.ActionPreference]",
+            "evaluateName": "$ErrorActionPreference",
+            "variablesReference": 0
+          },
+          {
+            "name": "$ErrorView",
+            "value": "ConciseView",
+            "type": "[System.Management.Automation.ErrorView]",
+            "evaluateName": "$ErrorView",
+            "variablesReference": 0
+          },
+          {
+            "name": "$FormatEnumerationLimit",
+            "value": "4",
+            "type": "[System.Int32]",
+            "evaluateName": "$FormatEnumerationLimit",
+            "variablesReference": 0
+          },
+          {
+            "name": "$InformationPreference",
+            "value": "SilentlyContinue",
+            "type": "[System.Management.Automation.ActionPreference]",
+            "evaluateName": "$InformationPreference",
+            "variablesReference": 0
+          },
+          {
+            "name": "$input",
+            "value": "[ArrayListEnumeratorSimple]",
+            "type": "[System.Collections.ArrayList+ArrayListEnumeratorSimple]",
+            "evaluateName": "$input",
+            "variablesReference": 48
+          },
+          {
+            "name": "$MaximumHistoryCount",
+            "value": "4096",
+            "type": "[System.Int32]",
+            "evaluateName": "$MaximumHistoryCount",
+            "variablesReference": 0
+          },
+          {
+            "name": "$MyInvocation",
+            "value": "[InvocationInfo]",
+            "type": "[System.Management.Automation.InvocationInfo]",
+            "evaluateName": "$MyInvocation",
+            "variablesReference": 50
+          },
+          {
+            "name": "$NestedPromptLevel",
+            "value": "0",
+            "type": "[System.Int32]",
+            "evaluateName": "$NestedPromptLevel",
+            "variablesReference": 0
+          },
+          {
+            "name": "$OutputEncoding",
+            "value": "[UTF8EncodingSealed]",
+            "type": "[System.Text.UTF8Encoding+UTF8EncodingSealed]",
+            "evaluateName": "$OutputEncoding",
+            "variablesReference": 52
+          },
+          {
+            "name": "$ProgressPreference",
+            "value": "Continue",
+            "type": "[System.Management.Automation.ActionPreference]",
+            "evaluateName": "$ProgressPreference",
+            "variablesReference": 0
+          },
+          {
+            "name": "$PSBoundParameters",
+            "value": "[PSBoundParametersDictionary: 0]",
+            "type": "[System.Management.Automation.PSBoundParametersDictionary]",
+            "evaluateName": "$PSBoundParameters",
+            "variablesReference": 54
+          },
+          {
+            "name": "$PSCommandPath",
+            "value": "\"\"",
+            "type": "[System.String]",
+            "evaluateName": "$PSCommandPath",
+            "variablesReference": 0
+          },
+          {
+            "name": "$PSDebugContext",
+            "value": "[PSDebugContext]",
+            "type": "[System.Management.Automation.PSDebugContext]",
+            "evaluateName": "$PSDebugContext",
+            "variablesReference": 56
+          },
+          {
+            "name": "$PSDefaultParameterValues",
+            "value": "[DefaultParameterDictionary: 0]",
+            "type": "[System.Management.Automation.DefaultParameterDictionary]",
+            "evaluateName": "$PSDefaultParameterValues",
+            "variablesReference": 57
+          },
+          {
+            "name": "$psEditor",
+            "value": "[EditorObject]",
+            "type": "[Microsoft.PowerShell.EditorServices.Extensions.EditorObject]",
+            "evaluateName": "$psEditor",
+            "variablesReference": 58
+          },
+          {
+            "name": "$PSEmailServer",
+            "value": "\"\"",
+            "type": "[System.String]",
+            "evaluateName": "$PSEmailServer",
+            "variablesReference": 0
+          },
+          {
+            "name": "$PSNativeCommandArgumentPassing",
+            "value": "Standard",
+            "type": "[System.Management.Automation.NativeArgumentPassingStyle]",
+            "evaluateName": "$PSNativeCommandArgumentPassing",
+            "variablesReference": 0
+          },
+          {
+            "name": "$PSNativeCommandUseErrorActionPreference",
+            "value": "$false",
+            "type": "boolean",
+            "evaluateName": "$PSNativeCommandUseErrorActionPreference",
+            "variablesReference": 0
+          },
+          {
+            "name": "$PSScriptRoot",
+            "value": "\"\"",
+            "type": "[System.String]",
+            "evaluateName": "$PSScriptRoot",
+            "variablesReference": 0
+          },
+          {
+            "name": "$PSSessionApplicationName",
+            "value": "\"wsman\"",
+            "type": "[System.String]",
+            "evaluateName": "$PSSessionApplicationName",
+            "variablesReference": 0
+          },
+          {
+            "name": "$PSSessionConfigurationName",
+            "value": "\"http://schemas.microsoft.com/powershell/Microsoft.PowerShell\"",
+            "type": "[System.String]",
+            "evaluateName": "$PSSessionConfigurationName",
+            "variablesReference": 0
+          },
+          {
+            "name": "$PSSessionOption",
+            "value": "[PSSessionOption]",
+            "type": "[System.Management.Automation.Remoting.PSSessionOption]",
+            "evaluateName": "$PSSessionOption",
+            "variablesReference": 65
+          },
+          {
+            "name": "$PSStyle",
+            "value": "[PSStyle]",
+            "type": "[System.Management.Automation.PSStyle]",
+            "evaluateName": "$PSStyle",
+            "variablesReference": 66
+          },
+          {
+            "name": "$PWD",
+            "value": "/Users/darrenkattan/source/repos/vscode-copilot-debugger/test-workspace",
+            "type": "[System.Management.Automation.PathInfo]",
+            "evaluateName": "$PWD",
+            "variablesReference": 67
+          },
+          {
+            "name": "$Random",
+            "value": "37671780",
+            "type": "[System.Management.Automation.PSObject]",
+            "evaluateName": "$Random",
+            "variablesReference": 0
+          },
+          {
+            "name": "$StackTrace",
+            "value": "$null",
+            "evaluateName": "$StackTrace",
+            "variablesReference": 0
+          },
+          {
+            "name": "$VerbosePreference",
+            "value": "SilentlyContinue",
+            "type": "[System.Management.Automation.ActionPreference]",
+            "evaluateName": "$VerbosePreference",
+            "variablesReference": 0
+          },
+          {
+            "name": "$WarningPreference",
+            "value": "Continue",
+            "type": "[System.Management.Automation.ActionPreference]",
+            "evaluateName": "$WarningPreference",
+            "variablesReference": 0
+          },
+          {
+            "name": "$WhatIfPreference",
+            "value": "$false",
+            "type": "boolean",
+            "evaluateName": "$WhatIfPreference",
+            "variablesReference": 0
+          }
+        ]
+      },
+      {
+        "scopeName": "Global",
+        "variables": [
+          {
+            "name": "$^",
+            "value": "$null",
+            "evaluateName": "$^",
+            "variablesReference": 0
+          },
+          {
+            "name": "$$",
+            "value": "$null",
+            "evaluateName": "$$",
+            "variablesReference": 0
+          },
+          {
+            "name": "$args",
+            "value": "[Object[0]]",
+            "type": "[System.Object[]]",
+            "evaluateName": "$args",
+            "variablesReference": 4
+          },
+          {
+            "name": "$ConfirmPreference",
+            "value": "High",
+            "type": "[System.Management.Automation.ConfirmImpact]",
+            "evaluateName": "$ConfirmPreference",
+            "variablesReference": 0
+          },
+          {
+            "name": "$DebugPreference",
+            "value": "SilentlyContinue",
+            "type": "[System.Management.Automation.ActionPreference]",
+            "evaluateName": "$DebugPreference",
+            "variablesReference": 0
+          },
+          {
+            "name": "$Error",
+            "value": "[ArrayList: 0]",
+            "type": "[System.Collections.ArrayList]",
+            "evaluateName": "$Error",
+            "variablesReference": 7
+          },
+          {
+            "name": "$ErrorActionPreference",
+            "value": "Continue",
+            "type": "[System.Management.Automation.ActionPreference]",
+            "evaluateName": "$ErrorActionPreference",
+            "variablesReference": 0
+          },
+          {
+            "name": "$ErrorView",
+            "value": "ConciseView",
+            "type": "[System.Management.Automation.ErrorView]",
+            "evaluateName": "$ErrorView",
+            "variablesReference": 0
+          },
+          {
+            "name": "$FormatEnumerationLimit",
+            "value": "4",
+            "type": "[System.Int32]",
+            "evaluateName": "$FormatEnumerationLimit",
+            "variablesReference": 0
+          },
+          {
+            "name": "$InformationPreference",
+            "value": "SilentlyContinue",
+            "type": "[System.Management.Automation.ActionPreference]",
+            "evaluateName": "$InformationPreference",
+            "variablesReference": 0
+          },
+          {
+            "name": "$input",
+            "value": "[ArrayListEnumeratorSimple]",
+            "type": "[System.Collections.ArrayList+ArrayListEnumeratorSimple]",
+            "evaluateName": "$input",
+            "variablesReference": 12
+          },
+          {
+            "name": "$MaximumHistoryCount",
+            "value": "4096",
+            "type": "[System.Int32]",
+            "evaluateName": "$MaximumHistoryCount",
+            "variablesReference": 0
+          },
+          {
+            "name": "$MyInvocation",
+            "value": "[InvocationInfo]",
+            "type": "[System.Management.Automation.InvocationInfo]",
+            "evaluateName": "$MyInvocation",
+            "variablesReference": 14
+          },
+          {
+            "name": "$NestedPromptLevel",
+            "value": "0",
+            "type": "[System.Int32]",
+            "evaluateName": "$NestedPromptLevel",
+            "variablesReference": 0
+          },
+          {
+            "name": "$OutputEncoding",
+            "value": "[UTF8EncodingSealed]",
+            "type": "[System.Text.UTF8Encoding+UTF8EncodingSealed]",
+            "evaluateName": "$OutputEncoding",
+            "variablesReference": 16
+          },
+          {
+            "name": "$ProgressPreference",
+            "value": "Continue",
+            "type": "[System.Management.Automation.ActionPreference]",
+            "evaluateName": "$ProgressPreference",
+            "variablesReference": 0
+          },
+          {
+            "name": "$PSBoundParameters",
+            "value": "[PSBoundParametersDictionary: 0]",
+            "type": "[System.Management.Automation.PSBoundParametersDictionary]",
+            "evaluateName": "$PSBoundParameters",
+            "variablesReference": 18
+          },
+          {
+            "name": "$PSCommandPath",
+            "value": "\"\"",
+            "type": "[System.String]",
+            "evaluateName": "$PSCommandPath",
+            "variablesReference": 0
+          },
+          {
+            "name": "$PSDebugContext",
+            "value": "[PSDebugContext]",
+            "type": "[System.Management.Automation.PSDebugContext]",
+            "evaluateName": "$PSDebugContext",
+            "variablesReference": 20
+          },
+          {
+            "name": "$PSDefaultParameterValues",
+            "value": "[DefaultParameterDictionary: 0]",
+            "type": "[System.Management.Automation.DefaultParameterDictionary]",
+            "evaluateName": "$PSDefaultParameterValues",
+            "variablesReference": 21
+          },
+          {
+            "name": "$psEditor",
+            "value": "[EditorObject]",
+            "type": "[Microsoft.PowerShell.EditorServices.Extensions.EditorObject]",
+            "evaluateName": "$psEditor",
+            "variablesReference": 22
+          },
+          {
+            "name": "$PSEmailServer",
+            "value": "\"\"",
+            "type": "[System.String]",
+            "evaluateName": "$PSEmailServer",
+            "variablesReference": 0
+          },
+          {
+            "name": "$PSNativeCommandArgumentPassing",
+            "value": "Standard",
+            "type": "[System.Management.Automation.NativeArgumentPassingStyle]",
+            "evaluateName": "$PSNativeCommandArgumentPassing",
+            "variablesReference": 0
+          },
+          {
+            "name": "$PSNativeCommandUseErrorActionPreference",
+            "value": "$false",
+            "type": "boolean",
+            "evaluateName": "$PSNativeCommandUseErrorActionPreference",
+            "variablesReference": 0
+          },
+          {
+            "name": "$PSScriptRoot",
+            "value": "\"\"",
+            "type": "[System.String]",
+            "evaluateName": "$PSScriptRoot",
+            "variablesReference": 0
+          },
+          {
+            "name": "$PSSessionApplicationName",
+            "value": "\"wsman\"",
+            "type": "[System.String]",
+            "evaluateName": "$PSSessionApplicationName",
+            "variablesReference": 0
+          },
+          {
+            "name": "$PSSessionConfigurationName",
+            "value": "\"http://schemas.microsoft.com/powershell/Microsoft.PowerShell\"",
+            "type": "[System.String]",
+            "evaluateName": "$PSSessionConfigurationName",
+            "variablesReference": 0
+          },
+          {
+            "name": "$PSSessionOption",
+            "value": "[PSSessionOption]",
+            "type": "[System.Management.Automation.Remoting.PSSessionOption]",
+            "evaluateName": "$PSSessionOption",
+            "variablesReference": 29
+          },
+          {
+            "name": "$PSStyle",
+            "value": "[PSStyle]",
+            "type": "[System.Management.Automation.PSStyle]",
+            "evaluateName": "$PSStyle",
+            "variablesReference": 30
+          },
+          {
+            "name": "$PWD",
+            "value": "/Users/darrenkattan/source/repos/vscode-copilot-debugger/test-workspace",
+            "type": "[System.Management.Automation.PathInfo]",
+            "evaluateName": "$PWD",
+            "variablesReference": 31
+          },
+          {
+            "name": "$Random",
+            "value": "37671780",
+            "type": "[System.Management.Automation.PSObject]",
+            "evaluateName": "$Random",
+            "variablesReference": 0
+          },
+          {
+            "name": "$StackTrace",
+            "value": "$null",
+            "evaluateName": "$StackTrace",
+            "variablesReference": 0
+          },
+          {
+            "name": "$VerbosePreference",
+            "value": "SilentlyContinue",
+            "type": "[System.Management.Automation.ActionPreference]",
+            "evaluateName": "$VerbosePreference",
+            "variablesReference": 0
+          },
+          {
+            "name": "$WarningPreference",
+            "value": "Continue",
+            "type": "[System.Management.Automation.ActionPreference]",
+            "evaluateName": "$WarningPreference",
+            "variablesReference": 0
+          },
+          {
+            "name": "$WhatIfPreference",
+            "value": "$false",
+            "type": "boolean",
+            "evaluateName": "$WhatIfPreference",
+            "variablesReference": 0
+          }
+        ]
+      }
+    ],
+    "debuggerType": "PowerShell"
+  },
+  "variablesError": null
+}

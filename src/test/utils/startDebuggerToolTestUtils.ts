@@ -1,0 +1,114 @@
+import * as vscode from 'vscode';
+import * as path from 'path';
+import { StartDebuggerTool } from '../../startDebuggerTool';
+import {
+  POWERSHELL_EXTENSION_ID,
+  resolveWorkspaceFolder,
+} from './debugTestUtils';
+
+export interface StartDebuggerInvocationOptions {
+  scriptRelativePath: string; // Path relative to extension root (e.g., 'test-workspace/test.ps1')
+  timeoutSeconds?: number;
+  variableFilter?: string[];
+  breakpointLines?: number[]; // Breakpoints on first script path
+}
+
+export interface StartDebuggerResult {
+  textOutput: string;
+  parts: any[];
+}
+
+/** Resolve extension root path. */
+export function getExtensionRoot(): string {
+  return (
+    vscode.extensions.getExtension('copilot-debugger')?.extensionPath ||
+    path.resolve(__dirname, '../../..')
+  );
+}
+
+/** Ensure PowerShell extension is available and activated; returns false if missing and test should skip. */
+export async function ensurePowerShellExtension(): Promise<boolean> {
+  const pwshExtension = vscode.extensions.getExtension(POWERSHELL_EXTENSION_ID);
+  if (!pwshExtension) {
+    return false;
+  }
+  if (!pwshExtension.isActive) {
+    await pwshExtension.activate();
+  }
+  return true;
+}
+
+/** Activate our extension under test. */
+export async function activateCopilotDebugger(): Promise<void> {
+  await vscode.extensions.getExtension('copilot-debugger')?.activate();
+}
+
+/** Open a script document and show it. */
+export async function openScriptDocument(scriptUri: vscode.Uri): Promise<void> {
+  const doc = await vscode.workspace.openTextDocument(scriptUri);
+  await vscode.window.showTextDocument(doc);
+}
+
+/** Invoke StartDebuggerTool with supplied options and return aggregated output parts. */
+export async function invokeStartDebuggerTool(
+  opts: StartDebuggerInvocationOptions
+): Promise<StartDebuggerResult> {
+  const extensionRoot = getExtensionRoot();
+  const scriptUri = vscode.Uri.file(
+    path.join(extensionRoot, opts.scriptRelativePath)
+  );
+  const workspaceFolder = resolveWorkspaceFolder(extensionRoot);
+
+  await openScriptDocument(scriptUri);
+  const hasPowerShell = await ensurePowerShellExtension();
+  if (!hasPowerShell) {
+    throw new Error('pwsh-missing');
+  }
+  await activateCopilotDebugger();
+
+  const tool = new StartDebuggerTool();
+  const breakpointLines = opts.breakpointLines?.length
+    ? opts.breakpointLines
+    : [1];
+  const breakpoints = breakpointLines.map(line => ({
+    path: scriptUri.fsPath,
+    line,
+  }));
+
+  const result = await tool.invoke({
+    input: {
+      workspaceFolder,
+      timeout_seconds: opts.timeoutSeconds ?? 60,
+      variableFilter: opts.variableFilter ?? ['PWD', 'HOME'],
+      breakpointConfig: { breakpoints },
+    },
+    toolInvocationToken: undefined,
+  });
+
+  const parts: any[] = (result as any).parts || (result as any).content || [];
+  const textOutput = parts
+    .map(p => (p.text ? p.text : JSON.stringify(p)))
+    .join('\n');
+  return { textOutput, parts };
+}
+
+/** Common assertions verifying the debug session started and breakpoint info captured. */
+export function assertStartDebuggerOutput(textOutput: string): void {
+  const timedOut = /timed out/i.test(textOutput);
+  const startError = /Error starting debug session/i.test(textOutput);
+  if (timedOut) {
+    throw new Error('Debug session timed out waiting for breakpoint');
+  }
+  if (startError) {
+    throw new Error('Encountered error starting debug session');
+  }
+  if (!/(Debug session .* stopped|breakpoint)/i.test(textOutput)) {
+    throw new Error('Missing stopped-session or breakpoint descriptor');
+  }
+  if (!/(\\?"breakpoint\\?"|breakpoint)\s*:/i.test(textOutput)) {
+    throw new Error('Missing breakpoint JSON info');
+  }
+  if (!(/"line"\s*:\s*\d+/.test(textOutput) || /test\.ps1/i.test(textOutput))) {
+    throw new Error('Missing line number or script reference in debug info');
+  }
+}

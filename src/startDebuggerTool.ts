@@ -18,7 +18,13 @@ export interface StartDebuggerToolParameters {
   timeout_seconds?: number; // Optional timeout for waiting for breakpoint (defaults handled downstream)
   breakpointConfig?: {
     disableExisting?: boolean;
-    breakpoints?: Array<{ path: string; line: number }>;
+    breakpoints?: Array<{
+      path: string;
+      line: number;
+      condition?: string; // Optional conditional expression (e.g., "x > 5")
+      hitCondition?: string; // Optional hit count condition (e.g., ">10", "==5", "%3")
+      logMessage?: string; // Optional log message (logpoint)
+    }>;
   };
 }
 

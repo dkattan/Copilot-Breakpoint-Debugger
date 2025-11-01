@@ -1,13 +1,35 @@
 {
   "name": "copilot-debugger",
   "displayName": "Copilot Debugger",
-  "description": "Debug your code with GitHub Copilot",
+  "description": "Use GitHub Copilot to automate starting, inspecting and resuming VS Code debug sessions (breakpoints, call stacks, variables).",
   "version": "0.0.1",
+  "publisher": "dkattan",
+  "preview": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dkattan/vscode-copilot-debugger"
+  },
+  "bugs": {
+    "url": "https://github.com/dkattan/vscode-copilot-debugger/issues"
+  },
+  "homepage": "https://github.com/dkattan/vscode-copilot-debugger#readme",
+  "icon": "images/icon.png",
   "engines": {
     "vscode": "^1.102.0"
   },
   "categories": [
+    "Debuggers",
     "Other"
+  ],
+  "keywords": [
+    "copilot",
+    "debug",
+    "breakpoint",
+    "variables",
+    "stack",
+    "resume",
+    "ai"
   ],
   "activationEvents": [
     "onLanguageModelTools"
@@ -75,6 +97,18 @@
                       "line": {
                         "type": "integer",
                         "description": "1-based line number for the breakpoint."
+                      },
+                      "condition": {
+                        "type": "string",
+                        "description": "Optional conditional expression (e.g., 'x > 5'). Breakpoint only triggers when condition evaluates to true."
+                      },
+                      "hitCondition": {
+                        "type": "string",
+                        "description": "Optional hit count condition (e.g., '>10', '==5', '%3'). Breakpoint triggers based on hit count."
+                      },
+                      "logMessage": {
+                        "type": "string",
+                        "description": "Optional log message for logpoint. Uses curly braces for variable interpolation (e.g., 'Value is {x}')."
                       }
                     },
                     "required": [
@@ -124,6 +158,18 @@
                       },
                       "line": {
                         "type": "integer"
+                      },
+                      "condition": {
+                        "type": "string",
+                        "description": "Optional conditional expression (e.g., 'x > 5'). Breakpoint only triggers when condition evaluates to true."
+                      },
+                      "hitCondition": {
+                        "type": "string",
+                        "description": "Optional hit count condition (e.g., '>10', '==5', '%3'). Breakpoint triggers based on hit count."
+                      },
+                      "logMessage": {
+                        "type": "string",
+                        "description": "Optional log message for logpoint. Uses curly braces for variable interpolation (e.g., 'Value is {x}')."
                       }
                     },
                     "required": [
@@ -176,7 +222,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
+    "compile": "npm run format && tsc -p ./",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run lint",
     "lint": "eslint src",

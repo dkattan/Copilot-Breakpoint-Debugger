@@ -61,6 +61,23 @@ The extension contributes language model tools that allow Copilot to interact wi
 
 Tools are automatically available to Copilot when the extension is active.
 
+### Breakpoint Features
+
+All breakpoint-related tools (`start_debugger` and `resume_debug_session`) support advanced breakpoint configurations:
+
+- **Conditional Breakpoints**: Set `condition` to specify an expression that must evaluate to true for the breakpoint to trigger
+  - Example: `condition: "$i -ge 3"` (PowerShell) or `condition: "x > 5"` (JavaScript)
+  - The breakpoint will only pause execution when the condition is met
+- **Hit Count Breakpoints**: Set `hitCondition` to control breakpoint triggering based on hit count
+  - Example: `hitCondition: "3"` (trigger on 3rd hit), `hitCondition: ">10"` (trigger after 10 hits), `hitCondition: "%3"` (trigger every 3rd hit)
+  - Useful for debugging issues that only occur after multiple iterations
+- **Logpoints**: Set `logMessage` to log a message without stopping execution
+  - Example: `logMessage: "Loop iteration: {$i}"` (PowerShell) or `logMessage: "Value is {x}"` (JavaScript)
+  - Use curly braces for variable interpolation
+  - Logpoints don't pause execution, making them useful for tracing without interrupting the program flow
+
+All three properties are optional and can be combined with basic breakpoints that only specify `path` and `line`.
+
 ## Prerequisites
 
 This extension requires the **debug-tracker-vscode** extension to be installed for the `wait_for_breakpoint` tool to function:

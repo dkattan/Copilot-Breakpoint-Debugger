@@ -176,7 +176,13 @@ export const startDebuggingAndWaitForStop = async (params: {
   timeout_seconds?: number;
   breakpointConfig?: {
     disableExisting?: boolean;
-    breakpoints?: Array<{ path: string; line: number }>;
+    breakpoints?: Array<{
+      path: string;
+      line: number;
+      condition?: string;
+      hitCondition?: string;
+      logMessage?: string;
+    }>;
   };
 }) => {
   const {
@@ -227,7 +233,13 @@ export const startDebuggingAndWaitForStop = async (params: {
           bp.path.startsWith('/') ? bp.path : `${workspaceFolder}/${bp.path}`
         );
         const location = new vscode.Position(bp.line - 1, 0); // VSCode uses 0-based line numbers
-        return new vscode.SourceBreakpoint(new vscode.Location(uri, location));
+        return new vscode.SourceBreakpoint(
+          new vscode.Location(uri, location),
+          true, // enabled
+          bp.condition,
+          bp.hitCondition,
+          bp.logMessage
+        );
       });
       vscode.debug.addBreakpoints(newBreakpoints);
     }
@@ -348,7 +360,13 @@ export const resumeDebugSession = async (params: {
   waitForStop?: boolean;
   breakpointConfig?: {
     disableExisting?: boolean;
-    breakpoints?: Array<{ path: string; line: number }>;
+    breakpoints?: Array<{
+      path: string;
+      line: number;
+      condition?: string;
+      hitCondition?: string;
+      logMessage?: string;
+    }>;
   };
 }) => {
   const { sessionId, waitForStop = false, breakpointConfig } = params;
@@ -406,7 +424,11 @@ export const resumeDebugSession = async (params: {
           );
           const location = new vscode.Position(bp.line - 1, 0); // VSCode uses 0-based line numbers
           return new vscode.SourceBreakpoint(
-            new vscode.Location(uri, location)
+            new vscode.Location(uri, location),
+            true, // enabled
+            bp.condition,
+            bp.hitCondition,
+            bp.logMessage
           );
         });
         vscode.debug.addBreakpoints(newBreakpoints);

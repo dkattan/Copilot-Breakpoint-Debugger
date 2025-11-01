@@ -2,10 +2,51 @@
   "folders": [
     {
       "path": ".",
+      "name": "Extension Root",
+    },
+    {
+      "path": "test-workspace/a",
+      "name": "Test Workspace A (PowerShell)",
+    },
+    {
+      "path": "test-workspace/b",
+      "name": "Test Workspace B (Node.js)",
     },
   ],
   "settings": {
     "typescript.tsc.autoDetect": "off",
     "powershell.cwd": "vscode-copilot-debugger",
+  },
+  "launch": {
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Run test.ps1 (Workspace A)",
+        "type": "PowerShell",
+        "request": "launch",
+        "script": "${workspaceFolder:Test Workspace A (PowerShell)}/test.ps1",
+        "cwd": "${workspaceFolder:Test Workspace A (PowerShell)}",
+        "createTemporaryIntegratedConsole": true,
+      },
+      {
+        "name": "Run test.js (Workspace B)",
+        "type": "node",
+        "request": "launch",
+        "program": "${workspaceFolder:Test Workspace B (Node.js)}/test.js",
+        "cwd": "${workspaceFolder:Test Workspace B (Node.js)}",
+        "console": "integratedTerminal",
+      },
+    ],
+    "compounds": [
+      {
+        "name": "Run Both Tests (Compound)",
+        "configurations": [
+          "Run test.ps1 (Workspace A)",
+          "Run test.js (Workspace B)",
+        ],
+        "stopAll": true,
+        "preLaunchTask": null,
+      },
+    ],
   },
 }

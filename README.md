@@ -82,6 +82,47 @@ Contributions are welcome!
 - `npm run watch` – Incremental TypeScript compilation
 - `npm test` – Compiles then runs test suite
 - `npm run lint` – ESLint static analysis
+- `npm run format` – Auto-format code with Prettier
+- `npm run format:check` – Check formatting without changes
+
+### Testing
+
+#### Automated Local Testing
+
+When you open this workspace in VS Code, a task automatically configures git hooks that run all checks before each commit:
+
+1. **Format Check** - Ensures code follows Prettier rules
+2. **Linter** - Runs ESLint
+3. **TypeScript Compilation** - Verifies code compiles
+4. **Tests** - Runs the full test suite
+
+This ensures quality code is committed without relying on CI for feedback.
+
+#### Test Organization
+
+- **Unit Tests**: `src/test/extension.test.ts`, `src/test/getStackFrameVariables.test.ts`
+- **Integration Tests (Node.js)**: `src/test/*.node.test.ts` - Test debug functionality with Node.js
+- **Integration Tests (PowerShell)**: `src/test/*.test.ts` (non-.node) - Test with PowerShell (local only)
+
+#### Running Tests
+
+```bash
+# Run all tests
+npm test
+
+# Run tests in CI mode (skips PowerShell-only tests)
+CI=true npm test
+```
+
+#### CI Testing Strategy
+
+Integration tests that start actual debug sessions are **skipped in CI** because:
+
+- VS Code debug sessions don't reliably initialize in headless CI environments
+- Even Microsoft's official extension samples skip complex debugging tests in CI
+- Tests run automatically via git hooks before local commits
+
+PowerShell-based tests are skipped in CI since they require PowerShell runtime. The Node.js test equivalents provide the same coverage using JavaScript.
 
 ## 📦 Publishing (Maintainer Notes)
 

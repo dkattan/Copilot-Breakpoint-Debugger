@@ -1,0 +1,55 @@
+#!/bin/bash
+
+# Pre-commit hook to run tests before committing
+# This ensures code quality and prevents broken commits
+
+echo "🧪 Running tests before commit..."
+echo ""
+
+# Run format check
+echo "📝 Checking code formatting..."
+npm run format:check
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "❌ Format check failed. Run 'npm run format' to fix formatting issues."
+  exit 1
+fi
+
+# Run linter
+echo ""
+echo "🔍 Running linter..."
+npm run lint
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "❌ Linting failed. Fix the issues above before committing."
+  exit 1
+fi
+
+# Compile TypeScript
+echo ""
+echo "🔨 Compiling TypeScript..."
+npm run compile
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "❌ TypeScript compilation failed. Fix the errors above before committing."
+  exit 1
+fi
+
+# Run tests
+echo ""
+echo "🧪 Running tests..."
+npm test
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "❌ Tests failed. Fix the failing tests before committing."
+  echo ""
+  echo "💡 Tip: If tests are timing out or hanging, you may need to:"
+  echo "   - Close any running VS Code instances testing the extension"
+  echo "   - Kill any hanging test processes"
+  echo "   - Run tests again"
+  exit 1
+fi
+
+echo ""
+echo "✅ All checks passed! Proceeding with commit."
+echo ""

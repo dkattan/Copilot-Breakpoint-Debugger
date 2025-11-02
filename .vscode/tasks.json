@@ -32,6 +32,23 @@
         "panel": "shared"
       },
       "problemMatcher": []
+    },
+    {
+      "label": "setup-git-hooks",
+      "type": "shell",
+      "command": "chmod +x .githooks/pre-commit && git config core.hooksPath .githooks && echo 'Git hooks configured to run tests before commit'",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "silent",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "runOptions": {
+        "runOn": "folderOpen"
+      }
     }
   ]
 }

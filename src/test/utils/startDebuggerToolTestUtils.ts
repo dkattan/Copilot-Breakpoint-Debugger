@@ -62,10 +62,15 @@ export async function invokeStartDebuggerTool(
   const workspaceFolder = resolveWorkspaceFolder(extensionRoot);
 
   await openScriptDocument(scriptUri);
-  const hasPowerShell = await ensurePowerShellExtension();
-  if (!hasPowerShell) {
-    throw new Error('pwsh-missing');
+
+  // Only check for PowerShell extension if using PowerShell scripts
+  if (opts.scriptRelativePath.endsWith('.ps1')) {
+    const hasPowerShell = await ensurePowerShellExtension();
+    if (!hasPowerShell) {
+      throw new Error('pwsh-missing');
+    }
   }
+
   await activateCopilotDebugger();
 
   const tool = new StartDebuggerTool();
@@ -110,7 +115,12 @@ export function assertStartDebuggerOutput(textOutput: string): void {
   if (!/(\\?"breakpoint\\?"|breakpoint)\s*:/i.test(textOutput)) {
     throw new Error('Missing breakpoint JSON info');
   }
-  if (!(/"line"\s*:\s*\d+/.test(textOutput) || /test\.ps1/i.test(textOutput))) {
+  if (
+    !(
+      /"line"\s*:\s*\d+/.test(textOutput) ||
+      /test\.(ps1|js)/i.test(textOutput)
+    )
+  ) {
     throw new Error('Missing line number or script reference in debug info');
   }
 }

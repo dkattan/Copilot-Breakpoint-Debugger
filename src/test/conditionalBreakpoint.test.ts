@@ -15,7 +15,7 @@ import {
 // Note: This suite requires PowerShell runtime and is skipped in CI environments.
 
 suite('Conditional Breakpoint Integration (PowerShell)', () => {
-  before(function () {
+  setup(function () {
     // Skip entire suite in CI - requires PowerShell runtime
     if (process.env.CI) {
       console.log(

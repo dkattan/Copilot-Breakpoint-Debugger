@@ -53,6 +53,15 @@ function extractVariableCounts(result: StartDebuggerResult): {
 
 suite('Variable Filter Reduces Payload', () => {
   test('filtered variables are fewer than unfiltered', async function () {
+    // Skip PowerShell tests in CI - they require PowerShell runtime
+    if (process.env.CI) {
+      console.log(
+        'Skipping PowerShell variable filter test in CI (use Node.js tests for coverage)'
+      );
+      this.skip();
+      return;
+    }
+
     this.timeout(60000);
     // Skip if PowerShell extension missing
     const hasPwsh = await ensurePowerShellExtension();

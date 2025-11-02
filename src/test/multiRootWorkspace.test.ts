@@ -13,6 +13,15 @@ import {
 
 suite('Multi-Root Workspace Integration', () => {
   test('workspace A (PowerShell) - individual debug session', async function () {
+    // Skip PowerShell tests in CI - they require PowerShell runtime
+    if (process.env.CI) {
+      console.log(
+        'Skipping PowerShell workspace test in CI (use Node.js tests for coverage)'
+      );
+      this.skip();
+      return;
+    }
+
     this.timeout(60000);
 
     const extensionRoot = getExtensionRoot();
@@ -128,6 +137,15 @@ suite('Multi-Root Workspace Integration', () => {
   });
 
   test('workspace A with conditional breakpoint (PowerShell)', async function () {
+    // Skip PowerShell tests in CI - they require PowerShell runtime
+    if (process.env.CI) {
+      console.log(
+        'Skipping PowerShell conditional breakpoint test in CI (use Node.js tests for coverage)'
+      );
+      this.skip();
+      return;
+    }
+
     this.timeout(60000);
 
     const extensionRoot = getExtensionRoot();

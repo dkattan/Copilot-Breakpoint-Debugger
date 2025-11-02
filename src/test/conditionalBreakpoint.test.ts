@@ -11,8 +11,20 @@ import {
 
 // Integration test: tests conditional breakpoints by setting a breakpoint
 // that only triggers when $i >= 3 in the loop
+//
+// Note: This suite requires PowerShell runtime and is skipped in CI environments.
 
 suite('Conditional Breakpoint Integration (PowerShell)', () => {
+  before(function () {
+    // Skip entire suite in CI - requires PowerShell runtime
+    if (process.env.CI) {
+      console.log(
+        'Skipping PowerShell conditional breakpoint tests in CI (use Node.js tests for coverage)'
+      );
+      this.skip();
+    }
+  });
+
   test('conditional breakpoint triggers only when condition is met', async function () {
     this.timeout(60000); // allow time for activation + breakpoint
 

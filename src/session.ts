@@ -228,20 +228,58 @@ export const startDebuggingAndWaitForStop = async (params: {
       breakpointConfig.breakpoints &&
       breakpointConfig.breakpoints.length > 0
     ) {
-      const newBreakpoints = breakpointConfig.breakpoints.map(bp => {
-        const uri = vscode.Uri.file(
-          bp.path.startsWith('/') ? bp.path : `${workspaceFolder}/${bp.path}`
+      const seen = new Set<string>();
+      const validated: vscode.SourceBreakpoint[] = [];
+      for (const bp of breakpointConfig.breakpoints) {
+        const absolutePath = bp.path.startsWith('/')
+          ? bp.path
+          : `${workspaceFolder}/${bp.path}`;
+        try {
+          const doc = await vscode.workspace.openTextDocument(
+            vscode.Uri.file(absolutePath)
+          );
+          const lineCount = doc.lineCount;
+          if (bp.line < 1 || bp.line > lineCount) {
+            outputChannel.appendLine(
+              `Skipping breakpoint ${absolutePath}:${bp.line} (out of range, file has ${lineCount} lines).`
+            );
+            continue;
+          }
+          const key = `${absolutePath}:${bp.line}`;
+          if (seen.has(key)) {
+            outputChannel.appendLine(`Skipping duplicate breakpoint ${key}.`);
+            continue;
+          }
+          seen.add(key);
+          const uri = vscode.Uri.file(absolutePath);
+          const location = new vscode.Position(bp.line - 1, 0);
+          validated.push(
+            new vscode.SourceBreakpoint(
+              new vscode.Location(uri, location),
+              true,
+              bp.condition,
+              bp.hitCondition,
+              bp.logMessage
+            )
+          );
+        } catch (e) {
+          outputChannel.appendLine(
+            `Failed to open file for breakpoint path ${absolutePath}: ${
+              e instanceof Error ? e.message : String(e)
+            }`
+          );
+        }
+      }
+      if (validated.length) {
+        vscode.debug.addBreakpoints(validated);
+        outputChannel.appendLine(
+          `Added ${validated.length} validated breakpoint(s).`
         );
-        const location = new vscode.Position(bp.line - 1, 0); // VSCode uses 0-based line numbers
-        return new vscode.SourceBreakpoint(
-          new vscode.Location(uri, location),
-          true, // enabled
-          bp.condition,
-          bp.hitCondition,
-          bp.logMessage
+      } else {
+        outputChannel.appendLine(
+          'No valid breakpoints to add after validation.'
         );
-      });
-      vscode.debug.addBreakpoints(newBreakpoints);
+      }
     }
   }
 
@@ -302,8 +340,10 @@ export const startDebuggingAndWaitForStop = async (params: {
       ) as BreakpointHitInfo;
       // Get the full debug information including call stack and variables
       return await resolveBreakpointInfo(breakpointInfo, variableFilter);
-    } catch (error) {
-      // If parsing fails, return the original result
+    } catch (_parseErr) {
+      outputChannel.appendLine(
+        `Failed to parse breakpoint hit result JSON; returning raw result. (${_parseErr instanceof Error ? _parseErr.message : 'unknown'})`
+      );
       return breakpointHitResult;
     }
   }
@@ -466,8 +506,10 @@ export const resumeDebugSession = async (params: {
           }
           // Otherwise resolve full breakpoint info
           return await resolveBreakpointInfo(info);
-        } catch (e) {
-          // Fallback if parsing fails
+        } catch (_resumeParseErr) {
+          outputChannel.appendLine(
+            `Failed to parse stopResult JSON after resume; returning raw event. (${_resumeParseErr instanceof Error ? _resumeParseErr.message : 'unknown'})`
+          );
           return stopResult;
         }
       }

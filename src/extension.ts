@@ -5,6 +5,8 @@ import { GetVariablesTool } from './getVariablesTool';
 import { ExpandVariableTool } from './expandVariableTool';
 import { StartDebuggerTool } from './startDebuggerTool';
 import { ResumeDebugSessionTool } from './resumeDebugSessionTool';
+import { EvaluateExpressionTool } from './evaluateExpressionTool';
+import { StopDebugSessionTool } from './stopDebugSessionTool';
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -23,7 +25,9 @@ function registerTools(context: vscode.ExtensionContext) {
       new ResumeDebugSessionTool()
     ),
     vscode.lm.registerTool('get_variables', new GetVariablesTool()),
-    vscode.lm.registerTool('expand_variable', new ExpandVariableTool())
+    vscode.lm.registerTool('expand_variable', new ExpandVariableTool()),
+    vscode.lm.registerTool('evaluate_expression', new EvaluateExpressionTool()),
+    vscode.lm.registerTool('stop_debug_session', new StopDebugSessionTool())
   );
 }
 

@@ -10,7 +10,7 @@ import {
 
 suite('StartDebuggerTool Integration (Node.js)', () => {
   test('starts debugger and captures breakpoint debug info', async function () {
-    this.timeout(60000); // allow time for activation + breakpoint
+    this.timeout(5000); // allow time for activation + breakpoint
 
     const result = await invokeStartDebuggerTool({
       scriptRelativePath: 'test-workspace/test.js',

@@ -5,14 +5,53 @@
       "name": "Run Extension",
       "type": "extensionHost",
       "request": "launch",
+      "runtimeExecutable": "${execPath}",
       "args": [
         "--extensionDevelopmentPath=${workspaceFolder}",
         "${workspaceFolder}/test-workspace"
       ],
-      "outFiles": ["${workspaceFolder}/out/**/*.js"]
+      "outFiles": ["${workspaceFolder}/out/**/*.js"],
+      "preLaunchTask": "watch",
+      "sourceMaps": true,
+      "smartStep": true,
+      "internalConsoleOptions": "neverOpen"
     },
     {
-      "name": "Run Tests",
+      "name": "Extension Tests",
+      "type": "extensionHost",
+      "request": "launch",
+      "runtimeExecutable": "${execPath}",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}",
+        "--extensionTestsPath=${workspaceFolder}/out/test/suite/index.js"
+      ],
+      "outFiles": ["${workspaceFolder}/out/**/*.js"],
+      "preLaunchTask": "watch",
+      "sourceMaps": true,
+      "smartStep": true,
+      "internalConsoleOptions": "neverOpen"
+    },
+    {
+      "name": "Extension Tests (TS Node)",
+      "type": "extensionHost",
+      "request": "launch",
+      "runtimeExecutable": "${execPath}",
+      "env": {
+        "TEST_TS_NODE": "1",
+        "TEST_EARLY_BREAK": "1"
+      },
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}",
+        "--extensionTestsPath=${workspaceFolder}/out/test/suite/indexTsNode.js"
+      ],
+      "outFiles": ["${workspaceFolder}/out/**/*.js"],
+      "preLaunchTask": "watch",
+      "sourceMaps": true,
+      "smartStep": true,
+      "internalConsoleOptions": "neverOpen"
+    },
+    {
+      "name": "Run Tests (Legacy Node Harness)",
       "type": "node",
       "request": "launch",
       "program": "${workspaceFolder}/out/test/runTest.js",
@@ -28,7 +67,8 @@
         "!**/node_modules/**"
       ],
       "env": {
-        "NODE_OPTIONS": "--enable-source-maps"
+        "NODE_OPTIONS": "--enable-source-maps",
+        "TEST_EARLY_BREAK": "1"
       }
     }
   ]

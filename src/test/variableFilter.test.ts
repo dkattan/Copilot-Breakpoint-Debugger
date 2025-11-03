@@ -51,69 +51,63 @@ function extractVariableCounts(result: StartDebuggerResult): {
   return { total: 0, byScope: {} };
 }
 
-suite('Variable Filter Reduces Payload', () => {
-  test('filtered variables are fewer than unfiltered', async function () {
-    // Skip PowerShell tests in CI - they require PowerShell runtime
-    if (process.env.CI) {
-      console.log(
-        'Skipping PowerShell variable filter test in CI (use Node.js tests for coverage)'
-      );
-      this.skip();
-      return;
-    }
+suite('Variable Filter Reduces Payload (Unified)', () => {
+  test('filtered variables are fewer than unfiltered (pwsh fallback to node)', async function () {
+    this.timeout(5000);
 
-    this.timeout(60000);
-    // Skip if PowerShell extension missing
-    const hasPwsh = await ensurePowerShellExtension();
-    if (!hasPwsh) {
-      this.skip();
-      return;
-    }
+    // Decide runtime: prefer PowerShell if available locally & not explicitly disabled by CI env
+    const preferPwsh = !process.env.CI && (await ensurePowerShellExtension());
+    const runtime: 'powershell' | 'node' = preferPwsh ? 'powershell' : 'node';
     await activateCopilotDebugger();
 
     const extensionRoot = getExtensionRoot();
+    const scriptRelativePath =
+      runtime === 'powershell'
+        ? 'test-workspace/test.ps1'
+        : 'test-workspace/test.js';
+    const breakpointLines = runtime === 'powershell' ? [4] : [5];
+    const filteredPattern =
+      runtime === 'powershell' ? '^PWD$' : '^(i|randomValue)$';
+
     const scriptUri = vscode.Uri.file(
-      path.join(extensionRoot, 'test-workspace/test.ps1')
+      path.join(extensionRoot, scriptRelativePath)
     );
     await openScriptDocument(scriptUri);
 
-    // First run: unfiltered (use broad regex that matches everything) by omitting variableFilter
+    // Unfiltered run ('.' matches anything)
     const unfiltered = await invokeStartDebuggerTool({
-      scriptRelativePath: 'test-workspace/test.ps1',
+      scriptRelativePath,
       timeoutSeconds: 60,
-      variableFilter: ['.'], // '.' matches any variable name (acts as unfiltered)
-      breakpointLines: [4], // ensure we hit the known breakpoint
+      variableFilter: ['.'],
+      breakpointLines,
     });
     const unfilteredCounts = extractVariableCounts(unfiltered);
     if (unfilteredCounts.total === 0) {
-      // Debug output to help diagnose why extraction failed
-
       console.log('VariableFilterTest: Unfiltered parts:', unfiltered.parts);
     }
 
-    // Second run: filtered to a small subset (e.g., PWD only)
+    // Filtered run
     const filtered = await invokeStartDebuggerTool({
-      scriptRelativePath: 'test-workspace/test.ps1',
+      scriptRelativePath,
       timeoutSeconds: 60,
-      variableFilter: ['^PWD$'], // anchored to only PWD
-      breakpointLines: [4],
+      variableFilter: [filteredPattern],
+      breakpointLines,
     });
     const filteredCounts = extractVariableCounts(filtered);
 
-    // Basic sanity: unfiltered should have more or equal variables than filtered
     if (unfilteredCounts.total === 0) {
-      // If adapter or environment did not expose variables, skip rather than fail
+      // Adapter produced no variables; skip to avoid false failure (seen occasionally in pwsh envs)
       this.skip();
       return;
     }
     if (filteredCounts.total === 0) {
       throw new Error(
-        'Filtered run captured zero variables; expected to at least match PWD'
+        `Filtered run captured zero variables; expected at least one match for pattern ${filteredPattern}`
       );
     }
     if (filteredCounts.total >= unfilteredCounts.total) {
       throw new Error(
-        `Filter did not reduce variables: filtered=${filteredCounts.total}, unfiltered=${unfilteredCounts.total}`
+        `Filter did not reduce variables (runtime=${runtime}): filtered=${filteredCounts.total}, unfiltered=${unfilteredCounts.total}`
       );
     }
   });

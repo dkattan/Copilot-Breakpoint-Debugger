@@ -9,8 +9,18 @@ export const getStackFrameVariables = async (params: {
   frameId: number;
   threadId: number;
   filter?: string;
-}) => {
-  const { sessionId, frameId, threadId, filter } = params;
+  retryIfEmpty?: boolean; // optional flag to retry once without filter if empty
+}): Promise<
+  | {
+      content: Array<{ type: 'json'; json: any }>;
+      isError: false;
+    }
+  | {
+      content: Array<{ type: 'text'; text: string }>;
+      isError: true;
+    }
+> => {
+  const { sessionId, frameId, threadId, filter, retryIfEmpty } = params;
 
   // Import the output channel for logging
   outputChannel.appendLine(
@@ -147,6 +157,24 @@ export const getStackFrameVariables = async (params: {
       outputChannel.appendLine(
         `No variables found in any scope. This may be a limitation of the ${session.type} debug adapter or the current debugging context.`
       );
+    }
+
+    // If requested, retry once without filter when nothing captured and filter was present
+    const totalVars = variablesByScope.reduce(
+      (sum, s: any) =>
+        sum + (Array.isArray(s.variables) ? s.variables.length : 0),
+      0
+    );
+    if (retryIfEmpty && filter && totalVars === 0) {
+      outputChannel.appendLine(
+        'Retrying variable collection without filter because first attempt returned zero variables.'
+      );
+      return await getStackFrameVariables({
+        sessionId,
+        frameId,
+        threadId,
+        retryIfEmpty: false,
+      });
     }
 
     return {

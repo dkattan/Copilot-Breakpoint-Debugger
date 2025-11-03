@@ -45,8 +45,20 @@ async function main() {
     fs.mkdirSync(userDataDir, { recursive: true });
     fs.mkdirSync(extensionsDir, { recursive: true });
 
-    // Download VS Code and resolve CLI path using the official utility
-    const vscodeExecutablePath = await downloadAndUnzipVSCode('stable');
+    // Decide which VS Code build channel to use for tests.
+    // NEW DEFAULT: use 'insiders' locally for easier debugging parity with dev environment.
+    // CI always uses stable for reproducibility.
+    // Override locally by setting TEST_USE_STABLE=1.
+    let channel: 'stable' | 'insiders';
+    if (process.env.CI) {
+      channel = 'stable';
+    } else if (process.env.TEST_USE_STABLE === '1') {
+      channel = 'stable';
+    } else {
+      channel = 'insiders';
+    }
+    console.log(`[test-runner] Downloading VS Code channel: ${channel}`);
+    const vscodeExecutablePath = await downloadAndUnzipVSCode(channel);
     const [cliPath] =
       resolveCliArgsFromVSCodeExecutablePath(vscodeExecutablePath);
 
@@ -102,6 +114,15 @@ async function main() {
     // TypeScript test sources can bind when you launch `npm test` from a JavaScript Debug Terminal.
     // This avoids needing a special script, port knowledge, or manual attach sequence.
     const enableDebug = !process.env.CI; // allow CI to run without inspector
+    if (enableDebug && channel === 'insiders') {
+      console.log(
+        '[test-runner] Running tests against Insiders build (default).'
+      );
+    } else if (enableDebug && channel === 'stable') {
+      console.log(
+        '[test-runner] Running tests against Stable build (TEST_USE_STABLE=1 or CI).'
+      );
+    }
     if (enableDebug) {
       console.log(
         '[test-runner] Enabling early extension host break (debug friendly test run)'
@@ -115,12 +136,16 @@ async function main() {
       '--disable-telemetry',
       '--disable-updates',
     ];
-
-    // When debugging, VS Code test harness respects --inspect-brk-extensionHost (legacy) or --inspect-brk-extensions
-    // For current versions use --inspect-brk-extensions to pause early so breakpoints can be set before tests load.
-    if (enableDebug) {
-      // Prefer modern flag for early extension host pause
+    // Opt-in early break for extension host so breakpoints in both extension & test sources bind deterministically.
+    // Set TEST_EARLY_BREAK=1 or TEST_DEBUG=1 in environment to enable. (We don't always enable by default to keep CI fast.)
+    if (
+      enableDebug &&
+      (process.env.TEST_EARLY_BREAK === '1' || process.env.TEST_DEBUG === '1')
+    ) {
       launchArgs.unshift('--inspect-brk-extensions');
+      console.log(
+        '[test-runner] Added --inspect-brk-extensions for early breakpoint binding'
+      );
     }
 
     console.log('[test-runner] Launch args:', launchArgs.join(' '));

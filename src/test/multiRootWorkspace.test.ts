@@ -22,7 +22,7 @@ suite('Multi-Root Workspace Integration', () => {
       return;
     }
 
-    this.timeout(60000);
+    this.timeout(5000);
 
     const extensionRoot = getExtensionRoot();
     const scriptUri = vscode.Uri.file(
@@ -82,7 +82,7 @@ suite('Multi-Root Workspace Integration', () => {
   });
 
   test('workspace B (Node.js) - individual debug session', async function () {
-    this.timeout(60000);
+    this.timeout(5000);
 
     const extensionRoot = getExtensionRoot();
     const scriptUri = vscode.Uri.file(
@@ -146,7 +146,7 @@ suite('Multi-Root Workspace Integration', () => {
       return;
     }
 
-    this.timeout(60000);
+    this.timeout(5000);
 
     const extensionRoot = getExtensionRoot();
     const scriptUri = vscode.Uri.file(
@@ -199,7 +199,7 @@ suite('Multi-Root Workspace Integration', () => {
   });
 
   test('workspace B with conditional breakpoint (Node.js)', async function () {
-    this.timeout(60000);
+    this.timeout(5000);
 
     const extensionRoot = getExtensionRoot();
     const scriptUri = vscode.Uri.file(

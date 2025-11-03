@@ -9,42 +9,43 @@ import {
   openScriptDocument,
 } from './utils/startDebuggerToolTestUtils';
 
-// Integration test: tests conditional breakpoints by setting a breakpoint
-// that only triggers when $i >= 3 in the loop
-//
-// Note: This suite requires PowerShell runtime and is skipped in CI environments.
+// Unified conditional breakpoint + hitCondition + logpoint tests.
+// Prefers PowerShell when available locally (and not CI), otherwise falls back to Node.
+// This replaces previous separate PowerShell and Node (.node) suites.
 
-suite('Conditional Breakpoint Integration (PowerShell)', () => {
-  setup(function () {
-    // Skip entire suite in CI - requires PowerShell runtime
-    if (process.env.CI) {
-      console.log(
-        'Skipping PowerShell conditional breakpoint tests in CI (use Node.js tests for coverage)'
-      );
-      this.skip();
+suite('Conditional Breakpoint Integration (Unified)', () => {
+  const chooseRuntime = async () => {
+    const pwshAvailable = await ensurePowerShellExtension();
+    if (!process.env.CI && pwshAvailable) {
+      return 'powershell' as const;
     }
-  });
+    return 'node' as const;
+  };
 
-  test('conditional breakpoint triggers only when condition is met', async function () {
-    this.timeout(60000); // allow time for activation + breakpoint
-
+  test('conditional breakpoint triggers only when condition is met (pwsh fallback to node)', async function () {
+    this.timeout(5000);
+    const runtime = await chooseRuntime();
     const extensionRoot = getExtensionRoot();
-    const scriptUri = vscode.Uri.file(
-      path.join(extensionRoot, 'test-workspace/test.ps1')
-    );
-    const workspaceFolder = resolveWorkspaceFolder(extensionRoot);
+    const scriptRelative =
+      runtime === 'powershell'
+        ? 'test-workspace/test.ps1'
+        : 'test-workspace/test.js';
+    const condition = runtime === 'powershell' ? '$i -ge 3' : 'i >= 3';
+    const lineInsideLoop = runtime === 'powershell' ? 8 : 9; // line numbers differ between scripts
 
+    const scriptUri = vscode.Uri.file(path.join(extensionRoot, scriptRelative));
+    const workspaceFolder = resolveWorkspaceFolder(extensionRoot);
     await openScriptDocument(scriptUri);
-    const hasPowerShell = await ensurePowerShellExtension();
-    if (!hasPowerShell) {
-      this.skip();
-      return;
+    if (runtime === 'powershell') {
+      const hasPowerShell = await ensurePowerShellExtension();
+      if (!hasPowerShell) {
+        this.skip();
+        return;
+      }
     }
     await activateCopilotDebugger();
 
     const tool = new StartDebuggerTool();
-
-    // Set a conditional breakpoint on line 8 (inside the loop) that only triggers when $i >= 3
     const result = await tool.invoke({
       input: {
         workspaceFolder,
@@ -54,8 +55,8 @@ suite('Conditional Breakpoint Integration (PowerShell)', () => {
           breakpoints: [
             {
               path: scriptUri.fsPath,
-              line: 8, // Write-Host "Loop iteration $i"
-              condition: '$i -ge 3', // Only trigger when $i >= 3
+              line: lineInsideLoop,
+              condition,
             },
           ],
         },
@@ -115,26 +116,28 @@ suite('Conditional Breakpoint Integration (PowerShell)', () => {
     }
   });
 
-  test('hitCondition breakpoint triggers on specific hit count', async function () {
-    this.timeout(60000);
-
+  test('hitCondition breakpoint triggers on specific hit count (pwsh fallback to node)', async function () {
+    this.timeout(5000);
+    const runtime = await chooseRuntime();
     const extensionRoot = getExtensionRoot();
-    const scriptUri = vscode.Uri.file(
-      path.join(extensionRoot, 'test-workspace/test.ps1')
-    );
+    const scriptRelative =
+      runtime === 'powershell'
+        ? 'test-workspace/test.ps1'
+        : 'test-workspace/test.js';
+    const lineInsideLoop = runtime === 'powershell' ? 8 : 9;
+    const scriptUri = vscode.Uri.file(path.join(extensionRoot, scriptRelative));
     const workspaceFolder = resolveWorkspaceFolder(extensionRoot);
-
     await openScriptDocument(scriptUri);
-    const hasPowerShell = await ensurePowerShellExtension();
-    if (!hasPowerShell) {
-      this.skip();
-      return;
+    if (runtime === 'powershell') {
+      const hasPowerShell = await ensurePowerShellExtension();
+      if (!hasPowerShell) {
+        this.skip();
+        return;
+      }
     }
     await activateCopilotDebugger();
 
     const tool = new StartDebuggerTool();
-
-    // Set a hit condition breakpoint that only triggers on the 3rd hit
     const result = await tool.invoke({
       input: {
         workspaceFolder,
@@ -144,8 +147,8 @@ suite('Conditional Breakpoint Integration (PowerShell)', () => {
           breakpoints: [
             {
               path: scriptUri.fsPath,
-              line: 8, // Write-Host "Loop iteration $i"
-              hitCondition: '3', // Only trigger on 3rd hit
+              line: lineInsideLoop,
+              hitCondition: '3',
             },
           ],
         },
@@ -203,26 +206,30 @@ suite('Conditional Breakpoint Integration (PowerShell)', () => {
     }
   });
 
-  test('logMessage breakpoint (logpoint) does not stop execution', async function () {
-    this.timeout(60000);
-
+  test('logMessage breakpoint (logpoint) does not stop execution unless adapter treats it as breakpoint (pwsh fallback to node)', async function () {
+    this.timeout(5000);
+    const runtime = await chooseRuntime();
     const extensionRoot = getExtensionRoot();
-    const scriptUri = vscode.Uri.file(
-      path.join(extensionRoot, 'test-workspace/test.ps1')
-    );
+    const scriptRelative =
+      runtime === 'powershell'
+        ? 'test-workspace/test.ps1'
+        : 'test-workspace/test.js';
+    const lineInsideLoop = runtime === 'powershell' ? 8 : 9;
+    const postLoopLine = runtime === 'powershell' ? 12 : 14; // approximate end (JS file ends later) but second breakpoint ensures stop
+    const logMessage =
+      runtime === 'powershell' ? 'Loop iteration: {$i}' : 'Loop iteration: {i}';
+    const scriptUri = vscode.Uri.file(path.join(extensionRoot, scriptRelative));
     const workspaceFolder = resolveWorkspaceFolder(extensionRoot);
-
     await openScriptDocument(scriptUri);
-    const hasPowerShell = await ensurePowerShellExtension();
-    if (!hasPowerShell) {
-      this.skip();
-      return;
+    if (runtime === 'powershell') {
+      const hasPowerShell = await ensurePowerShellExtension();
+      if (!hasPowerShell) {
+        this.skip();
+        return;
+      }
     }
     await activateCopilotDebugger();
-
     const tool = new StartDebuggerTool();
-
-    // Set a logpoint that logs but doesn't stop, plus a regular breakpoint to stop
     const result = await tool.invoke({
       input: {
         workspaceFolder,
@@ -231,12 +238,12 @@ suite('Conditional Breakpoint Integration (PowerShell)', () => {
           breakpoints: [
             {
               path: scriptUri.fsPath,
-              line: 8, // Logpoint in the loop
-              logMessage: 'Loop iteration: {$i}',
+              line: lineInsideLoop,
+              logMessage,
             },
             {
               path: scriptUri.fsPath,
-              line: 12, // Regular breakpoint after loop
+              line: postLoopLine,
             },
           ],
         },

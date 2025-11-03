@@ -217,6 +217,50 @@
             "variableName"
           ]
         }
+      },
+      {
+        "name": "evaluate_expression",
+        "displayName": "Evaluate Expression",
+        "toolReferenceName": "evaluateExpression",
+        "canBeReferencedInPrompt": true,
+        "userDescription": "Evaluate an arbitrary expression (like in Debug Console) in the current paused debug context.",
+        "modelDescription": "Use the DAP 'evaluate' request to evaluate code in the paused stack frame. Provide frameId implicitly using top frame.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "expression": {
+              "type": "string",
+              "description": "Expression to evaluate (e.g., variable name or small snippet)."
+            },
+            "sessionId": {
+              "type": "string",
+              "description": "Optional debug session id; defaults to active session."
+            }
+          },
+          "required": [
+            "expression"
+          ]
+        }
+      },
+      {
+        "name": "stop_debug_session",
+        "displayName": "Stop Debug Session",
+        "toolReferenceName": "stopDebugSession",
+        "canBeReferencedInPrompt": true,
+        "userDescription": "Terminate one or more debug sessions matching a name (exit option).",
+        "modelDescription": "Stop (terminate) all active debug sessions whose name matches the provided sessionName.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sessionName": {
+              "type": "string",
+              "description": "Name of the debug session to stop."
+            }
+          },
+          "required": [
+            "sessionName"
+          ]
+        }
       }
     ]
   },

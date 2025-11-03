@@ -22,7 +22,7 @@ suite('StartDebuggerTool Integration (PowerShell)', () => {
       return;
     }
 
-    this.timeout(60000); // allow time for activation + breakpoint
+    this.timeout(5000); // allow time for activation + breakpoint
     let textOutput: string;
     try {
       const result = await invokeStartDebuggerTool({

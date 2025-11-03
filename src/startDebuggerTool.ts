@@ -143,10 +143,35 @@ export class StartDebuggerTool
       }
       // Fallback to global search if not found locally
       if (!pwshFiles.length && !jsFiles.length) {
-        [pwshFiles, jsFiles] = await Promise.all([
-          vscode.workspace.findFiles('**/test.ps1'),
-          vscode.workspace.findFiles('**/test.js'),
-        ]);
+        // Fallback: broaden search to entire (first) workspace folder if initial scoped lookup failed.
+        // This preserves the intent of using the requested subfolder first, while still allowing
+        // tests (and real users) to resolve scripts that live at the root or elsewhere.
+        try {
+          const allPwsh = await vscode.workspace.findFiles(
+            '**/test.ps1',
+            '**/node_modules/**',
+            2
+          );
+          const allJs = await vscode.workspace.findFiles(
+            '**/test.js',
+            '**/node_modules/**',
+            2
+          );
+          if (allPwsh.length) {
+            pwshFiles = allPwsh;
+          }
+          if (allJs.length) {
+            jsFiles = allJs;
+          }
+        } catch (e) {
+          // Ignore errors in broadened search; we'll surface the original not-found error if still empty.
+          outputChannel.appendLine(
+            `StartDebuggerTool: broadened search for test scripts failed: ${e instanceof Error ? e.message : String(e)}`
+          );
+        }
+        if (!pwshFiles.length && !jsFiles.length) {
+          throw new Error('No test scripts found');
+        }
       }
       if (pwshFiles.length) {
         const scriptPathCandidate = pwshFiles[0].fsPath;

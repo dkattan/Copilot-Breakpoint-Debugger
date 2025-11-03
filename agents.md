@@ -182,3 +182,45 @@ The debug tracker extension provides API services for monitoring debug sessions 
 ## Workflow Guidance
 
 - **Always update CLAUDE.md when you complete a feature**
+
+### Dual VS Code Setup (Stable for Tests, Insiders for Dev)
+
+Running extension tests via the CLI requires that no other instance of VS Code (Stable) is running. To avoid conflicts and keep a fast edit/debug loop:
+
+| Task                                  | Edition                   |
+| ------------------------------------- | ------------------------- |
+| Author & debug extension code         | VS Code Insiders          |
+| Execute `npm test` (electron harness) | VS Code Stable (headless) |
+
+The test harness (`src/test/runTest.ts`) downloads a Stable build into `.vscode-test/`. If only Insiders is open, Stable can launch cleanly. If you see the error about "Running extension tests from the command line is currently only supported if no other instance of Code is running.", close all Stable windows.
+
+#### Steps
+
+1. Install VS Code Stable and VS Code Insiders.
+1. Open the repo in **Insiders**.
+1. Run tests from a terminal: `npm test`.
+1. For interactive debugging use a launch config pointing to `out/test/runTest.js` or set `TEST_TS_NODE=1` for direct TS execution.
+
+#### Tips
+
+- Use aliases: `alias codei='open -a "Visual Studio Code - Insiders"'`.
+- Clear `.vscode-test/` if previous runs leave stale state.
+- Breakpoints: local runs enable `--inspect-brk-extensions` for early bind.
+
+### Test Channel Selection (Default Insiders Locally)
+
+Local runs default to **Insiders**; CI always uses Stable.
+
+Force Stable locally:
+
+```bash
+TEST_USE_STABLE=1 npm test
+```
+
+With TypeScript source debugging:
+
+```bash
+TEST_USE_STABLE=1 TEST_TS_NODE=1 npm test
+```
+
+Console output will show which channel was downloaded.

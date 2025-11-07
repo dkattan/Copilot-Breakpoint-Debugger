@@ -1,18 +1,19 @@
+import * as path from 'node:path';
+import { it } from 'mocha';
 import * as vscode from 'vscode';
-import * as path from 'path';
 import { StartDebuggerTool } from '../startDebuggerTool';
 import {
-  getExtensionRoot,
-  ensurePowerShellExtension,
   activateCopilotDebugger,
+  ensurePowerShellExtension,
+  getExtensionRoot,
   openScriptDocument,
 } from './utils/startDebuggerToolTestUtils';
 
 // Integration tests for multi-root workspace scenarios
 // Tests individual workspaces (a: PowerShell, b: Node.js) and compound launch configs
 
-suite('Multi-Root Workspace Integration', () => {
-  test('workspace A (PowerShell) - individual debug session', async function () {
+suite('multi-Root Workspace Integration', () => {
+  it('workspace A (PowerShell) - individual debug session', async function () {
     // Skip PowerShell tests in CI - they require PowerShell runtime
     if (process.env.CI) {
       console.log(
@@ -57,9 +58,22 @@ suite('Multi-Root Workspace Integration', () => {
       toolInvocationToken: undefined,
     });
 
-    const parts: any[] = (result as any).parts || (result as any).content || [];
+    const parts = (result.content || []) as Array<{
+      text?: string;
+      value?: string;
+    }>;
     const textOutput = parts
-      .map(p => (p.text ? p.text : JSON.stringify(p)))
+      .map(p => {
+        if (typeof p === 'object' && p !== null) {
+          if ('text' in p) {
+            return (p as { text?: string }).text;
+          }
+          if ('value' in p) {
+            return (p as { value?: string }).value;
+          }
+        }
+        return JSON.stringify(p);
+      })
       .join('\n');
 
     console.log('Workspace A (PowerShell) output:\n', textOutput);
@@ -71,7 +85,7 @@ suite('Multi-Root Workspace Integration', () => {
     if (/Error starting debug session/i.test(textOutput)) {
       throw new Error('Encountered error starting debug session');
     }
-    if (!/(Debug session .* stopped|breakpoint)/i.test(textOutput)) {
+    if (!/Debug session .* stopped|breakpoint/i.test(textOutput)) {
       throw new Error('Missing stopped-session or breakpoint descriptor');
     }
 
@@ -81,7 +95,7 @@ suite('Multi-Root Workspace Integration', () => {
     }
   });
 
-  test('workspace B (Node.js) - individual debug session', async function () {
+  it('workspace B (Node.js) - individual debug session', async function () {
     this.timeout(5000);
 
     const extensionRoot = getExtensionRoot();
@@ -112,9 +126,22 @@ suite('Multi-Root Workspace Integration', () => {
       toolInvocationToken: undefined,
     });
 
-    const parts: any[] = (result as any).parts || (result as any).content || [];
+    const parts = (result.content || []) as Array<{
+      text?: string;
+      value?: string;
+    }>;
     const textOutput = parts
-      .map(p => (p.text ? p.text : JSON.stringify(p)))
+      .map(p => {
+        if (typeof p === 'object' && p !== null) {
+          if ('text' in p) {
+            return (p as { text?: string }).text;
+          }
+          if ('value' in p) {
+            return (p as { value?: string }).value;
+          }
+        }
+        return JSON.stringify(p);
+      })
       .join('\n');
 
     console.log('Workspace B (Node.js) output:\n', textOutput);
@@ -126,7 +153,7 @@ suite('Multi-Root Workspace Integration', () => {
     if (/Error starting debug session/i.test(textOutput)) {
       throw new Error('Encountered error starting debug session');
     }
-    if (!/(Debug session .* stopped|breakpoint)/i.test(textOutput)) {
+    if (!/Debug session .* stopped|breakpoint/i.test(textOutput)) {
       throw new Error('Missing stopped-session or breakpoint descriptor');
     }
 
@@ -136,7 +163,7 @@ suite('Multi-Root Workspace Integration', () => {
     }
   });
 
-  test('workspace A with conditional breakpoint (PowerShell)', async function () {
+  it('workspace A with conditional breakpoint (PowerShell)', async function () {
     // Skip PowerShell tests in CI - they require PowerShell runtime
     if (process.env.CI) {
       console.log(
@@ -183,9 +210,22 @@ suite('Multi-Root Workspace Integration', () => {
       toolInvocationToken: undefined,
     });
 
-    const parts: any[] = (result as any).parts || (result as any).content || [];
+    const parts = (result.content || []) as Array<{
+      text?: string;
+      value?: string;
+    }>;
     const textOutput = parts
-      .map(p => (p.text ? p.text : JSON.stringify(p)))
+      .map(p => {
+        if (typeof p === 'object' && p !== null) {
+          if ('text' in p) {
+            return (p as { text?: string }).text;
+          }
+          if ('value' in p) {
+            return (p as { value?: string }).value;
+          }
+        }
+        return JSON.stringify(p);
+      })
       .join('\n');
 
     console.log('Workspace A conditional breakpoint output:\n', textOutput);
@@ -193,12 +233,12 @@ suite('Multi-Root Workspace Integration', () => {
     if (/timed out/i.test(textOutput)) {
       throw new Error('Debug session timed out waiting for breakpoint');
     }
-    if (!/(Debug session .* stopped|breakpoint)/i.test(textOutput)) {
+    if (!/Debug session .* stopped|breakpoint/i.test(textOutput)) {
       throw new Error('Missing stopped-session or breakpoint descriptor');
     }
   });
 
-  test('workspace B with conditional breakpoint (Node.js)', async function () {
+  it('workspace B with conditional breakpoint (Node.js)', async function () {
     this.timeout(5000);
 
     const extensionRoot = getExtensionRoot();
@@ -231,9 +271,22 @@ suite('Multi-Root Workspace Integration', () => {
       toolInvocationToken: undefined,
     });
 
-    const parts: any[] = (result as any).parts || (result as any).content || [];
+    const parts = (result.content || []) as Array<{
+      text?: string;
+      value?: string;
+    }>;
     const textOutput = parts
-      .map(p => (p.text ? p.text : JSON.stringify(p)))
+      .map(p => {
+        if (typeof p === 'object' && p !== null) {
+          if ('text' in p) {
+            return (p as { text?: string }).text;
+          }
+          if ('value' in p) {
+            return (p as { value?: string }).value;
+          }
+        }
+        return JSON.stringify(p);
+      })
       .join('\n');
 
     console.log('Workspace B conditional breakpoint output:\n', textOutput);
@@ -241,7 +294,7 @@ suite('Multi-Root Workspace Integration', () => {
     if (/timed out/i.test(textOutput)) {
       throw new Error('Debug session timed out waiting for breakpoint');
     }
-    if (!/(Debug session .* stopped|breakpoint)/i.test(textOutput)) {
+    if (!/Debug session .* stopped|breakpoint/i.test(textOutput)) {
       throw new Error('Missing stopped-session or breakpoint descriptor');
     }
   });

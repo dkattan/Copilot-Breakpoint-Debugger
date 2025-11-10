@@ -1,5 +1,5 @@
+import * as path from 'node:path';
 import * as vscode from 'vscode';
-import * as path from 'path';
 import { StartDebuggerTool } from '../../startDebuggerTool';
 import {
   POWERSHELL_EXTENSION_ID,
@@ -11,11 +11,6 @@ export interface StartDebuggerInvocationOptions {
   timeoutSeconds?: number;
   variableFilter?: string[];
   breakpointLines?: number[]; // Breakpoints on first script path
-}
-
-export interface StartDebuggerResult {
-  textOutput: string;
-  parts: any[];
 }
 
 /** Resolve extension root path. */
@@ -54,7 +49,7 @@ export async function openScriptDocument(scriptUri: vscode.Uri): Promise<void> {
 /** Invoke StartDebuggerTool with supplied options and return aggregated output parts. */
 export async function invokeStartDebuggerTool(
   opts: StartDebuggerInvocationOptions
-): Promise<StartDebuggerResult> {
+) {
   const extensionRoot = getExtensionRoot();
   const scriptUri = vscode.Uri.file(
     path.join(extensionRoot, opts.scriptRelativePath)
@@ -92,11 +87,7 @@ export async function invokeStartDebuggerTool(
     toolInvocationToken: undefined,
   });
 
-  const parts: any[] = (result as any).parts || (result as any).content || [];
-  const textOutput = parts
-    .map(p => (p.text ? p.text : JSON.stringify(p)))
-    .join('\n');
-  return { textOutput, parts };
+  return result;
 }
 
 /** Common assertions verifying the debug session started and breakpoint info captured. */
@@ -109,14 +100,17 @@ export function assertStartDebuggerOutput(textOutput: string): void {
   if (startError) {
     throw new Error('Encountered error starting debug session');
   }
-  if (!/(Debug session .* stopped|breakpoint)/i.test(textOutput)) {
+  if (!/Debug session .* stopped|breakpoint/i.test(textOutput)) {
     throw new Error('Missing stopped-session or breakpoint descriptor');
   }
-  if (!/(\\?"breakpoint\\?"|breakpoint)\s*:/i.test(textOutput)) {
+  if (!/\\?"breakpoint\\?"|breakpoint\s*:/i.test(textOutput)) {
     throw new Error('Missing breakpoint JSON info');
   }
   if (
-    !(/"line"\s*:\s*\d+/.test(textOutput) || /test\.(ps1|js)/i.test(textOutput))
+    !(
+      /"line"\s*:\s*\d+/.test(textOutput) ||
+      /test\.ps1|test\.js/i.test(textOutput)
+    )
   ) {
     throw new Error('Missing line number or script reference in debug info');
   }

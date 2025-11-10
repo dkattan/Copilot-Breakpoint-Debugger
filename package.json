@@ -270,7 +270,7 @@
     "compile": "npm run format && tsc -p ./",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run lint",
-    "lint": "eslint src",
+    "lint": "eslint",
     "test": "npm run compile && node --enable-source-maps out/test/runTest.js",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

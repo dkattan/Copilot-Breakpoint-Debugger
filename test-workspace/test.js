@@ -1,5 +1,5 @@
 console.log('Running test.js inside test-workspace');
-console.log(`Current directory: ${process.cwd()}`);
+console.log(`Current directory: ${require('node:process').cwd()}`);
 
 const randomValue = Math.floor(Math.random() * 100);
 console.log(`Random value: ${randomValue}`);

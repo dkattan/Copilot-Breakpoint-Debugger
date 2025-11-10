@@ -163,6 +163,7 @@ export const listDebugSessions = () => {
  * then wait until a breakpoint is hit before returning with detailed debug information.
  *
  * @param params - Object containing workspaceFolder, nameOrConfiguration, and optional variableFilter.
+ * @param params.sessionName - Name to assign to the debug session.
  * @param params.workspaceFolder - Absolute path to the workspace folder where the debug session will run.
  * @param params.nameOrConfiguration - Either a string name of a launch configuration or a DebugConfiguration object.
  * @param params.variableFilter - Optional array of variable name patterns to filter which variables are returned.

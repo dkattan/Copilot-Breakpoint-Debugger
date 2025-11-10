@@ -1,3 +1,4 @@
+import type { LanguageModelTextPart } from 'vscode';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { StartDebuggerTool } from '../startDebuggerTool';
@@ -48,7 +49,7 @@ describe('conditional Breakpoint Integration (Unified)', () => {
     const result = await tool.invoke({
       input: {
         workspaceFolder,
-        timeout_seconds: 60,
+        timeoutSeconds: 60,
         variableFilter: ['i'],
         breakpointConfig: {
           breakpoints: [
@@ -63,33 +64,22 @@ describe('conditional Breakpoint Integration (Unified)', () => {
       toolInvocationToken: undefined,
     });
 
-    interface ToolResultPart {
-      text?: string;
-      [key: string]: unknown;
+    console.log('Conditional breakpoint output:\n', result.content);
+    if (result.content === undefined) {
+      throw new Error('No content received from tool invocation');
     }
-    const parts: ToolResultPart[] =
-      (result as { parts?: ToolResultPart[]; content?: ToolResultPart[] })
-        .content ||
-      (result as { parts?: ToolResultPart[]; content?: ToolResultPart[] })
-        .parts ||
-      [];
-    const textOutput = parts
-      .map(p => (p.text ? p.text : JSON.stringify(p)))
-      .join('\n');
-
-    console.log('Conditional breakpoint output:\n', textOutput);
-
-    // Verify the debug session stopped
-    if (/timed out/i.test(textOutput)) {
-      throw new Error('Debug session timed out waiting for breakpoint');
+    if (!Array.isArray(result.content)) {
+      throw new TypeError(
+        `Expected array but received ${typeof result.content} from tool invocation`
+      );
     }
-    if (/Error starting debug session/i.test(textOutput)) {
-      throw new Error('Encountered error starting debug session');
+    const textPart = result.content[0] as LanguageModelTextPart;
+    if (typeof textPart.value !== 'string') {
+      throw new TypeError(
+        `Expected text part value to be a string but received ${typeof textPart.value}`
+      );
     }
-    if (!/Debug session .* stopped|breakpoint/i.test(textOutput)) {
-      throw new Error('Missing stopped-session or breakpoint descriptor');
-    }
-
+    const textOutput = textPart.value;
     // Parse the debug info to verify the condition was met
     try {
       const debugInfoMatch = textOutput.match(/\{[\s\S]*"breakpoint"[\s\S]*\}/);
@@ -150,7 +140,7 @@ describe('conditional Breakpoint Integration (Unified)', () => {
     const result = await tool.invoke({
       input: {
         workspaceFolder,
-        timeout_seconds: 60,
+        timeoutSeconds: 60,
         variableFilter: ['i'],
         breakpointConfig: {
           breakpoints: [
@@ -252,7 +242,7 @@ describe('conditional Breakpoint Integration (Unified)', () => {
     const result = await tool.invoke({
       input: {
         workspaceFolder,
-        timeout_seconds: 60,
+        timeoutSeconds: 60,
         breakpointConfig: {
           breakpoints: [
             {

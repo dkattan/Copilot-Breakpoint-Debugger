@@ -43,7 +43,7 @@ describe('multi-Root Workspace Integration', () => {
     const result = await tool.invoke({
       input: {
         workspaceFolder,
-        timeout_seconds: 60,
+        timeoutSeconds: 60,
         variableFilter: ['PWD', 'HOME'],
         breakpointConfig: {
           breakpoints: [
@@ -111,7 +111,7 @@ describe('multi-Root Workspace Integration', () => {
     const result = await tool.invoke({
       input: {
         workspaceFolder,
-        timeout_seconds: 60,
+        timeoutSeconds: 60,
         variableFilter: ['randomValue'],
         breakpointConfig: {
           breakpoints: [
@@ -194,7 +194,7 @@ describe('multi-Root Workspace Integration', () => {
     const result = await tool.invoke({
       input: {
         workspaceFolder,
-        timeout_seconds: 60,
+        timeoutSeconds: 60,
         variableFilter: ['i'],
         breakpointConfig: {
           breakpoints: [
@@ -255,7 +255,7 @@ describe('multi-Root Workspace Integration', () => {
     const result = await tool.invoke({
       input: {
         workspaceFolder,
-        timeout_seconds: 60,
+        timeoutSeconds: 60,
         variableFilter: ['i'],
         breakpointConfig: {
           breakpoints: [

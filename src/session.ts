@@ -166,19 +166,20 @@ export const listDebugSessions = () => {
  * @param params.workspaceFolder - Absolute path to the workspace folder where the debug session will run.
  * @param params.nameOrConfiguration - Either a string name of a launch configuration or a DebugConfiguration object.
  * @param params.variableFilter - Optional array of variable name patterns to filter which variables are returned.
- * @param params.timeout_seconds - Optional timeout in seconds to wait for a breakpoint hit (default: 60).
+ * @param params.timeoutSeconds - Optional timeout in seconds to wait for a breakpoint hit (default: 60).
  * @param params.breakpointConfig - Optional configuration for managing breakpoints during the debug session.
  * @param params.breakpointConfig.disableExisting - If true, removes all existing breakpoints before starting the session.
  * @param params.breakpointConfig.breakpoints - Array of breakpoint configurations to set before starting the session.
  */
 export const startDebuggingAndWaitForStop = async (params: {
+  sessionName: string;
   workspaceFolder: string;
-  nameOrConfiguration: string | vscode.DebugConfiguration;
+  nameOrConfiguration: string;
   variableFilter?: string[];
-  timeout_seconds?: number;
-  breakpointConfig?: {
+  timeoutSeconds?: number;
+  breakpointConfig: {
     disableExisting?: boolean;
-    breakpoints?: Array<{
+    breakpoints: Array<{
       path: string;
       line: number;
       condition?: string;
@@ -188,10 +189,11 @@ export const startDebuggingAndWaitForStop = async (params: {
   };
 }) => {
   const {
+    sessionName,
     workspaceFolder,
     nameOrConfiguration,
     variableFilter,
-    timeout_seconds = 60,
+    timeoutSeconds = 60,
     breakpointConfig,
   } = params;
   // Ensure that workspace folders exist and are accessible.
@@ -204,101 +206,80 @@ export const startDebuggingAndWaitForStop = async (params: {
   if (!folder) {
     throw new Error(`Workspace folder '${workspaceFolder}' not found.`);
   }
-
-  // Generate session name and ID based on the type of nameOrConfiguration
-  const sessionName =
-    typeof nameOrConfiguration === 'string'
-      ? nameOrConfiguration
-      : nameOrConfiguration.name;
-  const sessionId =
-    typeof nameOrConfiguration === 'object' && nameOrConfiguration.sessionId
-      ? nameOrConfiguration.sessionId
-      : `debug_${sessionName}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
   // Handle breakpoint configuration if provided
-  if (breakpointConfig) {
-    // Disable existing breakpoints if requested
-    if (breakpointConfig.disableExisting) {
-      const allBreakpoints = vscode.debug.breakpoints;
-      if (allBreakpoints.length > 0) {
-        vscode.debug.removeBreakpoints(allBreakpoints);
-      }
+  // Disable existing breakpoints if requested
+  if (breakpointConfig.disableExisting) {
+    const allBreakpoints = vscode.debug.breakpoints;
+    if (allBreakpoints.length > 0) {
+      vscode.debug.removeBreakpoints(allBreakpoints);
     }
+  }
 
-    // Add new breakpoints if provided
-    if (
-      breakpointConfig.breakpoints &&
-      breakpointConfig.breakpoints.length > 0
-    ) {
-      const seen = new Set<string>();
-      const validated: vscode.SourceBreakpoint[] = [];
-      for (const bp of breakpointConfig.breakpoints) {
-        const absolutePath = bp.path.startsWith('/')
-          ? bp.path
-          : `${workspaceFolder}/${bp.path}`;
-        try {
-          const doc = await vscode.workspace.openTextDocument(
-            vscode.Uri.file(absolutePath)
-          );
-          const lineCount = doc.lineCount;
-          if (bp.line < 1 || bp.line > lineCount) {
-            outputChannel.appendLine(
-              `Skipping breakpoint ${absolutePath}:${bp.line} (out of range, file has ${lineCount} lines).`
-            );
-            continue;
-          }
-          const key = `${absolutePath}:${bp.line}`;
-          if (seen.has(key)) {
-            outputChannel.appendLine(`Skipping duplicate breakpoint ${key}.`);
-            continue;
-          }
-          seen.add(key);
-          const uri = vscode.Uri.file(absolutePath);
-          const location = new vscode.Position(bp.line - 1, 0);
-          validated.push(
-            new vscode.SourceBreakpoint(
-              new vscode.Location(uri, location),
-              true,
-              bp.condition,
-              bp.hitCondition,
-              bp.logMessage
-            )
-          );
-        } catch (e) {
-          outputChannel.appendLine(
-            `Failed to open file for breakpoint path ${absolutePath}: ${
-              e instanceof Error ? e.message : String(e)
-            }`
-          );
-        }
-      }
-      if (validated.length) {
-        vscode.debug.addBreakpoints(validated);
+  const seen = new Set<string>();
+  const validated: vscode.SourceBreakpoint[] = [];
+  for (const bp of breakpointConfig.breakpoints) {
+    const absolutePath = bp.path.startsWith('/')
+      ? bp.path
+      : `${workspaceFolder}/${bp.path}`;
+    try {
+      const doc = await vscode.workspace.openTextDocument(
+        vscode.Uri.file(absolutePath)
+      );
+      const lineCount = doc.lineCount;
+      if (bp.line < 1 || bp.line > lineCount) {
         outputChannel.appendLine(
-          `Added ${validated.length} validated breakpoint(s).`
+          `Skipping breakpoint ${absolutePath}:${bp.line} (out of range, file has ${lineCount} lines).`
         );
-      } else {
-        outputChannel.appendLine(
-          'No valid breakpoints to add after validation.'
-        );
+        continue;
       }
+      const key = `${absolutePath}:${bp.line}`;
+      if (seen.has(key)) {
+        outputChannel.appendLine(`Skipping duplicate breakpoint ${key}.`);
+        continue;
+      }
+      seen.add(key);
+      const uri = vscode.Uri.file(absolutePath);
+      const location = new vscode.Position(bp.line - 1, 0);
+      validated.push(
+        new vscode.SourceBreakpoint(
+          new vscode.Location(uri, location),
+          true,
+          bp.condition,
+          bp.hitCondition,
+          bp.logMessage
+        )
+      );
+    } catch (e) {
+      outputChannel.appendLine(
+        `Failed to open file for breakpoint path ${absolutePath}: ${
+          e instanceof Error ? e.message : String(e)
+        }`
+      );
     }
+  }
+  if (validated.length) {
+    vscode.debug.addBreakpoints(validated);
+    outputChannel.appendLine(
+      `Added ${validated.length} validated breakpoint(s).`
+    );
+  } else {
+    outputChannel.appendLine('No valid breakpoints to add after validation.');
   }
 
   // Set up the listener before starting the session to avoid race condition
   outputChannel.appendLine(
-    `Preparing breakpoint wait: sessionName='${sessionName}', synthetic sessionId='${sessionId}'`
+    `Preparing breakpoint wait: sessionName='${sessionName}'`
   );
   const stopPromise = waitForBreakpointHit({
     sessionName,
-    timeout: timeout_seconds * 1000, // Convert seconds to milliseconds
+    timeout: timeoutSeconds * 1000, // Convert seconds to milliseconds
   });
 
   const success = await vscode.debug.startDebugging(
     folder,
     nameOrConfiguration,
     {
-      id: sessionId,
+      name: sessionName,
     } as DebugSessionOptions
   );
 
@@ -322,7 +303,7 @@ export const startDebuggingAndWaitForStop = async (params: {
         content: [
           {
             type: 'text',
-            text: `Debug session '${sessionName}' timed out after ${timeout_seconds} seconds waiting for a breakpoint to be hit.`,
+            text: `Debug session '${sessionName}' timed out after ${timeoutSeconds} seconds waiting for a breakpoint to be hit.`,
           },
         ],
         isError: true,
@@ -488,7 +469,7 @@ export const resumeDebugSession = async (params: {
       `Resuming debug session '${session.name}' (ID: ${sessionId})`
     );
     const stopPromise = waitForBreakpointHit({
-      sessionId,
+      sessionName: session.name,
       includeTermination: true,
     });
     await session.customRequest('continue', { threadId: 0 }); // 0 means all threads

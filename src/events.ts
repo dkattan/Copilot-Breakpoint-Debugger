@@ -44,7 +44,7 @@ interface ThreadData {
 }
 
 interface DebugConfiguration extends vscode.DebugConfiguration {
-  sessionId?: string;
+  sessionName?: string;
 }
 
 /** Event emitter for breakpoint hit notifications */
@@ -250,24 +250,17 @@ vscode.debug.registerDebugAdapterTrackerFactory('*', {
 /**
  * Wait for a breakpoint to be hit in a debug session.
  *
- * @param params - Object containing sessionId or sessionName to identify the debug session, and optional timeout.
- * @param params.sessionId - Optional session ID to identify the debug session.
- * @param params.sessionName - Optional session name to identify the debug session.
+ * @param params - Object containing sessionName or sessionName to identify the debug session, and optional timeout.
+ * @param params.sessionName - Optional session ID to identify the debug session.
  * @param params.timeout - Optional timeout in milliseconds (default: 30000).
  * @param params.includeTermination - Optional flag to include session termination events (default: true).
  */
 export const waitForBreakpointHit = async (params: {
-  sessionId?: string;
-  sessionName?: string;
+  sessionName: string;
   timeout?: number;
   includeTermination?: boolean;
 }) => {
-  const {
-    sessionId,
-    sessionName,
-    timeout = 30000,
-    includeTermination = true,
-  } = params; // Default timeout: 30 seconds
+  const { sessionName, timeout = 30000, includeTermination = true } = params; // Default timeout: 30 seconds
 
   try {
     // Create a promise that resolves when a breakpoint is hit
@@ -280,34 +273,25 @@ export const waitForBreakpointHit = async (params: {
         const listener = onBreakpointHit(event => {
           // Check if this event is for one of our target sessions
           outputChannel.appendLine(
-            `Breakpoint hit detected for waitForBreakpointHit for session ${event.sessionName} with id ${event.sessionId}`
+            `Breakpoint hit detected for waitForBreakpointHit for session ${event.sessionName} with id ${event.sessionName}`
           );
           let targetSession: vscode.DebugSession | undefined;
 
-          if (sessionId) {
-            const session = availableSessions.find(
-              s =>
-                s.id === sessionId ||
-                (s.configuration &&
-                  (s.configuration as DebugConfiguration).sessionId ===
-                    sessionId)
-            );
-            if (session) {
-              targetSession = session;
-            }
-          } else if (sessionName) {
-            // Allow prefix match because certain debug adapters append counters (e.g., "Run test.ps1 2")
-            targetSession = availableSessions.find(
-              s => s.name === sessionName || s.name.startsWith(sessionName)
-            );
-          } else {
-            targetSession = availableSessions[0]; // All active sessions if neither ID nor name provided
+          const session = availableSessions.find(
+            s =>
+              s.id === sessionName ||
+              (s.configuration &&
+                (s.configuration as DebugConfiguration).sessionName ===
+                  sessionName)
+          );
+          if (session) {
+            targetSession = session;
           }
 
           // Check if the event matches our target session by session ID or name
           const eventMatchesTarget =
             targetSession !== undefined &&
-            (event.sessionId === targetSession.id ||
+            (event.sessionName === targetSession.id ||
               event.sessionName === targetSession.name ||
               event.sessionName.startsWith(targetSession.name) ||
               targetSession.name.startsWith(event.sessionName));
@@ -325,12 +309,9 @@ export const waitForBreakpointHit = async (params: {
         // Optionally listen for session termination
         if (includeTermination) {
           terminateListener = onSessionTerminate(endEvent => {
-            const matches = sessionId
-              ? endEvent.sessionId === sessionId
-              : sessionName
-                ? endEvent.sessionName === sessionName ||
-                  endEvent.sessionName.startsWith(sessionName)
-                : true;
+            const matches = sessionName
+              ? endEvent.sessionName === sessionName
+              : true;
             if (matches) {
               outputChannel.appendLine(
                 `Session termination detected for waitForBreakpointHit: ${JSON.stringify(endEvent)}`
@@ -383,44 +364,4 @@ export const waitForBreakpointHit = async (params: {
       isError: true,
     };
   }
-};
-
-/**
- * Provides a way for MCP clients to subscribe to breakpoint hit events.
- * This tool returns immediately with a subscription ID, and the MCP client
- * will receive notifications when breakpoints are hit.
- *
- * @param params - Object containing an optional filter for the debug sessions to monitor.
- * @param params.sessionId - Optional session ID to filter breakpoint events.
- * @param params.sessionName - Optional session name to filter breakpoint events.
- */
-export const subscribeToBreakpointEvents = async (params: {
-  sessionId?: string;
-  sessionName?: string;
-}) => {
-  const { sessionId, sessionName } = params;
-
-  // Generate a unique subscription ID
-  const subscriptionId = `breakpoint-subscription-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-
-  // Return immediately with subscription info
-  return {
-    content: [
-      {
-        type: 'json',
-        json: {
-          subscriptionId,
-          message:
-            'Subscribed to breakpoint events. You will receive notifications when breakpoints are hit.',
-        },
-      },
-    ],
-    isError: false,
-    // Special metadata to indicate this is a subscription
-    _meta: {
-      subscriptionId,
-      type: 'breakpoint-events',
-      filter: { sessionId, sessionName },
-    },
-  };
 };

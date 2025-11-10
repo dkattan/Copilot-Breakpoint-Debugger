@@ -66,7 +66,7 @@ describe('stopDebugSessionTool', () => {
     const startResult = await startTool.invoke({
       input: {
         workspaceFolder: extensionRoot,
-        timeout_seconds: 30,
+        timeoutSeconds: 30,
         breakpointConfig: { breakpoints: [{ path: jsPath, line: 5 }] },
       },
       toolInvocationToken: undefined,

@@ -5,4 +5,6 @@ export default defineConfig({
   mocha: {
     ui: 'bdd',
   },
+  launchArgs: ['--disable-extensions'],
+  workspaceFolder: 'test-workspace',
 });

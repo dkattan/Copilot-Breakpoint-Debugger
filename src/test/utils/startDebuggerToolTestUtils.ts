@@ -85,7 +85,7 @@ export async function invokeStartDebuggerTool(
   const result = await tool.invoke({
     input: {
       workspaceFolder,
-      timeout_seconds: opts.timeoutSeconds ?? 60,
+      timeoutSeconds: opts.timeoutSeconds ?? 60,
       variableFilter: opts.variableFilter ?? ['PWD', 'HOME'],
       breakpointConfig: { breakpoints },
     },

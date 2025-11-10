@@ -65,23 +65,10 @@ describe('evaluateExpressionTool', () => {
         ?.extensionPath || path.resolve(__dirname, '../../..');
     const jsPath = path.join(extensionRoot, 'test-workspace/test.js');
     const tool = new StartDebuggerTool();
-    interface MockStartDebuggerOptions {
-      input: {
-        workspaceFolder: string;
-        timeout_seconds: number;
-        breakpointConfig?: {
-          breakpoints?: Array<{
-            path: string;
-            line: number;
-          }>;
-        };
-      };
-      toolInvocationToken: undefined;
-    }
     const startResult = await tool.invoke({
       input: {
         workspaceFolder: extensionRoot,
-        timeout_seconds: 30,
+        timeoutSeconds: 30,
         breakpointConfig: {
           breakpoints: [
             {
@@ -92,7 +79,7 @@ describe('evaluateExpressionTool', () => {
         },
       },
       toolInvocationToken: undefined,
-    } as MockStartDebuggerOptions);
+    });
     // LanguageModelToolResult has a content array containing LanguageModelTextPart or unknown types
     const startParts = (startResult.content || []) as Array<{
       text?: string;

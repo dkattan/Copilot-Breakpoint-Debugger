@@ -275,7 +275,7 @@
     "compile-tests": "tsc -p ./",
     "pretest": "npm run lint && npm run compile-tests",
     "lint": "eslint",
-    "test": "npm run compile-tests && node --enable-source-maps out/test/runTest.js",
+    "test": "npm run compile-tests && npx vscode-test",
     "test:coverage": "npm run compile-tests && npx vscode-test --coverage",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

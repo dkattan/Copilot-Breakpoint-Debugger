@@ -4,57 +4,37 @@ import * as vscode from 'vscode';
 import { StartDebuggerTool } from '../startDebuggerTool';
 import {
   activateCopilotDebugger,
-  ensurePowerShellExtension,
+  assertPowerShellExtension,
   getExtensionRoot,
   openScriptDocument,
 } from './utils/startDebuggerToolTestUtils';
 
-// Unified conditional breakpoint + hitCondition + logpoint tests.
-// Prefers PowerShell when available locally (and not CI), otherwise falls back to Node.
-// This replaces previous separate PowerShell and Node (.node) suites.
+// Conditional breakpoint + hitCondition + logpoint tests.
+// First test is PowerShell-only (no Node fallback). Remaining tests still fallback.
 
-describe('conditional Breakpoint Integration (Unified)', () => {
-  const chooseRuntime = async () => {
-    const pwshAvailable = await ensurePowerShellExtension();
-    if (!process.env.CI && pwshAvailable) {
-      return 'powershell' as const;
-    }
-    return 'node' as const;
-  };
-
-  it('conditional breakpoint triggers only when condition is met (pwsh fallback to node)', async function () {
+describe('conditional Breakpoint Integration', () => {
+  it('conditional breakpoint triggers only when condition is met (powershell only)', async function () {
     this.timeout(5000);
-    const runtime = await chooseRuntime();
+
     const extensionRoot = getExtensionRoot();
-    const scriptRelative =
-      runtime === 'powershell'
-        ? 'test-workspace/test.ps1'
-        : 'test-workspace/test.js';
-    const condition = runtime === 'powershell' ? '$i -ge 3' : 'i >= 3';
-    const lineInsideLoop = runtime === 'powershell' ? 8 : 9; // line numbers differ between scripts
-
-    const scriptUri = vscode.Uri.file(path.join(extensionRoot, scriptRelative));
-
-    // Get the first workspace folder from VS Code - should be set from test-workspace.code-workspace
+    const scriptUri = vscode.Uri.file(
+      path.join(extensionRoot, 'test-workspace/test.ps1')
+    );
     if (!vscode.workspace.workspaceFolders?.length) {
       throw new Error(
         'No workspace folders found. Ensure test-workspace.code-workspace is loaded.'
       );
     }
     const workspaceFolder = vscode.workspace.workspaceFolders[0].uri.fsPath;
-
     await openScriptDocument(scriptUri);
-    if (runtime === 'powershell') {
-      const hasPowerShell = await ensurePowerShellExtension();
-      if (!hasPowerShell) {
-        this.skip();
-      }
-    }
+    await assertPowerShellExtension();
+    const condition = '$i -ge 3';
+    const lineInsideLoop = 8;
+
     await activateCopilotDebugger();
 
     const tool = new StartDebuggerTool();
-    const configurationName =
-      runtime === 'powershell' ? 'Run test.ps1' : 'Run test.js';
+    const configurationName = 'Run test.ps1';
     const result = await tool.invoke({
       input: {
         workspaceFolder,
@@ -125,6 +105,15 @@ describe('conditional Breakpoint Integration (Unified)', () => {
       // Don't fail the test if we can't parse - basic assertions already passed
     }
   });
+
+  // Runtime chooser retained for remaining mixed-runtime tests until they are split.
+  const chooseRuntime = async () => {
+    const pwshAvailable = await ensurePowerShellExtension();
+    if (!process.env.CI && pwshAvailable) {
+      return 'powershell' as const;
+    }
+    return 'node' as const;
+  };
 
   it('hitCondition breakpoint triggers on specific hit count (pwsh fallback to node)', async function () {
     this.timeout(5000);

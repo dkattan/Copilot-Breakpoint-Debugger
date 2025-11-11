@@ -20,15 +20,15 @@ export function getExtensionRoot(): string {
 }
 
 /** Ensure PowerShell extension is available and activated; returns false if missing and test should skip. */
-export async function ensurePowerShellExtension(): Promise<boolean> {
+export async function assertPowerShellExtension(): Promise<void> {
   const pwshExtension = vscode.extensions.getExtension(POWERSHELL_EXTENSION_ID);
   if (!pwshExtension) {
-    return false;
+    throw new Error(`${POWERSHELL_EXTENSION_ID} is not installed`);
   }
   if (!pwshExtension.isActive) {
     await pwshExtension.activate();
   }
-  return true;
+  return;
 }
 
 /** Activate our extension under test. */

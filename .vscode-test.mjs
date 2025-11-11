@@ -19,10 +19,12 @@ export default defineConfig({
   mocha: {
     ui: 'bdd',
   },
-  launchArgs: [
-    resolve(__dirname, 'test-workspace.code-workspace'),
-    '--disable-extensions',
-  ],
+  // Allow extensions to load; we install required ones below via the 'extensions' field.
+  // Removed '--disable-extensions' so PowerShell & debug-tracker can activate.
+  launchArgs: [resolve(__dirname, 'test-workspace.code-workspace')],
+  // Request automatic installation of required marketplace extensions for tests.
+  // @vscode/test-cli will ensure these are present before running.
+  extensions: ['ms-vscode.PowerShell', 'mcu-debug.debug-tracker-vscode'],
   coverage: {
     reporter: ['text', 'html', 'lcov'],
     exclude: ['**/test/**', '**/node_modules/**'],

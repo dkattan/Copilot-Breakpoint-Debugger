@@ -15,6 +15,7 @@
   ],
   "settings": {
     "copilot-debugger.defaultLaunchConfiguration": "Run test.ps1",
+    "powershell.cwd": "workspace-a",
   },
   "launch": {
     "version": "0.2.0",

@@ -184,6 +184,19 @@ The debug tracker extension provides API services for monitoring debug sessions 
 
 - **Always update CLAUDE.md when you complete a feature**
 
+### Removing Deprecated or Legacy Files
+
+The automated patch mechanism used by tooling in this repo does not reliably delete files. When you need to remove a file (e.g. retiring a legacy test harness), do it explicitly with the shell and then commit the change.
+
+Recommended steps:
+
+1. Remove the file: `rm path/to/file.ts`
+2. Stage the deletion: `git add -u` (or `git add path/to/file.ts`)
+3. Commit: `git commit -m "chore: remove legacy <file>"`
+4. Re-run `npm test` to ensure no references remain.
+
+Never leave half-deleted stubs unless intentionally deprecating; prefer full removal once confirmed unused. Document the removal rationale briefly in the commit message.
+
 ### Dual VS Code Setup (Stable for Tests, Insiders for Dev)
 
 Running extension tests via the CLI requires that no other instance of VS Code (Stable) is running. To avoid conflicts and keep a fast edit/debug loop:
@@ -193,20 +206,20 @@ Running extension tests via the CLI requires that no other instance of VS Code (
 | Author & debug extension code         | VS Code Insiders          |
 | Execute `npm test` (electron harness) | VS Code Stable (headless) |
 
-The test harness (`src/test/runTest.ts`) downloads a Stable build into `.vscode-test/`. If only Insiders is open, Stable can launch cleanly. If you see the error about "Running extension tests from the command line is currently only supported if no other instance of Code is running.", close all Stable windows.
+The test CLI (`@vscode/test-cli` via `npm test`) downloads a Stable build into `.vscode-test/`. If only Insiders is open, Stable can launch cleanly. If you see the error about "Running extension tests from the command line is currently only supported if no other instance of Code is running.", close all Stable windows.
 
 #### Steps
 
 1. Install VS Code Stable and VS Code Insiders.
 1. Open the repo in **Insiders**.
 1. Run tests from a terminal: `npm test`.
-1. For interactive debugging use a launch config pointing to `out/test/runTest.js` or set `TEST_TS_NODE=1` for direct TS execution.
+1. For interactive debugging set `TEST_TS_NODE=1` to use the ts-node bootstrap (`out/test/suite/indexTsNode.js`).
 
 #### Tips
 
 - Use aliases: `alias codei='open -a "Visual Studio Code - Insiders"'`.
 - Clear `.vscode-test/` if previous runs leave stale state.
-- Breakpoints: local runs enable `--inspect-brk-extensions` for early bind.
+- Breakpoints: enable `--inspect-brk-extensions` by setting `TEST_EARLY_BREAK=1` or `TEST_DEBUG=1` before running `npm test`.
 
 ### Test Channel Selection (Default Insiders Locally)
 

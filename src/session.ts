@@ -363,8 +363,9 @@ export const startDebuggingAndWaitForStop = async (params: {
       `Added ${validated.length} validated breakpoint(s).`
     );
     // Give VS Code a moment to process and propagate breakpoints to debug adapters.
-    // A slightly longer delay improves reliability for first-line breakpoints in Node.
-    await new Promise(resolve => setTimeout(resolve, 300));
+    // A longer delay improves reliability, especially for Node.js debug adapter.
+    // The debugger needs time to bind breakpoints before execution starts.
+    await new Promise(resolve => setTimeout(resolve, 500));
   } else {
     outputChannel.appendLine('No valid breakpoints to add after validation.');
   }
@@ -397,6 +398,7 @@ export const startDebuggingAndWaitForStop = async (params: {
   const stopPromise = waitForBreakpointHit({
     sessionName: effectiveSessionName,
     timeout: timeoutSeconds * 1000,
+    includeTermination: true,
   });
   const success = await vscode.debug.startDebugging(folder, resolvedConfig);
   if (!success) {
@@ -412,6 +414,7 @@ export const startDebuggingAndWaitForStop = async (params: {
     try {
       const info = JSON.parse(firstStop.content[0].text) as BreakpointHitInfo;
       const isEntry = info.reason === 'entry';
+      // Convert to 0-based line number for comparison with VSCode positions
       const entryLineZeroBased = info.line !== undefined ? info.line - 1 : -1;
       const hitMatchesBreakpoint = validated.some(
         bp => bp.location.range.start.line === entryLineZeroBased
@@ -434,6 +437,7 @@ export const startDebuggingAndWaitForStop = async (params: {
             firstStop = await waitForBreakpointHit({
               sessionName: effectiveSessionName,
               timeout: remainingMs,
+              includeTermination: true,
             });
           } catch (contErr) {
             outputChannel.appendLine(
@@ -475,6 +479,32 @@ export const startDebuggingAndWaitForStop = async (params: {
       const breakpointInfo = JSON.parse(
         breakpointHitResult.content[0].text
       ) as BreakpointHitInfo;
+
+      // If the session terminated without hitting a breakpoint, return termination info
+      if (breakpointInfo.reason === 'terminated') {
+        outputChannel.appendLine(
+          `Debug session terminated without hitting breakpoint. Expected breakpoints at: ${validated.map(bp => `${bp.location.uri.fsPath}:${bp.location.range.start.line + 1}`).join(', ')}`
+        );
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Debug session ${breakpointInfo.sessionName} terminated without hitting any breakpoints.`,
+            },
+            {
+              type: 'json',
+              json: {
+                breakpoint: breakpointInfo,
+                callStack: null,
+                variables: null,
+                variablesError: 'Session terminated before hitting breakpoint',
+              },
+            },
+          ],
+          isError: true,
+        };
+      }
+
       // Get the full debug information including call stack and variables
       return await resolveBreakpointInfo(breakpointInfo, variableFilter);
     } catch (_parseErr) {

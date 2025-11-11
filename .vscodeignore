@@ -1,0 +1,39 @@
+# Source files
+src/**
+*.ts
+tsconfig.json
+
+# Test files
+out/**
+test-workspace/**
+test-workspace.code-workspace
+.vscode-test/**
+.vscode-test.mjs
+
+# Development files
+.git/**
+.gitignore
+.gitattributes
+.githooks/**
+.github/**
+.vscode/**
+*.vsix
+
+# Build files
+node_modules/**
+coverage/**
+*.map
+esbuild.js
+
+# Documentation and project files
+.prettierignore
+.prettierrc
+eslint.config.mjs
+vsc-extension-quickstart.md
+agents.md
+chat.json
+breakpoint_hit_output.json
+score_tally.txt
+CHANGELOG.md
+.claude/**
+package-lock.json

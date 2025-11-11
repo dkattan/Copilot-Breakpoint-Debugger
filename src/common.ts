@@ -1,4 +1,8 @@
+import type { Variable } from './debugUtils';
 import * as vscode from 'vscode';
+
+// Re-export types for convenience
+export type { Variable };
 
 // Create an output channel for debugging
 export const outputChannel = vscode.window.createOutputChannel('Debug Tools');

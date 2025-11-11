@@ -43,6 +43,16 @@ async function main() {
     const testDataRoot = path.resolve(extensionDevelopmentPath, '.vscode-test');
     const userDataDir = path.join(testDataRoot, 'user-data');
     const extensionsDir = path.join(testDataRoot, 'extensions');
+
+    // Clear user data directory to ensure clean state for each test run
+    // This prevents cached workspace state from causing multiple windows to spawn
+    if (fs.existsSync(userDataDir)) {
+      console.log(
+        '[test-runner] Clearing user data directory for clean test state'
+      );
+      fs.rmSync(userDataDir, { recursive: true, force: true });
+    }
+
     fs.mkdirSync(userDataDir, { recursive: true });
     fs.mkdirSync(extensionsDir, { recursive: true });
 
@@ -142,6 +152,7 @@ async function main() {
       '--disable-workspace-trust',
       '--disable-telemetry',
       '--disable-updates',
+      '--disable-extensions',
     ];
     // Opt-in early break for extension host so breakpoints in both extension & test sources bind deterministically.
     // Set TEST_EARLY_BREAK=1 or TEST_DEBUG=1 in environment to enable. (We don't always enable by default to keep CI fast.)
@@ -159,6 +170,7 @@ async function main() {
     console.log('[test-runner] extensionTestsPath:', extensionTestsPath);
 
     await runTests({
+      vscodeExecutablePath,
       extensionDevelopmentPath,
       extensionTestsPath,
       launchArgs,

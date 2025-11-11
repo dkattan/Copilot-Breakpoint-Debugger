@@ -1,4 +1,3 @@
-import type { DebugSessionOptions } from 'vscode';
 import type { BreakpointHitInfo } from './common';
 import type { Variable } from './debugUtils';
 import * as vscode from 'vscode';
@@ -271,16 +270,33 @@ export const startDebuggingAndWaitForStop = async (params: {
   // Try exact match first
   let folder = workspaceFolders.find(f => f.uri?.fsPath === workspaceFolder);
 
-  // If no exact match, check if the requested folder is a subfolder of an open workspace
+  // If no exact match, we might have been given a parent folder (repo root) while only a child (e.g. test-workspace) is opened,
+  // OR we might have been given a child while only the parent is opened. Support both directions.
   if (!folder) {
-    folder = workspaceFolders.find(
+    // Case 1: Requested path is parent of an opened workspace folder
+    const childOfRequested = workspaceFolders.find(
+      f =>
+        f.uri.fsPath.startsWith(`${workspaceFolder}/`) ||
+        f.uri.fsPath.startsWith(`${workspaceFolder}\\`)
+    );
+    if (childOfRequested) {
+      folder = childOfRequested;
+      outputChannel.appendLine(
+        `Requested parent folder '${workspaceFolder}' not open; using child workspace folder '${folder.uri.fsPath}'.`
+      );
+    }
+  }
+  if (!folder) {
+    // Case 2: Requested path is a subfolder of an opened workspace folder
+    const parentOfRequested = workspaceFolders.find(
       f =>
         workspaceFolder.startsWith(`${f.uri.fsPath}/`) ||
         workspaceFolder.startsWith(`${f.uri.fsPath}\\`)
     );
-    if (folder) {
+    if (parentOfRequested) {
+      folder = parentOfRequested;
       outputChannel.appendLine(
-        `Using parent workspace folder '${folder.uri.fsPath}' for requested path '${workspaceFolder}'`
+        `Requested subfolder '${workspaceFolder}' not open; using parent workspace folder '${folder.uri.fsPath}'.`
       );
     }
   }
@@ -346,28 +362,96 @@ export const startDebuggingAndWaitForStop = async (params: {
     outputChannel.appendLine(
       `Added ${validated.length} validated breakpoint(s).`
     );
-    // Give VS Code a moment to process and propagate breakpoints to debug adapters
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Give VS Code a moment to process and propagate breakpoints to debug adapters.
+    // A slightly longer delay improves reliability for first-line breakpoints in Node.
+    await new Promise(resolve => setTimeout(resolve, 300));
   } else {
     outputChannel.appendLine('No valid breakpoints to add after validation.');
   }
 
-  // Set up the listener before starting the session to avoid race condition
-  outputChannel.appendLine(
-    `Preparing breakpoint wait: sessionName='${sessionName}'`
-  );
-  const stopPromise = waitForBreakpointHit({
-    sessionName,
-    timeout: timeoutSeconds * 1000, // Convert seconds to milliseconds
-  });
+  // Resolve launch configuration: always inject stopOnEntry=true to ensure early pause, but never synthesize a generic config.
+  const launchConfig = vscode.workspace.getConfiguration('launch', folder.uri);
+  const allConfigs =
+    (launchConfig.get<unknown>(
+      'configurations'
+    ) as vscode.DebugConfiguration[]) || [];
+  const found = allConfigs.find(c => c.name === nameOrConfiguration);
+  if (!found) {
+    throw new Error(
+      `Launch configuration '${nameOrConfiguration}' not found in ${folder.uri.fsPath}. Add it to .vscode/launch.json.`
+    );
+  }
+  const resolvedConfig = { ...found };
+  // Inject stopOnEntry if not already present (harmless if adapter ignores it)
+  if (!('stopOnEntry' in resolvedConfig)) {
+    (resolvedConfig as Record<string, unknown>).stopOnEntry = true;
+  } else {
+    (resolvedConfig as Record<string, unknown>).stopOnEntry = true; // force true
+  }
 
-  const success = await vscode.debug.startDebugging(
-    folder,
-    nameOrConfiguration,
-    {
-      name: sessionName,
-    } as DebugSessionOptions
+  const effectiveSessionName = sessionName || resolvedConfig.name || '';
+  outputChannel.appendLine(
+    `Starting debugger with configuration '${resolvedConfig.name}' (stopOnEntry forced to true). Waiting for first stop event.`
   );
+  // Set up listener BEFORE starting to avoid race with fast 'entry' events.
+  const stopPromise = waitForBreakpointHit({
+    sessionName: effectiveSessionName,
+    timeout: timeoutSeconds * 1000,
+  });
+  const success = await vscode.debug.startDebugging(folder, resolvedConfig);
+  if (!success) {
+    throw new Error(`Failed to start debug session '${effectiveSessionName}'.`);
+  }
+  let remainingMs = timeoutSeconds * 1000;
+  const t0 = Date.now();
+  let firstStop = await stopPromise;
+  const elapsed = Date.now() - t0;
+  remainingMs = Math.max(0, remainingMs - elapsed);
+  // Entry stop handling: only auto-continue if entry location is NOT a user breakpoint line.
+  if (!firstStop.isError && firstStop.content[0].type === 'text') {
+    try {
+      const info = JSON.parse(firstStop.content[0].text) as BreakpointHitInfo;
+      const isEntry = info.reason === 'entry';
+      const entryLineZeroBased = info.line !== undefined ? info.line - 1 : -1;
+      const hitMatchesBreakpoint = validated.some(
+        bp => bp.location.range.start.line === entryLineZeroBased
+      );
+      if (
+        isEntry &&
+        !hitMatchesBreakpoint &&
+        validated.length > 0 &&
+        remainingMs > 0
+      ) {
+        outputChannel.appendLine(
+          'Entry stop at non-breakpoint location; continuing to reach first user breakpoint.'
+        );
+        const active =
+          activeSessions.find(s => s.name === effectiveSessionName) ||
+          activeSessions.at(-1);
+        if (active) {
+          try {
+            await active.customRequest('continue', { threadId: 0 });
+            firstStop = await waitForBreakpointHit({
+              sessionName: effectiveSessionName,
+              timeout: remainingMs,
+            });
+          } catch (contErr) {
+            outputChannel.appendLine(
+              `Failed to continue after entry: ${contErr instanceof Error ? contErr.message : String(contErr)}`
+            );
+          }
+        }
+      } else if (isEntry && hitMatchesBreakpoint) {
+        outputChannel.appendLine(
+          'Entry stop occurred at a user breakpoint line; treating it as the breakpoint hit.'
+        );
+      }
+    } catch (parseErr) {
+      outputChannel.appendLine(
+        `Failed to parse first stop JSON for entry evaluation: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`
+      );
+    }
+  }
 
   if (!success) {
     throw new Error(`Failed to start debug session '${sessionName}'.`);
@@ -380,23 +464,7 @@ export const startDebuggingAndWaitForStop = async (params: {
   );
 
   // Always wait for the debug session to stop at a breakpoint with timeout
-  let breakpointHitResult;
-  try {
-    breakpointHitResult = await stopPromise;
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('Timeout')) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Debug session '${sessionName}' timed out after ${timeoutSeconds} seconds waiting for a breakpoint to be hit.`,
-          },
-        ],
-        isError: true,
-      };
-    }
-    throw error;
-  }
+  const breakpointHitResult = firstStop;
 
   // If we got a successful breakpoint hit, resolve it to get full debug information
   if (

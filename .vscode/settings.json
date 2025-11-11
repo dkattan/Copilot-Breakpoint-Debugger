@@ -24,5 +24,12 @@
   },
   "[javascript]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  // Extension Test Runner configuration
+  "extension-test-runner.debugOptions": {
+    "args": [
+      "${workspaceFolder}/test-workspace.code-workspace",
+      "--disable-extensions"
+    ]
   }
 }

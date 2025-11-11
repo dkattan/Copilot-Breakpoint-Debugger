@@ -27,7 +27,7 @@
     "Debuggers",
     "Other"
   ],
-  "main": "./out/extension.js",
+  "main": "./dist/extension.js",
   "icon": "images/icon.png",
   "engines": {
     "vscode": "^1.102.0"
@@ -266,13 +266,17 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "npm run package",
     "compile": "npm run format && tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "pretest": "npm run lint",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch -p ./",
+    "package": "npm run format && node esbuild.js --production",
+    "compile-tests": "tsc -p ./",
+    "pretest": "npm run lint && npm run compile-tests",
     "lint": "eslint",
-    "test": "npm run compile && node --enable-source-maps out/test/runTest.js",
-    "test:coverage": "npm run compile && npx vscode-test --coverage",
+    "test": "npm run compile-tests && node --enable-source-maps out/test/runTest.js",
+    "test:coverage": "npm run compile-tests && npx vscode-test --coverage",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
@@ -282,6 +286,7 @@
   },
   "devDependencies": {
     "@antfu/eslint-config": "^3.0.0",
+    "@esbuild-plugins/node-modules-polyfill": "^0.2.2",
     "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
     "@types/vscode": "^1.102.0",
@@ -290,9 +295,11 @@
     "@vscode/debugprotocol": "^1.68.0",
     "@vscode/test-cli": "^0.0.11",
     "@vscode/test-electron": "^2.5.2",
+    "esbuild": "^0.27.0",
     "eslint": "^9.25.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.3",
+    "npm-run-all": "^4.1.5",
     "prettier": "^3.6.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"

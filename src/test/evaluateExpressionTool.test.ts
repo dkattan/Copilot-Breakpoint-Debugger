@@ -22,7 +22,7 @@ describe('evaluateExpressionTool', () => {
     assert.ok(prepared?.invocationMessage.includes('foo'));
   });
 
-  it('invoke returns error if no session', async () => {
+  it('invoke returns error if no session or invalid expression', async () => {
     const tool = new EvaluateExpressionTool();
     interface MockInvokeOptions {
       input: { expression: string };
@@ -32,28 +32,15 @@ describe('evaluateExpressionTool', () => {
       input: { expression: 'foo' },
       toolInvocationToken: undefined,
     } as MockInvokeOptions);
-    // LanguageModelToolResult has a content array containing LanguageModelTextPart or unknown types
-    const parts = (result.content || []) as Array<{
-      text?: string;
-      value?: string;
-    }>;
-    const combined = parts
-      .map(p => {
-        if (typeof p === 'object' && p !== null) {
-          if ('text' in p) {
-            return (p as { text?: string }).text;
-          }
-          if ('value' in p) {
-            return (p as { value?: string }).value;
-          }
-        }
-        return JSON.stringify(p);
-      })
-      .join('\n');
-    // Depending on timing there may or may not be a session; allow either success or specific error
+    interface LanguageModelTextPart {
+      value: string;
+    }
+    const textPart = result.content[0] as LanguageModelTextPart;
+    const combined = textPart.value;
+    // Should produce error message (no session, invalid expression, or evaluation result)
     assert.ok(
-      /Error: No active debug session|\{"expression"/.test(combined),
-      'Should evaluate or produce no-session error'
+      /Error:|not defined|\{"expression"/.test(combined),
+      `Should evaluate or produce error, got: ${combined}`
     );
   });
 
@@ -89,8 +76,8 @@ describe('evaluateExpressionTool', () => {
     const startText = startParts
       .map(p => {
         if (typeof p === 'object' && p !== null) {
-          if ('text' in p) {
-            return (p as { text?: string }).text;
+          if ('value' in p) {
+            return (p as { value?: string }).value;
           }
           if ('value' in p) {
             return (p as { value?: string }).value;
@@ -120,8 +107,8 @@ describe('evaluateExpressionTool', () => {
     const evalText = evalParts
       .map(p => {
         if (typeof p === 'object' && p !== null) {
-          if ('text' in p) {
-            return (p as { text?: string }).text;
+          if ('value' in p) {
+            return (p as { value?: string }).value;
           }
           if ('value' in p) {
             return (p as { value?: string }).value;

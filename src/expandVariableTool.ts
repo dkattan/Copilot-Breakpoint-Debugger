@@ -27,63 +27,71 @@ export interface ExpandedVariableData {
 export class ExpandVariableTool
   implements LanguageModelTool<ExpandVariableToolParameters>
 {
+  /**
+   * Expand a variable and get its children as structured data.
+   * @param variableName The name of the variable to expand
+   * @returns ExpandedVariableData object or throws an error
+   */
+  async expandVariable(variableName: string): Promise<ExpandedVariableData> {
+    // Check if there's an active debug session
+    const activeSession = vscode.debug.activeDebugSession;
+    if (!activeSession) {
+      throw new Error('No active debug session found');
+    }
+
+    // Get debug context (threads, frames, scopes)
+    const debugContext = await DAPHelpers.getDebugContext(activeSession);
+    if (!debugContext) {
+      throw new Error(
+        'Unable to get debug context (threads, frames, or scopes)'
+      );
+    }
+
+    // Find the target variable in all scopes
+    const foundVariable: FoundVariable | null =
+      await DAPHelpers.findVariableInScopes(
+        activeSession,
+        debugContext.scopes,
+        variableName
+      );
+
+    if (!foundVariable) {
+      throw new Error(`Variable '${variableName}' not found in current scope`);
+    }
+
+    // Prepare the expanded variable data
+    const expandedData: ExpandedVariableData = {
+      variable: foundVariable.variable,
+      children: [],
+    };
+
+    // If the variable is expandable, get its children
+    if (foundVariable.variable.isExpandable) {
+      // Get the original Variable object to access variablesReference
+      const originalVariable = await this.getOriginalVariable(
+        activeSession,
+        debugContext.scopes,
+        variableName
+      );
+
+      if (originalVariable && originalVariable.variablesReference > 0) {
+        expandedData.children = await DAPHelpers.getVariablesFromReference(
+          activeSession,
+          originalVariable.variablesReference
+        );
+      }
+    }
+
+    return expandedData;
+  }
+
   async invoke(
     options: LanguageModelToolInvocationOptions<ExpandVariableToolParameters>
   ): Promise<LanguageModelToolResult> {
     const { variableName } = options.input;
 
     try {
-      // Check if there's an active debug session
-      const activeSession = vscode.debug.activeDebugSession;
-      if (!activeSession) {
-        return DAPHelpers.createErrorResult('No active debug session found');
-      }
-
-      // Get debug context (threads, frames, scopes)
-      const debugContext = await DAPHelpers.getDebugContext(activeSession);
-      if (!debugContext) {
-        return DAPHelpers.createErrorResult(
-          'Unable to get debug context (threads, frames, or scopes)'
-        );
-      }
-
-      // Find the target variable in all scopes
-      const foundVariable: FoundVariable | null =
-        await DAPHelpers.findVariableInScopes(
-          activeSession,
-          debugContext.scopes,
-          variableName
-        );
-
-      if (!foundVariable) {
-        return DAPHelpers.createErrorResult(
-          `Variable '${variableName}' not found in current scope`
-        );
-      }
-
-      // Prepare the expanded variable data
-      const expandedData: ExpandedVariableData = {
-        variable: foundVariable.variable,
-        children: [],
-      };
-
-      // If the variable is expandable, get its children
-      if (foundVariable.variable.isExpandable) {
-        // Get the original Variable object to access variablesReference
-        const originalVariable = await this.getOriginalVariable(
-          activeSession,
-          debugContext.scopes,
-          variableName
-        );
-
-        if (originalVariable && originalVariable.variablesReference > 0) {
-          expandedData.children = await DAPHelpers.getVariablesFromReference(
-            activeSession,
-            originalVariable.variablesReference
-          );
-        }
-      }
-
+      const expandedData = await this.expandVariable(variableName);
       const result = JSON.stringify(expandedData, null, 2);
       return DAPHelpers.createSuccessResult(result);
     } catch (_error) {

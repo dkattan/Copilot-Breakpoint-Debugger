@@ -42,8 +42,8 @@ describe('resumeDebugSessionTool', () => {
     const combined = parts
       .map(p => {
         if (typeof p === 'object' && p !== null) {
-          if ('text' in p) {
-            return (p as { text?: string }).text;
+          if ('value' in p) {
+            return (p as { value?: string }).value;
           }
           if ('value' in p) {
             return (p as { value?: string }).value;

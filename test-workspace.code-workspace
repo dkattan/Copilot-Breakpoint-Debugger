@@ -1,0 +1,64 @@
+{
+  "folders": [
+    {
+      "name": "test-workspace",
+      "path": "test-workspace",
+    },
+    {
+      "name": "workspace-a",
+      "path": "test-workspace/a",
+    },
+    {
+      "name": "workspace-b",
+      "path": "test-workspace/b",
+    },
+  ],
+  "settings": {
+    "copilot-debugger.defaultLaunchConfiguration": "Run test.ps1",
+  },
+  "launch": {
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Run test.ps1",
+        "type": "PowerShell",
+        "request": "launch",
+        "script": "${workspaceFolder:workspace-a}/test.ps1",
+        "cwd": "${workspaceFolder:workspace-a}",
+      },
+      {
+        "name": "Run test.js",
+        "type": "node",
+        "request": "launch",
+        "program": "${workspaceFolder:workspace-b}/test.js",
+        "cwd": "${workspaceFolder:workspace-b}",
+      },
+      {
+        "name": "Debug PowerShell (workspace a)",
+        "type": "PowerShell",
+        "request": "launch",
+        "script": "${workspaceFolder:workspace-a}/test.ps1",
+        "cwd": "${workspaceFolder:workspace-a}",
+      },
+      {
+        "name": "Debug Node.js (workspace b)",
+        "type": "node",
+        "request": "launch",
+        "program": "${workspaceFolder:workspace-b}/test.js",
+        "cwd": "${workspaceFolder:workspace-b}",
+      },
+    ],
+    "compounds": [
+      {
+        "name": "Debug Both (Compound)",
+        "configurations": [
+          "Debug PowerShell (workspace a)",
+          "Debug Node.js (workspace b)",
+        ],
+      },
+    ],
+  },
+  "extensions": {
+    "recommendations": ["ms-vscode.powershell", "dkattan.copilot-debugger"],
+  },
+}

@@ -2,7 +2,6 @@ import type { LanguageModelTextPart } from 'vscode';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { StartDebuggerTool } from '../startDebuggerTool';
-import { resolveWorkspaceFolder } from './utils/debugTestUtils';
 import {
   activateCopilotDebugger,
   ensurePowerShellExtension,
@@ -35,7 +34,15 @@ describe('conditional Breakpoint Integration (Unified)', () => {
     const lineInsideLoop = runtime === 'powershell' ? 8 : 9; // line numbers differ between scripts
 
     const scriptUri = vscode.Uri.file(path.join(extensionRoot, scriptRelative));
-    const workspaceFolder = resolveWorkspaceFolder(extensionRoot);
+
+    // Get the first workspace folder from VS Code - should be set from test-workspace.code-workspace
+    if (!vscode.workspace.workspaceFolders?.length) {
+      throw new Error(
+        'No workspace folders found. Ensure test-workspace.code-workspace is loaded.'
+      );
+    }
+    const workspaceFolder = vscode.workspace.workspaceFolders[0].uri.fsPath;
+
     await openScriptDocument(scriptUri);
     if (runtime === 'powershell') {
       const hasPowerShell = await ensurePowerShellExtension();
@@ -46,11 +53,14 @@ describe('conditional Breakpoint Integration (Unified)', () => {
     await activateCopilotDebugger();
 
     const tool = new StartDebuggerTool();
+    const configurationName =
+      runtime === 'powershell' ? 'Run test.ps1' : 'Run test.js';
     const result = await tool.invoke({
       input: {
         workspaceFolder,
         timeoutSeconds: 60,
         variableFilter: ['i'],
+        configurationName,
         breakpointConfig: {
           breakpoints: [
             {
@@ -126,7 +136,15 @@ describe('conditional Breakpoint Integration (Unified)', () => {
         : 'test-workspace/test.js';
     const lineInsideLoop = runtime === 'powershell' ? 8 : 9;
     const scriptUri = vscode.Uri.file(path.join(extensionRoot, scriptRelative));
-    const workspaceFolder = resolveWorkspaceFolder(extensionRoot);
+
+    // Get the first workspace folder from VS Code - should be set from test-workspace.code-workspace
+    if (!vscode.workspace.workspaceFolders?.length) {
+      throw new Error(
+        'No workspace folders found. Ensure test-workspace.code-workspace is loaded.'
+      );
+    }
+    const workspaceFolder = vscode.workspace.workspaceFolders[0].uri.fsPath;
+
     await openScriptDocument(scriptUri);
     if (runtime === 'powershell') {
       const hasPowerShell = await ensurePowerShellExtension();
@@ -137,11 +155,14 @@ describe('conditional Breakpoint Integration (Unified)', () => {
     await activateCopilotDebugger();
 
     const tool = new StartDebuggerTool();
+    const configurationName =
+      runtime === 'powershell' ? 'Run test.ps1' : 'Run test.js';
     const result = await tool.invoke({
       input: {
         workspaceFolder,
         timeoutSeconds: 60,
         variableFilter: ['i'],
+        configurationName,
         breakpointConfig: {
           breakpoints: [
             {
@@ -229,7 +250,15 @@ describe('conditional Breakpoint Integration (Unified)', () => {
     const logMessage =
       runtime === 'powershell' ? 'Loop iteration: {$i}' : 'Loop iteration: {i}';
     const scriptUri = vscode.Uri.file(path.join(extensionRoot, scriptRelative));
-    const workspaceFolder = resolveWorkspaceFolder(extensionRoot);
+
+    // Get the first workspace folder from VS Code - should be set from test-workspace.code-workspace
+    if (!vscode.workspace.workspaceFolders?.length) {
+      throw new Error(
+        'No workspace folders found. Ensure test-workspace.code-workspace is loaded.'
+      );
+    }
+    const workspaceFolder = vscode.workspace.workspaceFolders[0].uri.fsPath;
+
     await openScriptDocument(scriptUri);
     if (runtime === 'powershell') {
       const hasPowerShell = await ensurePowerShellExtension();
@@ -239,10 +268,13 @@ describe('conditional Breakpoint Integration (Unified)', () => {
     }
     await activateCopilotDebugger();
     const tool = new StartDebuggerTool();
+    const configurationName =
+      runtime === 'powershell' ? 'Run test.ps1' : 'Run test.js';
     const result = await tool.invoke({
       input: {
         workspaceFolder,
         timeoutSeconds: 60,
+        configurationName,
         breakpointConfig: {
           breakpoints: [
             {

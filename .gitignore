@@ -2,3 +2,6 @@ out
 node_modules
 *.local.json
 .vscode-test
+score_tally.txt
+coverage
+.nyc_output

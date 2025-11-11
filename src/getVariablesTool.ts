@@ -32,8 +32,12 @@ export class GetVariablesTool
         );
       }
 
-      // Get all variables from all scopes
-      const variablesData: VariablesData = { scopes: [] };
+      // Get all variables from all scopes (domain shape)
+      const variablesData: VariablesData = {
+        type: 'variables',
+        sessionId: activeSession.id,
+        scopes: [],
+      };
 
       for (const scope of debugContext.scopes) {
         const variables = await DAPHelpers.getVariablesFromReference(
@@ -51,8 +55,8 @@ export class GetVariablesTool
         );
       }
 
-      const result = JSON.stringify(variablesData, null, 2);
-      return DAPHelpers.createSuccessResult(result);
+      const serialized = JSON.stringify(variablesData, null, 2);
+      return DAPHelpers.createSuccessResult(serialized);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error occurred';

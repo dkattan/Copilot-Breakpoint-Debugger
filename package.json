@@ -272,6 +272,7 @@
     "pretest": "npm run lint",
     "lint": "eslint",
     "test": "npm run compile && node --enable-source-maps out/test/runTest.js",
+    "test:coverage": "npm run compile && npx vscode-test --coverage",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
@@ -286,6 +287,7 @@
     "@types/vscode": "^1.102.0",
     "@typescript-eslint/eslint-plugin": "^8.31.1",
     "@typescript-eslint/parser": "^8.31.1",
+    "@vscode/debugprotocol": "^1.68.0",
     "@vscode/test-cli": "^0.0.11",
     "@vscode/test-electron": "^2.5.2",
     "eslint": "^9.25.1",

@@ -1,16 +1,14 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { StartDebuggerTool } from '../../startDebuggerTool';
-import {
-  POWERSHELL_EXTENSION_ID,
-  resolveWorkspaceFolder,
-} from './debugTestUtils';
+import { POWERSHELL_EXTENSION_ID } from './debugTestUtils';
 
 export interface StartDebuggerInvocationOptions {
   scriptRelativePath: string; // Path relative to extension root (e.g., 'test-workspace/test.ps1')
   timeoutSeconds?: number;
   variableFilter?: string[];
   breakpointLines?: number[]; // Breakpoints on first script path
+  configurationName?: string; // Launch configuration name to use
 }
 
 /** Resolve extension root path. */
@@ -54,7 +52,14 @@ export async function invokeStartDebuggerTool(
   const scriptUri = vscode.Uri.file(
     path.join(extensionRoot, opts.scriptRelativePath)
   );
-  const workspaceFolder = resolveWorkspaceFolder(extensionRoot);
+
+  // Get the first workspace folder from VS Code - should be set from test-workspace.code-workspace
+  if (!vscode.workspace.workspaceFolders?.length) {
+    throw new Error(
+      'No workspace folders found. Ensure test-workspace.code-workspace is loaded.'
+    );
+  }
+  const workspaceFolder = vscode.workspace.workspaceFolders[0].uri.fsPath;
 
   await openScriptDocument(scriptUri);
 
@@ -82,6 +87,7 @@ export async function invokeStartDebuggerTool(
       workspaceFolder,
       timeoutSeconds: opts.timeoutSeconds ?? 60,
       variableFilter: opts.variableFilter ?? ['PWD', 'HOME'],
+      configurationName: opts.configurationName,
       breakpointConfig: { breakpoints },
     },
     toolInvocationToken: undefined,

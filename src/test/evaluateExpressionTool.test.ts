@@ -69,6 +69,7 @@ describe('evaluateExpressionTool', () => {
       input: {
         workspaceFolder: extensionRoot,
         timeoutSeconds: 30,
+        configurationName: 'Run test.js',
         breakpointConfig: {
           breakpoints: [
             {

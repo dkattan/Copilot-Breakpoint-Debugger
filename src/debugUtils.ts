@@ -1,32 +1,12 @@
+import type { DebugProtocol } from '@vscode/debugprotocol';
 import type * as vscode from 'vscode';
 import { LanguageModelTextPart, LanguageModelToolResult } from 'vscode';
 
-// Shared DAP interfaces
-export interface Thread {
-  id: number;
-  name: string;
-}
-
-export interface StackFrame {
-  id: number;
-  name: string;
-  line: number;
-  column: number;
-}
-
-export interface Scope {
-  name: string;
-  variablesReference: number;
-  expensive: boolean;
-}
-
-export interface Variable {
-  name: string;
-  value: string;
-  type?: string;
-  evaluateName?: string;
-  variablesReference: number;
-}
+// Re-export DAP types for convenience
+export type Thread = DebugProtocol.Thread;
+export type StackFrame = DebugProtocol.StackFrame;
+export type Scope = DebugProtocol.Scope;
+export type Variable = DebugProtocol.Variable;
 
 export interface VariableInfo {
   name: string;
@@ -41,7 +21,11 @@ export interface ScopeInfo {
 }
 
 export interface VariablesData {
+  type: 'variables';
+  sessionId: string;
   scopes: ScopeInfo[];
+  filtered?: boolean;
+  filterPattern?: string;
 }
 
 export interface VariablesResponse {

@@ -130,7 +130,13 @@ async function main() {
       );
     }
 
+    const testWorkspaceFile = path.resolve(
+      extensionDevelopmentPath,
+      'test-workspace.code-workspace'
+    );
+
     const launchArgs = [
+      testWorkspaceFile,
       '--user-data-dir',
       userDataDir,
       '--disable-workspace-trust',

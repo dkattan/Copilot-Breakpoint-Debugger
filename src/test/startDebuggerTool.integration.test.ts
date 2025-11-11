@@ -19,7 +19,6 @@ describe('startDebuggerTool Integration (PowerShell)', () => {
         'Skipping PowerShell integration test in CI (use Node.js tests for coverage)'
       );
       this.skip();
-      return;
     }
 
     this.timeout(5000); // allow time for activation + breakpoint
@@ -30,8 +29,22 @@ describe('startDebuggerTool Integration (PowerShell)', () => {
         timeoutSeconds: 60,
         variableFilter: ['PWD', 'HOME'],
         breakpointLines: [1],
+        configurationName: 'Run test.ps1',
       });
-      textOutput = result.textOutput;
+      // result.content is an array of parts in new API; join text parts for legacy assertion helper
+      type Part = { value?: string; text?: string } | string;
+      const toText = (p: Part): string => {
+        if (typeof p === 'string') {
+          return p;
+        }
+        return p.value || p.text || '';
+      };
+      const joined = Array.isArray(result.content)
+        ? (result.content as Part[]).map(toText).filter(Boolean).join('\n')
+        : '';
+      textOutput = joined;
+
+      assertStartDebuggerOutput(textOutput);
     } catch (err) {
       if ((err as Error).message === 'pwsh-missing') {
         this.skip();
@@ -40,6 +53,5 @@ describe('startDebuggerTool Integration (PowerShell)', () => {
       throw err;
     }
     console.log('StartDebuggerTool output:\n', textOutput);
-    assertStartDebuggerOutput(textOutput);
   });
 });

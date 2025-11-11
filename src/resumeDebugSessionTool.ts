@@ -34,7 +34,8 @@ export class ResumeDebugSessionTool
         if (item.type === 'json' && 'json' in item) {
           return new LanguageModelTextPart(JSON.stringify(item.json));
         }
-        const textValue = 'text' in item ? item.text : JSON.stringify(item);
+        const textValue =
+          'text' in item && item.text ? item.text : JSON.stringify(item);
         return new LanguageModelTextPart(textValue);
       });
       return new LanguageModelToolResult(parts);

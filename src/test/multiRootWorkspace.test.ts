@@ -1,4 +1,5 @@
-import type { DebugInfo, StartDebugSessionResult, Variable } from '../session';
+import type { Variable } from '../debugUtils';
+import type { DebugInfo, StartDebugSessionResult } from '../session';
 import * as assert from 'node:assert';
 import * as path from 'node:path';
 import * as vscode from 'vscode';

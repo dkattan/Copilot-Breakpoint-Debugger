@@ -67,6 +67,7 @@ describe('stopDebugSessionTool', () => {
       input: {
         workspaceFolder: extensionRoot,
         timeoutSeconds: 30,
+        configurationName: 'Run test.js',
         breakpointConfig: { breakpoints: [{ path: jsPath, line: 5 }] },
       },
       toolInvocationToken: undefined,

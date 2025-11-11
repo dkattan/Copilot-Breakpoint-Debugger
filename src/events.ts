@@ -100,80 +100,85 @@ vscode.debug.registerDebugAdapterTrackerFactory('*', {
                 }
 
                 // Get call stack information for the session
-                const callStackResult = await getCallStack({
-                  sessionName: session.name,
-                });
+                // Some debug adapters (especially PowerShell) may send the stopped event before
+                // stack frames are populated. Retry a few times with small delays.
+                let callStackResult;
+                let threadData;
+                const retries = 3;
 
-                if (callStackResult.isError) {
-                  // If we couldn't get call stack, emit basic event
-                  breakpointEventEmitter.fire({
-                    sessionId: session.id,
-                    sessionName: session.name,
-                    threadId: body.threadId,
-                    reason: body.reason,
-                    exceptionInfo: exceptionDetails,
-                  });
-                  return;
-                }
-                if (!('json' in callStackResult.content[0])) {
-                  // If the content is not JSON, emit basic event
-                  breakpointEventEmitter.fire({
-                    sessionId: session.id,
-                    sessionName: session.name,
-                    threadId: body.threadId,
-                    reason: body.reason,
-                    exceptionInfo: exceptionDetails,
-                  });
-                  return;
-                }
-                // Extract call stack data from the result
-                const callStackData =
-                  callStackResult.content[0].json?.callStacks[0];
-                if (!('threads' in callStackData)) {
-                  // If threads are not present, emit basic event
-                  breakpointEventEmitter.fire({
-                    sessionId: session.id,
-                    sessionName: session.name,
-                    threadId: body.threadId,
-                    reason: body.reason,
-                    exceptionInfo: exceptionDetails,
-                  });
-                  return;
-                }
-                // If threads are present, find the one that matches the threadId
-                if (!Array.isArray(callStackData.threads)) {
-                  breakpointEventEmitter.fire({
-                    sessionId: session.id,
-                    sessionName: session.name,
-                    threadId: body.threadId,
-                    reason: body.reason,
-                    exceptionInfo: exceptionDetails,
-                  });
-                  return;
-                }
-                // Find the thread that triggered the event
-                const threadData = callStackData.threads.find(
-                  (t: ThreadData) => t.threadId === body.threadId
-                );
+                for (let attempt = 0; attempt < retries; attempt++) {
+                  if (attempt > 0) {
+                    // Wait a bit before retrying
+                    await new Promise(resolve =>
+                      setTimeout(resolve, 50 * attempt)
+                    );
+                  }
 
-                if (
-                  !threadData ||
-                  !threadData.stackFrames ||
-                  threadData.stackFrames.length === 0
-                ) {
-                  // If thread or stack frames not found, emit basic event
-                  breakpointEventEmitter.fire({
-                    sessionId: session.id,
+                  callStackResult = await getCallStack({
                     sessionName: session.name,
-                    threadId: body.threadId,
-                    reason: body.reason,
-                    exceptionInfo: exceptionDetails,
                   });
-                  return;
+
+                  if (callStackResult.isError) {
+                    const errorText =
+                      'text' in callStackResult.content[0]
+                        ? callStackResult.content[0].text
+                        : 'Unknown error';
+                    throw new Error(`Failed to get call stack: ${errorText}`);
+                  }
+                  if (!('json' in callStackResult.content[0])) {
+                    throw new Error(
+                      'Call stack result does not contain JSON content'
+                    );
+                  }
+                  // Extract call stack data from the result
+                  const callStackData =
+                    callStackResult.content[0].json?.callStacks[0];
+                  if (!callStackData || !('threads' in callStackData)) {
+                    throw new Error(
+                      `Call stack data missing threads: ${JSON.stringify(callStackData)}`
+                    );
+                  }
+                  // If threads are present, find the one that matches the threadId
+                  if (!Array.isArray(callStackData.threads)) {
+                    throw new TypeError(
+                      `Call stack threads is not an array: ${typeof callStackData.threads}`
+                    );
+                  }
+                  // Find the thread that triggered the event
+                  threadData = callStackData.threads.find(
+                    (t: ThreadData) => t.threadId === body.threadId
+                  );
+
+                  if (!threadData) {
+                    throw new Error(
+                      `Thread ${body.threadId} not found in call stack. Available threads: ${callStackData.threads.map((t: ThreadData) => t.threadId).join(', ')}`
+                    );
+                  }
+
+                  // If we have stack frames, we're done
+                  if (
+                    threadData.stackFrames &&
+                    threadData.stackFrames.length > 0
+                  ) {
+                    break;
+                  }
+
+                  // If this is the last attempt, throw
+                  if (attempt === retries - 1) {
+                    throw new Error(
+                      `Thread ${body.threadId} has no stack frames after ${retries} attempts`
+                    );
+                  }
                 }
 
                 // Get the top stack frame
                 const topFrame = threadData.stackFrames[0];
+
+                if (!topFrame.source?.path) {
+                  throw new Error(
+                    `Top stack frame missing source path: ${JSON.stringify(topFrame)}`
+                  );
+                }
 
                 // Emit breakpoint/exception hit event with stack frame information
                 const eventData = {
@@ -182,7 +187,7 @@ vscode.debug.registerDebugAdapterTrackerFactory('*', {
                   threadId: body.threadId,
                   reason: body.reason,
                   frameId: topFrame.id,
-                  filePath: topFrame.source?.path,
+                  filePath: topFrame.source.path,
                   line: topFrame.line,
                   exceptionInfo: exceptionDetails,
                 };
@@ -266,7 +271,6 @@ export const waitForBreakpointHit = async (params: {
     // Create a promise that resolves when a breakpoint is hit
     const breakpointHitPromise = new Promise<BreakpointHitInfo>(
       (resolve, reject) => {
-        const availableSessions = activeSessions;
         // Declare terminateListener early to avoid use-before-define
         let terminateListener: vscode.Disposable | undefined;
         // Use the breakpointEventEmitter which is already wired up to the debug adapter tracker
@@ -277,15 +281,30 @@ export const waitForBreakpointHit = async (params: {
           );
           let targetSession: vscode.DebugSession | undefined;
 
-          const session = availableSessions.find(
+          // Get current active sessions (not captured at promise creation time)
+          const currentSessions = activeSessions;
+
+          // Try to find target session - supports multiple matching strategies
+          const session = currentSessions.find(
             s =>
               s.id === sessionName ||
+              s.name === sessionName ||
               (s.configuration &&
                 (s.configuration as DebugConfiguration).sessionName ===
                   sessionName)
           );
           if (session) {
             targetSession = session;
+          }
+
+          // If sessionName is empty and we have no specific target, match the most recent session
+          // This handles cases where session naming isn't available
+          if (!sessionName && !targetSession && currentSessions.length > 0) {
+            // Use the last session in the array (most recently started)
+            targetSession = currentSessions[currentSessions.length - 1];
+            outputChannel.appendLine(
+              `Using most recent session for matching: ${targetSession.name} (${targetSession.id})`
+            );
           }
 
           // Check if the event matches our target session by session ID or name

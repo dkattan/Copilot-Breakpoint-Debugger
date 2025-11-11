@@ -30,6 +30,22 @@
       "sourceMaps": true,
       "smartStep": true,
       "internalConsoleOptions": "neverOpen"
+    },
+    {
+      "name": "Run test.ps1",
+      "type": "PowerShell",
+      "request": "launch",
+      "script": "${workspaceFolder}/test-workspace/test.ps1",
+      "cwd": "${workspaceFolder}/test-workspace",
+      "createTemporaryIntegratedConsole": true
+    },
+    {
+      "name": "Run test.js",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/test-workspace/test.js",
+      "cwd": "${workspaceFolder}/test-workspace",
+      "console": "integratedTerminal"
     }
   ]
 }

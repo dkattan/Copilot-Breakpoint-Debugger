@@ -1,9 +1,67 @@
 import type { DebugSessionOptions } from 'vscode';
 import type { BreakpointHitInfo } from './common';
+import type { Variable } from './debugUtils';
 import * as vscode from 'vscode';
 import { activeSessions, getCallStack, outputChannel } from './common';
 import { waitForBreakpointHit } from './events';
 import { getStackFrameVariables } from './inspection';
+
+/**
+ * Variables grouped by scope
+ */
+export interface ScopeVariables {
+  scopeName: string;
+  variables: Variable[];
+  error?: string;
+}
+
+/**
+ * Call stack information for a debug session
+ */
+export interface CallStackInfo {
+  callStacks: Array<{
+    sessionId: string;
+    sessionName: string;
+    threads?: Array<{
+      threadId: number;
+      threadName: string;
+      stackFrames?: Array<{
+        id: number;
+        name: string;
+        source?: {
+          name?: string;
+          path?: string;
+        };
+        line: number;
+        column: number;
+      }>;
+      error?: string;
+    }>;
+    error?: string;
+  }>;
+}
+
+/**
+ * Structured debug information returned when a breakpoint is hit
+ */
+export interface DebugInfo {
+  breakpoint: BreakpointHitInfo;
+  callStack: CallStackInfo | null;
+  variables: ScopeVariables[] | null;
+  variablesError: string | null;
+}
+
+/**
+ * Result from starting a debug session
+ */
+export interface StartDebugSessionResult {
+  content: Array<{
+    type: 'text' | 'json';
+    text?: string;
+    json?: DebugInfo;
+  }>;
+  isError: boolean;
+}
 
 /**
  * Helper function to wait for a debug session to stop and gather debug information.
@@ -59,7 +117,9 @@ async function resolveBreakpointInfo(
             !variablesResult.isError &&
             'json' in variablesResult.content[0]
           ) {
-            variablesData = variablesResult.content[0].json;
+            // Extract the variablesByScope array from the result
+            const variablesJson = variablesResult.content[0].json;
+            variablesData = variablesJson.variablesByScope;
             outputChannel.appendLine(
               `Successfully retrieved variables: ${JSON.stringify(variablesData)}`
             );
@@ -90,7 +150,7 @@ async function resolveBreakpointInfo(
     }
 
     // Construct a comprehensive response with all the debug information
-    const debugInfo = {
+    const debugInfo: DebugInfo = {
       breakpoint: breakpointInfo,
       callStack: callStackData,
       variables: variablesData,
@@ -108,8 +168,8 @@ async function resolveBreakpointInfo(
           }.`,
         },
         {
-          type: 'text',
-          text: JSON.stringify(debugInfo),
+          type: 'json',
+          json: debugInfo,
         },
       ],
       isError: false,
@@ -203,9 +263,32 @@ export const startDebuggingAndWaitForStop = async (params: {
     throw new Error('No workspace folders are currently open.');
   }
 
-  const folder = workspaceFolders.find(f => f.uri?.fsPath === workspaceFolder);
+  outputChannel.appendLine(
+    `Available workspace folders: ${workspaceFolders.map(f => `${f.name} -> ${f.uri.fsPath}`).join(', ')}`
+  );
+  outputChannel.appendLine(`Looking for workspace folder: ${workspaceFolder}`);
+
+  // Try exact match first
+  let folder = workspaceFolders.find(f => f.uri?.fsPath === workspaceFolder);
+
+  // If no exact match, check if the requested folder is a subfolder of an open workspace
   if (!folder) {
-    throw new Error(`Workspace folder '${workspaceFolder}' not found.`);
+    folder = workspaceFolders.find(
+      f =>
+        workspaceFolder.startsWith(`${f.uri.fsPath}/`) ||
+        workspaceFolder.startsWith(`${f.uri.fsPath}\\`)
+    );
+    if (folder) {
+      outputChannel.appendLine(
+        `Using parent workspace folder '${folder.uri.fsPath}' for requested path '${workspaceFolder}'`
+      );
+    }
+  }
+
+  if (!folder) {
+    throw new Error(
+      `Workspace folder '${workspaceFolder}' not found. Available folders: ${workspaceFolders.map(f => f.uri.fsPath).join(', ')}`
+    );
   }
   // Handle breakpoint configuration if provided
   // Disable existing breakpoints if requested
@@ -263,6 +346,8 @@ export const startDebuggingAndWaitForStop = async (params: {
     outputChannel.appendLine(
       `Added ${validated.length} validated breakpoint(s).`
     );
+    // Give VS Code a moment to process and propagate breakpoints to debug adapters
+    await new Promise(resolve => setTimeout(resolve, 100));
   } else {
     outputChannel.appendLine('No valid breakpoints to add after validation.');
   }

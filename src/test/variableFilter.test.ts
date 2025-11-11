@@ -1,4 +1,3 @@
-import type { StartDebuggerResult } from './utils/startDebuggerToolTestUtils';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import {
@@ -10,12 +9,23 @@ import {
 } from './utils/startDebuggerToolTestUtils';
 
 // Helper to extract variables array lengths from text output (expects a JSON blob containing \"variablesByScope\")
-function extractVariableCounts(result: StartDebuggerResult): {
+// Minimal structural typing for tool result; 'content' may be an array of parts.
+interface ToolResultLike {
+  content?: unknown;
+  parts?: Array<string | { text?: string }>;
+}
+function extractVariableCounts(result: ToolResultLike): {
   total: number;
   byScope: Record<string, number>;
 } {
-  for (const part of result.parts) {
-    const text = part.text || part;
+  const rawContent = result?.content;
+  const partsArray = Array.isArray(result?.parts)
+    ? result.parts.map(p => (typeof p === 'string' ? p : p.text || ''))
+    : Array.isArray(rawContent)
+      ? rawContent.map(p => (typeof p === 'string' ? p : ''))
+      : [typeof rawContent === 'string' ? rawContent : ''];
+  const parts: string[] = partsArray;
+  for (const text of parts) {
     if (typeof text !== 'string') {
       continue;
     }
@@ -75,15 +85,18 @@ describe('variable Filter Reduces Payload (Unified)', () => {
     await openScriptDocument(scriptUri);
 
     // Unfiltered run ('.' matches anything)
+    const configurationName =
+      runtime === 'powershell' ? 'Run test.ps1' : 'Run test.js';
     const unfiltered = await invokeStartDebuggerTool({
       scriptRelativePath,
       timeoutSeconds: 60,
       variableFilter: ['.'],
       breakpointLines,
+      configurationName,
     });
     const unfilteredCounts = extractVariableCounts(unfiltered);
     if (unfilteredCounts.total === 0) {
-      console.log('VariableFilterTest: Unfiltered parts:', unfiltered.parts);
+      console.log('VariableFilterTest: Unfiltered result object:', unfiltered);
     }
 
     // Filtered run
@@ -92,6 +105,7 @@ describe('variable Filter Reduces Payload (Unified)', () => {
       timeoutSeconds: 60,
       variableFilter: [filteredPattern],
       breakpointLines,
+      configurationName,
     });
     const filteredCounts = extractVariableCounts(filtered);
 

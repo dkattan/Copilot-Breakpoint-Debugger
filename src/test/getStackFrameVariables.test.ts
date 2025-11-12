@@ -48,17 +48,9 @@ describe('getStackFrameVariables filter behavior', () => {
       frameId: 10,
       threadId: 1,
     });
-    assert.strictEqual(result.isError, false, 'Result should not be error');
-    if (result.isError) {
-      throw new Error('Result should not be error');
-    }
-    const json = result.content[0].json;
-    interface ScopeWithVariables {
-      scopeName: string;
-      variables: Array<{ name: string; value: string }>;
-    }
-    const localScope = json.variablesByScope.find(
-      (s: ScopeWithVariables) => s.scopeName === 'Local'
+
+    const localScope = result.variablesByScope.find(
+      s => s.scopeName === 'Local'
     );
     assert.ok(localScope, 'Local scope missing');
     assert.strictEqual(
@@ -75,17 +67,10 @@ describe('getStackFrameVariables filter behavior', () => {
       threadId: 1,
       filter: 'alpha|gamma',
     });
-    assert.strictEqual(result.isError, false, 'Result should not be error');
-    if (result.isError) {
-      throw new Error('Result should not be error');
-    }
-    const json = result.content[0].json;
-    interface ScopeWithVariables {
-      scopeName: string;
-      variables: Array<{ name: string; value: string }>;
-    }
-    const localScope = json.variablesByScope.find(
-      (s: ScopeWithVariables) => s.scopeName === 'Local'
+    // assert.strictEqual(result.isError, false, 'Result should not be error');
+
+    const localScope = result.variablesByScope.find(
+      s => s.scopeName === 'Local'
     );
     assert.ok(localScope, 'Local scope missing');
     const names = localScope.variables
@@ -105,17 +90,8 @@ describe('getStackFrameVariables filter behavior', () => {
       threadId: 1,
       filter: 'delta',
     });
-    assert.strictEqual(result.isError, false, 'Result should not be error');
-    if (result.isError) {
-      throw new Error('Result should not be error');
-    }
-    const json = result.content[0].json;
-    interface ScopeWithVariables {
-      scopeName: string;
-      variables: Array<{ name: string; value: string }>;
-    }
-    const localScope = json.variablesByScope.find(
-      (s: ScopeWithVariables) => s.scopeName === 'Local'
+    const localScope = result.variablesByScope.find(
+      s => s.scopeName === 'Local'
     );
     assert.ok(localScope, 'Local scope missing');
     assert.strictEqual(

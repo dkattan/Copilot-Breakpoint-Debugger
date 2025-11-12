@@ -25,20 +25,13 @@ export class ResumeDebugSessionTool
   ): Promise<LanguageModelToolResult> {
     const { sessionId, waitForStop, breakpointConfig } = options.input;
     try {
-      const rawResult = await resumeDebugSession({
+      const stopInfo = await resumeDebugSession({
         sessionId,
-        waitForStop,
         breakpointConfig,
       });
-      const parts: LanguageModelTextPart[] = rawResult.content.map(item => {
-        if (item.type === 'json' && 'json' in item) {
-          return new LanguageModelTextPart(JSON.stringify(item.json));
-        }
-        const textValue =
-          'text' in item && item.text ? item.text : JSON.stringify(item);
-        return new LanguageModelTextPart(textValue);
-      });
-      return new LanguageModelToolResult(parts);
+      return new LanguageModelToolResult([
+        new LanguageModelTextPart(JSON.stringify(stopInfo, null, 2)),
+      ]);
     } catch (error) {
       return new LanguageModelToolResult([
         new LanguageModelTextPart(

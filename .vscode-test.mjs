@@ -18,13 +18,14 @@ export default defineConfig({
   version: 'stable', // Match the parent VS Code version
   mocha: {
     ui: 'bdd',
+    timeout: 30000,
   },
   // Allow extensions to load; we install required ones below via the 'extensions' field.
-  // Removed '--disable-extensions' so PowerShell & debug-tracker can activate.
+  // Removed '--disable-extensions' so PowerShell can activate.
   launchArgs: [resolve(__dirname, 'test-workspace.code-workspace')],
   // Request automatic installation of required marketplace extensions for tests.
   // @vscode/test-cli will ensure these are present before running.
-  extensions: ['ms-vscode.PowerShell', 'mcu-debug.debug-tracker-vscode'],
+  extensions: ['ms-vscode.PowerShell'],
   coverage: {
     reporter: ['text', 'html', 'lcov'],
     exclude: ['**/test/**', '**/node_modules/**'],

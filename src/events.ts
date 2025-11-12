@@ -1,4 +1,4 @@
-import type { BreakpointHitInfo } from './common';
+import type { BreakpointHitInfo, ThreadData } from './common';
 import * as vscode from 'vscode';
 import {
   activeSessions,
@@ -26,21 +26,6 @@ interface StoppedEventBody {
   text?: string;
   allThreadsStopped?: boolean;
   preserveFocusHint?: boolean;
-}
-
-interface ThreadData {
-  threadId: number;
-  threadName: string;
-  stackFrames: Array<{
-    id: number;
-    name: string;
-    source?: {
-      name: string;
-      path: string;
-    };
-    line: number;
-    column: number;
-  }>;
 }
 
 interface DebugConfiguration extends vscode.DebugConfiguration {
@@ -102,7 +87,7 @@ vscode.debug.registerDebugAdapterTrackerFactory('*', {
                 // Get call stack information for the session
                 // Some debug adapters (especially PowerShell) may send the stopped event before
                 // stack frames are populated. Retry a few times with small delays.
-                let callStackResult;
+                let callStackData;
                 let threadData;
                 const retries = 3;
 
@@ -114,36 +99,10 @@ vscode.debug.registerDebugAdapterTrackerFactory('*', {
                     );
                   }
 
-                  callStackResult = await getCallStack({
+                  callStackData = await getCallStack({
                     sessionName: session.name,
                   });
 
-                  if (callStackResult.isError) {
-                    const errorText =
-                      'text' in callStackResult.content[0]
-                        ? callStackResult.content[0].text
-                        : 'Unknown error';
-                    throw new Error(`Failed to get call stack: ${errorText}`);
-                  }
-                  if (!('json' in callStackResult.content[0])) {
-                    throw new Error(
-                      'Call stack result does not contain JSON content'
-                    );
-                  }
-                  // Extract call stack data from the result
-                  const callStackData =
-                    callStackResult.content[0].json?.callStacks[0];
-                  if (!callStackData || !('threads' in callStackData)) {
-                    throw new Error(
-                      `Call stack data missing threads: ${JSON.stringify(callStackData)}`
-                    );
-                  }
-                  // If threads are present, find the one that matches the threadId
-                  if (!Array.isArray(callStackData.threads)) {
-                    throw new TypeError(
-                      `Call stack threads is not an array: ${typeof callStackData.threads}`
-                    );
-                  }
                   // Find the thread that triggered the event
                   threadData = callStackData.threads.find(
                     (t: ThreadData) => t.threadId === body.threadId
@@ -172,9 +131,9 @@ vscode.debug.registerDebugAdapterTrackerFactory('*', {
                 }
 
                 // Get the top stack frame
-                const topFrame = threadData.stackFrames[0];
+                const topFrame = threadData?.stackFrames[0];
 
-                if (!topFrame.source?.path) {
+                if (!topFrame?.source?.path) {
                   throw new Error(
                     `Top stack frame missing source path: ${JSON.stringify(topFrame)}`
                   );
@@ -264,123 +223,101 @@ export const waitForBreakpointHit = async (params: {
   sessionName: string;
   timeout?: number;
   includeTermination?: boolean;
-}) => {
+}): Promise<BreakpointHitInfo> => {
   const { sessionName, timeout = 30000, includeTermination = true } = params; // Default timeout: 30 seconds
 
-  try {
-    // Create a promise that resolves when a breakpoint is hit
-    const breakpointHitPromise = new Promise<BreakpointHitInfo>(
-      (resolve, reject) => {
-        // Declare terminateListener early to avoid use-before-define
-        let terminateListener: vscode.Disposable | undefined;
-        // Use the breakpointEventEmitter which is already wired up to the debug adapter tracker
-        const listener = onBreakpointHit(event => {
-          // Check if this event is for one of our target sessions
-          outputChannel.appendLine(
-            `Breakpoint hit detected for waitForBreakpointHit for session ${event.sessionName} with id ${event.sessionName}`
-          );
-          let targetSession: vscode.DebugSession | undefined;
+  // Create a promise that resolves when a breakpoint is hit
+  const breakpointHitPromise = new Promise<BreakpointHitInfo>(
+    (resolve, reject) => {
+      // Declare terminateListener early to avoid use-before-define
+      let terminateListener: vscode.Disposable | undefined;
+      // Use the breakpointEventEmitter which is already wired up to the debug adapter tracker
+      const listener = onBreakpointHit(event => {
+        // Check if this event is for one of our target sessions
+        outputChannel.appendLine(
+          `Breakpoint hit detected for waitForBreakpointHit for session ${event.sessionName} with id ${event.sessionName}`
+        );
+        let targetSession: vscode.DebugSession | undefined;
 
-          // Get current active sessions (not captured at promise creation time)
-          const currentSessions = activeSessions;
+        // Get current active sessions (not captured at promise creation time)
+        const currentSessions = activeSessions;
 
-          // Try to find target session - supports multiple matching strategies
-          const session = currentSessions.find(
-            s =>
-              s.id === sessionName ||
-              s.name === sessionName ||
-              (s.configuration &&
-                (s.configuration as DebugConfiguration).sessionName ===
-                  sessionName)
-          );
-          if (session) {
-            targetSession = session;
-          }
-
-          // If sessionName is empty and we have no specific target, match the most recent session
-          // This handles cases where session naming isn't available
-          if (!sessionName && !targetSession && currentSessions.length > 0) {
-            // Use the last session in the array (most recently started)
-            targetSession = currentSessions[currentSessions.length - 1];
-            outputChannel.appendLine(
-              `Using most recent session for matching: ${targetSession.name} (${targetSession.id})`
-            );
-          }
-
-          // Check if the event matches our target session by session ID or name
-          const eventMatchesTarget =
-            targetSession !== undefined &&
-            (event.sessionName === targetSession.id ||
-              event.sessionName === targetSession.name ||
-              event.sessionName.startsWith(targetSession.name) ||
-              targetSession.name.startsWith(event.sessionName));
-
-          if (eventMatchesTarget) {
-            listener.dispose();
-            terminateListener?.dispose();
-            resolve(event);
-            outputChannel.appendLine(
-              `Breakpoint hit detected for waitForBreakpointHit: ${JSON.stringify(event)}`
-            );
-          }
-        });
-
-        // Optionally listen for session termination
-        if (includeTermination) {
-          terminateListener = onSessionTerminate(endEvent => {
-            const matches = sessionName
-              ? endEvent.sessionName === sessionName
-              : true;
-            if (matches) {
-              outputChannel.appendLine(
-                `Session termination detected for waitForBreakpointHit: ${JSON.stringify(endEvent)}`
-              );
-              listener.dispose();
-              terminateListener?.dispose();
-              resolve({
-                sessionId: endEvent.sessionId,
-                sessionName: endEvent.sessionName,
-                threadId: 0,
-                reason: 'terminated',
-              });
-            }
-          });
+        // Try to find target session - supports multiple matching strategies
+        const session = currentSessions.find(
+          s =>
+            s.id === sessionName ||
+            s.name === sessionName ||
+            (s.configuration &&
+              (s.configuration as DebugConfiguration).sessionName ===
+                sessionName)
+        );
+        if (session) {
+          targetSession = session;
         }
 
-        // Set a timeout to prevent blocking indefinitely
-        setTimeout(() => {
+        // If sessionName is empty and we have no specific target, match the most recent session
+        // This handles cases where session naming isn't available
+        if (!sessionName && !targetSession && currentSessions.length > 0) {
+          // Use the last session in the array (most recently started)
+          targetSession = currentSessions[currentSessions.length - 1];
+          outputChannel.appendLine(
+            `Using most recent session for matching: ${targetSession.name} (${targetSession.id})`
+          );
+        }
+
+        // Check if the event matches our target session by session ID or name
+        const eventMatchesTarget =
+          targetSession !== undefined &&
+          (event.sessionName === targetSession.id ||
+            event.sessionName === targetSession.name ||
+            event.sessionName.startsWith(targetSession.name) ||
+            targetSession.name.startsWith(event.sessionName));
+
+        if (eventMatchesTarget) {
           listener.dispose();
           terminateListener?.dispose();
-          reject(
-            new Error(
-              `Timed out waiting for breakpoint or termination (${timeout}ms).`
-            )
+          resolve(event);
+          outputChannel.appendLine(
+            `Breakpoint hit detected for waitForBreakpointHit: ${JSON.stringify(event)}`
           );
-        }, timeout);
+        }
+      });
+
+      // Optionally listen for session termination
+      if (includeTermination) {
+        terminateListener = onSessionTerminate(endEvent => {
+          const matches = sessionName
+            ? endEvent.sessionName === sessionName
+            : true;
+          if (matches) {
+            outputChannel.appendLine(
+              `Session termination detected for waitForBreakpointHit: ${JSON.stringify(endEvent)}`
+            );
+            listener.dispose();
+            terminateListener?.dispose();
+            resolve({
+              sessionId: endEvent.sessionId,
+              sessionName: endEvent.sessionName,
+              threadId: 0,
+              reason: 'terminated',
+            });
+          }
+        });
       }
-    );
 
-    // Wait for the breakpoint to be hit or timeout
-    const result = await breakpointHitPromise;
+      // Set a timeout to prevent blocking indefinitely
+      setTimeout(() => {
+        listener.dispose();
+        terminateListener?.dispose();
+        reject(
+          new Error(
+            `Timed out waiting for breakpoint or termination (${timeout}ms).`
+          )
+        );
+      }, timeout);
+    }
+  );
 
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: JSON.stringify(result),
-        },
-      ],
-      isError: false,
-    };
-  } catch (error) {
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: `Error waiting for breakpoint: ${error instanceof Error ? error.message : String(error)}`,
-        },
-      ],
-      isError: true,
-    };
-  }
+  // Wait for the breakpoint to be hit or timeout
+  return await breakpointHitPromise;
 };

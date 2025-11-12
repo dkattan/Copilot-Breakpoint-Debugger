@@ -21,14 +21,9 @@ export class StopDebugSessionTool
     const { sessionName } = options.input;
     try {
       const raw = await stopDebugSession({ sessionName });
-      const parts: LanguageModelTextPart[] = raw.content.map(item => {
-        if (item.type === 'json' && 'json' in item) {
-          return new LanguageModelTextPart(JSON.stringify(item.json));
-        }
-        const textValue = 'text' in item ? item.text : JSON.stringify(item);
-        return new LanguageModelTextPart(textValue);
-      });
-      return new LanguageModelToolResult(parts);
+      return new LanguageModelToolResult([
+        new LanguageModelTextPart(JSON.stringify(raw)),
+      ]);
     } catch (error) {
       return new LanguageModelToolResult([
         new LanguageModelTextPart(

@@ -19,7 +19,19 @@ export function getExtensionRoot(): string {
   );
 }
 
-/** Ensure PowerShell extension is available and activated; returns false if missing and test should skip. */
+/** Check if PowerShell extension is available and activate it; returns false if missing so test can skip. */
+export async function ensurePowerShellExtension(): Promise<boolean> {
+  const pwshExtension = vscode.extensions.getExtension(POWERSHELL_EXTENSION_ID);
+  if (!pwshExtension) {
+    return false;
+  }
+  if (!pwshExtension.isActive) {
+    await pwshExtension.activate();
+  }
+  return true;
+}
+
+/** Ensure PowerShell extension is available and activated; throws if missing. */
 export async function assertPowerShellExtension(): Promise<void> {
   const pwshExtension = vscode.extensions.getExtension(POWERSHELL_EXTENSION_ID);
   if (!pwshExtension) {
@@ -28,7 +40,6 @@ export async function assertPowerShellExtension(): Promise<void> {
   if (!pwshExtension.isActive) {
     await pwshExtension.activate();
   }
-  return;
 }
 
 /** Activate our extension under test. */

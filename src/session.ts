@@ -73,123 +73,59 @@ export interface StartDebugSessionResult {
 async function resolveBreakpointInfo(
   breakpointInfo: BreakpointHitInfo,
   variableFilter?: string[]
-) {
-  try {
-    // Get detailed call stack information
-    const callStackResult = await getCallStack({
-      sessionName: breakpointInfo.sessionName,
-    });
-    let callStackData = null;
-    if (!callStackResult.isError && 'json' in callStackResult.content[0]) {
-      callStackData = callStackResult.content[0].json;
-    }
+): Promise<DebugInfo> {
+  // Get detailed call stack information
+  const callStackResult = await getCallStack({
+    sessionName: breakpointInfo.sessionName,
+  });
+  let callStackData = null;
 
-    // Get variables for the top frame if we have a frameId
-    let variablesData = null;
-    let variablesError = null;
-    if (
-      breakpointInfo.frameId !== undefined &&
-      breakpointInfo.sessionId &&
-      breakpointInfo.threadId !== undefined
-    ) {
-      outputChannel.appendLine(
-        `Attempting to get variables for frameId ${breakpointInfo.frameId}`
-      );
+  // Get variables for the top frame if we have a frameId
+  let variablesData = null;
+  let variablesError = null;
+  if (
+    breakpointInfo.frameId !== undefined &&
+    breakpointInfo.sessionId &&
+    breakpointInfo.threadId !== undefined
+  ) {
+    outputChannel.appendLine(
+      `Attempting to get variables for frameId ${breakpointInfo.frameId}`
+    );
 
-      // Find the actual session by name since breakpointInfo.sessionId is the VSCode session ID
-      const activeSession = activeSessions.find(
-        s => s.name === breakpointInfo.sessionName
-      );
-      if (!activeSession) {
-        variablesError = `Could not find active session with name: ${breakpointInfo.sessionName}`;
-        outputChannel.appendLine(variablesError);
-      } else {
-        try {
-          const variablesResult = await getStackFrameVariables({
-            sessionId: activeSession.id,
-            frameId: breakpointInfo.frameId,
-            threadId: breakpointInfo.threadId,
-            filter: variableFilter ? variableFilter.join('|') : undefined,
-          });
-
-          if (
-            !variablesResult.isError &&
-            'json' in variablesResult.content[0]
-          ) {
-            // Extract the variablesByScope array from the result
-            const variablesJson = variablesResult.content[0].json;
-            variablesData = variablesJson.variablesByScope;
-            outputChannel.appendLine(
-              `Successfully retrieved variables: ${JSON.stringify(variablesData)}`
-            );
-          } else {
-            // Capture the error message if there was one
-            variablesError = variablesResult.isError
-              ? 'text' in variablesResult.content[0]
-                ? variablesResult.content[0].text
-                : 'Unknown error'
-              : 'Invalid response format';
-            outputChannel.appendLine(
-              `Failed to get variables: ${variablesError}`
-            );
-          }
-        } catch (error) {
-          variablesError =
-            error instanceof Error ? error.message : String(error);
-          outputChannel.appendLine(
-            `Exception getting variables: ${variablesError}`
-          );
-        }
-      }
+    // Find the actual session by name since breakpointInfo.sessionId is the VSCode session ID
+    const activeSession = activeSessions.find(
+      s => s.name === breakpointInfo.sessionName
+    );
+    if (!activeSession) {
+      variablesError = `Could not find active session with name: ${breakpointInfo.sessionName}`;
+      outputChannel.appendLine(variablesError);
     } else {
-      variablesError = 'Missing required information for variable inspection';
+      const variablesData = await getStackFrameVariables({
+        sessionId: activeSession.id,
+        frameId: breakpointInfo.frameId,
+        threadId: breakpointInfo.threadId,
+        filter: variableFilter ? variableFilter.join('|') : undefined,
+      });
+
       outputChannel.appendLine(
-        `Cannot get variables: ${variablesError} - frameId: ${breakpointInfo.frameId}, sessionId: ${breakpointInfo.sessionId}, threadId: ${breakpointInfo.threadId}`
+        `Successfully retrieved variables: ${JSON.stringify(variablesData)}`
       );
     }
-
-    // Construct a comprehensive response with all the debug information
-    const debugInfo: DebugInfo = {
-      breakpoint: breakpointInfo,
-      callStack: callStackData,
-      variables: variablesData,
-      variablesError,
-    };
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Debug session ${breakpointInfo.sessionName} stopped at ${
-            breakpointInfo.reason === 'breakpoint'
-              ? 'a breakpoint'
-              : `due to ${breakpointInfo.reason}`
-          }.`,
-        },
-        {
-          type: 'json',
-          json: debugInfo,
-        },
-      ],
-      isError: false,
-    };
-  } catch (error) {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Debug session ${breakpointInfo.sessionName} stopped successfully.`,
-        },
-        {
-          type: 'text',
-          text: `Warning: Failed to wait for debug session to stop: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        },
-      ],
-      isError: false,
-    };
+  } else {
+    throw new Error(
+      `Cannot get variables: ${variablesError} - frameId: ${breakpointInfo.frameId}, sessionId: ${breakpointInfo.sessionId}, threadId: ${breakpointInfo.threadId}`
+    );
   }
+
+  // Construct a comprehensive response with all the debug information
+  const debugInfo: DebugInfo = {
+    breakpoint: breakpointInfo,
+    callStack: callStackData,
+    variables: variablesData,
+    variablesError,
+  };
+
+  return debugInfo;
 }
 
 /**
@@ -406,55 +342,55 @@ export const startDebuggingAndWaitForStop = async (params: {
   }
   let remainingMs = timeoutSeconds * 1000;
   const t0 = Date.now();
-  let firstStop = await stopPromise;
+
+  let stopInfo = await stopPromise;
+
   const elapsed = Date.now() - t0;
   remainingMs = Math.max(0, remainingMs - elapsed);
   // Entry stop handling: only auto-continue if entry location is NOT a user breakpoint line.
-  if (!firstStop.isError && firstStop.content[0].type === 'text') {
-    try {
-      const info = JSON.parse(firstStop.content[0].text) as BreakpointHitInfo;
-      const isEntry = info.reason === 'entry';
-      // Convert to 0-based line number for comparison with VSCode positions
-      const entryLineZeroBased = info.line !== undefined ? info.line - 1 : -1;
-      const hitMatchesBreakpoint = validated.some(
-        bp => bp.location.range.start.line === entryLineZeroBased
-      );
-      if (
-        isEntry &&
-        !hitMatchesBreakpoint &&
-        validated.length > 0 &&
-        remainingMs > 0
-      ) {
-        outputChannel.appendLine(
-          'Entry stop at non-breakpoint location; continuing to reach first user breakpoint.'
-        );
-        const active =
-          activeSessions.find(s => s.name === effectiveSessionName) ||
-          activeSessions.at(-1);
-        if (active) {
-          try {
-            await active.customRequest('continue', { threadId: 0 });
-            firstStop = await waitForBreakpointHit({
-              sessionName: effectiveSessionName,
-              timeout: remainingMs,
-              includeTermination: true,
-            });
-          } catch (contErr) {
-            outputChannel.appendLine(
-              `Failed to continue after entry: ${contErr instanceof Error ? contErr.message : String(contErr)}`
-            );
-          }
-        }
-      } else if (isEntry && hitMatchesBreakpoint) {
-        outputChannel.appendLine(
-          'Entry stop occurred at a user breakpoint line; treating it as the breakpoint hit.'
-        );
-      }
-    } catch (parseErr) {
+  try {
+    const isEntry = stopInfo.reason === 'entry';
+    // Convert to 0-based line number for comparison with VSCode positions
+    const entryLineZeroBased =
+      stopInfo.line !== undefined ? stopInfo.line - 1 : -1;
+    const hitMatchesBreakpoint = validated.some(
+      bp => bp.location.range.start.line === entryLineZeroBased
+    );
+    if (
+      isEntry &&
+      !hitMatchesBreakpoint &&
+      validated.length > 0 &&
+      remainingMs > 0
+    ) {
       outputChannel.appendLine(
-        `Failed to parse first stop JSON for entry evaluation: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`
+        'Entry stop at non-breakpoint location; continuing to reach first user breakpoint.'
+      );
+      const active =
+        activeSessions.find(s => s.name === effectiveSessionName) ||
+        activeSessions.at(-1);
+      if (active) {
+        try {
+          await active.customRequest('continue', { threadId: 0 });
+          stopInfo = await waitForBreakpointHit({
+            sessionName: effectiveSessionName,
+            timeout: remainingMs,
+            includeTermination: true,
+          });
+        } catch (contErr) {
+          outputChannel.appendLine(
+            `Failed to continue after entry: ${contErr instanceof Error ? contErr.message : String(contErr)}`
+          );
+        }
+      }
+    } else if (isEntry && hitMatchesBreakpoint) {
+      outputChannel.appendLine(
+        'Entry stop occurred at a user breakpoint line; treating it as the breakpoint hit.'
       );
     }
+  } catch (parseErr) {
+    outputChannel.appendLine(
+      `Failed to parse first stop JSON for entry evaluation: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`
+    );
   }
 
   if (!success) {
@@ -467,55 +403,14 @@ export const startDebuggingAndWaitForStop = async (params: {
       .join(', ')}`
   );
 
-  // Always wait for the debug session to stop at a breakpoint with timeout
-  const breakpointHitResult = firstStop;
-
-  // If we got a successful breakpoint hit, resolve it to get full debug information
-  if (
-    !breakpointHitResult.isError &&
-    breakpointHitResult.content[0].type === 'text'
-  ) {
-    try {
-      const breakpointInfo = JSON.parse(
-        breakpointHitResult.content[0].text
-      ) as BreakpointHitInfo;
-
-      // If the session terminated without hitting a breakpoint, return termination info
-      if (breakpointInfo.reason === 'terminated') {
-        outputChannel.appendLine(
-          `Debug session terminated without hitting breakpoint. Expected breakpoints at: ${validated.map(bp => `${bp.location.uri.fsPath}:${bp.location.range.start.line + 1}`).join(', ')}`
-        );
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Debug session ${breakpointInfo.sessionName} terminated without hitting any breakpoints.`,
-            },
-            {
-              type: 'json',
-              json: {
-                breakpoint: breakpointInfo,
-                callStack: null,
-                variables: null,
-                variablesError: 'Session terminated before hitting breakpoint',
-              },
-            },
-          ],
-          isError: true,
-        };
-      }
-
-      // Get the full debug information including call stack and variables
-      return await resolveBreakpointInfo(breakpointInfo, variableFilter);
-    } catch (_parseErr) {
-      outputChannel.appendLine(
-        `Failed to parse breakpoint hit result JSON; returning raw result. (${_parseErr instanceof Error ? _parseErr.message : 'unknown'})`
-      );
-      return breakpointHitResult;
-    }
+  // If the session terminated without hitting a breakpoint, return termination stopInfo
+  if (stopInfo.reason === 'terminated') {
+    throw new Error(
+      `Debug session '${effectiveSessionName}' terminated before hitting a breakpoint.`
+    );
   }
 
-  return breakpointHitResult;
+  return await resolveBreakpointInfo(stopInfo, variableFilter);
 };
 
 /**
@@ -532,31 +427,13 @@ export const stopDebugSession = async (params: { sessionName: string }) => {
   );
 
   if (matchingSessions.length === 0) {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `No debug session(s) found with name '${sessionName}'.`,
-        },
-      ],
-      isError: true,
-    };
+    throw new Error(`No debug session(s) found with name '${sessionName}'.`);
   }
 
   // Stop each matching debug session.
   for (const session of matchingSessions) {
     await vscode.debug.stopDebugging(session);
   }
-
-  return {
-    content: [
-      {
-        type: 'text',
-        text: `Stopped debug session(s) with name '${sessionName}'.`,
-      },
-    ],
-    isError: false,
-  };
 };
 /**
  * Resume execution of a debug session that has been paused (e.g., by a breakpoint).
@@ -570,7 +447,6 @@ export const stopDebugSession = async (params: { sessionName: string }) => {
  */
 export const resumeDebugSession = async (params: {
   sessionId: string;
-  waitForStop?: boolean;
   breakpointConfig?: {
     disableExisting?: boolean;
     breakpoints?: Array<{
@@ -582,7 +458,7 @@ export const resumeDebugSession = async (params: {
     }>;
   };
 }) => {
-  const { sessionId, waitForStop = false, breakpointConfig } = params;
+  const { sessionId, breakpointConfig } = params;
 
   // Find the session with the given ID
   let session = activeSessions.find(s => s.id === sessionId);
@@ -605,110 +481,64 @@ export const resumeDebugSession = async (params: {
     };
   }
 
-  try {
-    // Handle breakpoint configuration if provided
-    if (breakpointConfig) {
-      // Disable existing breakpoints if requested
-      if (breakpointConfig.disableExisting) {
-        const allBreakpoints = vscode.debug.breakpoints;
-        if (allBreakpoints.length > 0) {
-          vscode.debug.removeBreakpoints(allBreakpoints);
-        }
-      }
-
-      // Add new breakpoints if provided
-      if (
-        breakpointConfig.breakpoints &&
-        breakpointConfig.breakpoints.length > 0
-      ) {
-        // Get workspace folder from session configuration
-        const workspaceFolder =
-          session.workspaceFolder?.uri.fsPath ||
-          vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-        if (!workspaceFolder) {
-          throw new Error(
-            'Cannot determine workspace folder for breakpoint paths'
-          );
-        }
-
-        const newBreakpoints = breakpointConfig.breakpoints.map(bp => {
-          const uri = vscode.Uri.file(
-            bp.path.startsWith('/') ? bp.path : `${workspaceFolder}/${bp.path}`
-          );
-          const location = new vscode.Position(bp.line - 1, 0); // VSCode uses 0-based line numbers
-          return new vscode.SourceBreakpoint(
-            new vscode.Location(uri, location),
-            true, // enabled
-            bp.condition,
-            bp.hitCondition,
-            bp.logMessage
-          );
-        });
-        vscode.debug.addBreakpoints(newBreakpoints);
+  // Handle breakpoint configuration if provided
+  if (breakpointConfig) {
+    // Disable existing breakpoints if requested
+    if (breakpointConfig.disableExisting) {
+      const allBreakpoints = vscode.debug.breakpoints;
+      if (allBreakpoints.length > 0) {
+        vscode.debug.removeBreakpoints(allBreakpoints);
       }
     }
 
-    // Send the continue request to the debug adapter
-    outputChannel.appendLine(
-      `Resuming debug session '${session.name}' (ID: ${sessionId})`
-    );
-    const stopPromise = waitForBreakpointHit({
-      sessionName: session.name,
-      includeTermination: true,
-    });
-    await session.customRequest('continue', { threadId: 0 }); // 0 means all threads
-    if (waitForStop) {
-      const stopResult = await stopPromise;
-      if (!stopResult.isError && stopResult.content[0].type === 'text') {
-        try {
-          const info = JSON.parse(
-            stopResult.content[0].text
-          ) as BreakpointHitInfo;
-          // If session terminated without hitting breakpoint, return termination info
-          if (info.reason === 'terminated') {
-            return {
-              content: [
-                {
-                  type: 'text',
-                  text: `Debug session '${session.name}' terminated before hitting another breakpoint.`,
-                },
-                { type: 'text', text: JSON.stringify(info) },
-              ],
-              isError: false,
-            };
-          }
-          // Otherwise resolve full breakpoint info
-          return await resolveBreakpointInfo(info);
-        } catch (_resumeParseErr) {
-          outputChannel.appendLine(
-            `Failed to parse stopResult JSON after resume; returning raw event. (${_resumeParseErr instanceof Error ? _resumeParseErr.message : 'unknown'})`
-          );
-          return stopResult;
-        }
+    // Add new breakpoints if provided
+    if (
+      breakpointConfig.breakpoints &&
+      breakpointConfig.breakpoints.length > 0
+    ) {
+      // Get workspace folder from session configuration
+      const workspaceFolder =
+        session.workspaceFolder?.uri.fsPath ||
+        vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (!workspaceFolder) {
+        throw new Error(
+          'Cannot determine workspace folder for breakpoint paths'
+        );
       }
-      // In case of error just return it
-      return stopResult;
-    }
 
-    // If not waiting for stop, return immediately
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Resumed debug session '${session.name}'.`,
-        },
-      ],
-      isError: false,
-    };
-  } catch (error) {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Error resuming debug session: ${error instanceof Error ? error.message : String(error)}`,
-        },
-      ],
-      isError: true,
-    };
+      const newBreakpoints = breakpointConfig.breakpoints.map(bp => {
+        const uri = vscode.Uri.file(
+          bp.path.startsWith('/') ? bp.path : `${workspaceFolder}/${bp.path}`
+        );
+        const location = new vscode.Position(bp.line - 1, 0); // VSCode uses 0-based line numbers
+        return new vscode.SourceBreakpoint(
+          new vscode.Location(uri, location),
+          true, // enabled
+          bp.condition,
+          bp.hitCondition,
+          bp.logMessage
+        );
+      });
+      vscode.debug.addBreakpoints(newBreakpoints);
+    }
   }
+
+  // Send the continue request to the debug adapter
+  outputChannel.appendLine(
+    `Resuming debug session '${session.name}' (ID: ${sessionId})`
+  );
+  const stopPromise = waitForBreakpointHit({
+    sessionName: session.name,
+    includeTermination: true,
+  });
+  await session.customRequest('continue', { threadId: 0 }); // 0 means all threads
+  const stopInfo = await stopPromise;
+  // If session terminated without hitting breakpoint, return termination stopInfo
+  if (stopInfo.reason === 'terminated') {
+    throw new Error(
+      `Debug session '${session.name}' terminated before hitting a breakpoint.`
+    );
+  }
+  // Otherwise resolve full breakpoint stopInfo
+  return await resolveBreakpointInfo(stopInfo);
 };

@@ -18,7 +18,20 @@ interface DAPStackFrame {
   line: number;
   column: number;
 }
-
+export interface ThreadData {
+  threadId: number;
+  threadName: string;
+  stackFrames: Array<{
+    id: number;
+    name: string;
+    source?: {
+      name: string;
+      path: string;
+    };
+    line: number;
+    column: number;
+  }>;
+}
 /** Event emitter for debug session start notifications */
 export const sessionStartEventEmitter =
   new vscode.EventEmitter<vscode.DebugSession>();
@@ -55,120 +68,67 @@ export interface BreakpointHitInfo {
  * @param params - Object containing the sessionName to get call stack for.
  * @param params.sessionName - Optional name of the debug session to get call stack for. If not provided, returns call stacks for all active sessions.
  */
-export const getCallStack = async (params: { sessionName?: string }) => {
+export const getCallStack = async (params: {
+  sessionName?: string;
+}): Promise<{
+  sessionId: string;
+  sessionName: string;
+  threads: Array<ThreadData>;
+}> => {
   const { sessionName } = params;
 
   // Get all active debug sessions or filter by name if provided
+  if (activeSessions.length === 0) {
+    throw new Error('No active debug sessions found.');
+  }
   let sessions = activeSessions;
   if (sessionName) {
     sessions = activeSessions.filter(session => session.name === sessionName);
     if (sessions.length === 0) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `No debug session found with name '${sessionName}'.`,
-          },
-        ],
-        isError: true,
-      };
+      throw new Error(`No debug session found with name '${sessionName}'.`);
+    }
+    if (sessions.length > 1) {
+      throw new Error(
+        `Multiple debug sessions found with name '${sessionName}'. Please specify a unique session name.`
+      );
     }
   }
+  const session = sessions[0];
 
-  if (sessions.length === 0) {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: 'No active debug sessions found.',
-        },
-      ],
-      isError: true,
-    };
-  }
+  // Get all threads for the session
+  const threads = await session.customRequest('threads');
 
-  try {
-    // Get call stack information for each session
-    const callStacks = await Promise.all(
-      sessions.map(async session => {
-        try {
-          // Get all threads for the session
-          const threads = await session.customRequest('threads');
+  // Get stack traces for each thread
+  const stackTraces = await Promise.all(
+    threads.threads.map(async (thread: { id: number; name: string }) => {
+      const stackTrace = await session.customRequest('stackTrace', {
+        threadId: thread.id,
+      });
 
-          // Get stack traces for each thread
-          const stackTraces = await Promise.all(
-            threads.threads.map(
-              async (thread: { id: number; name: string }) => {
-                try {
-                  const stackTrace = await session.customRequest('stackTrace', {
-                    threadId: thread.id,
-                  });
-
-                  return {
-                    threadId: thread.id,
-                    threadName: thread.name,
-                    stackFrames: stackTrace.stackFrames.map(
-                      (frame: DAPStackFrame) => ({
-                        id: frame.id,
-                        name: frame.name,
-                        source: frame.source
-                          ? {
-                              name: frame.source.name,
-                              path: frame.source.path,
-                            }
-                          : undefined,
-                        line: frame.line,
-                        column: frame.column,
-                      })
-                    ),
-                  };
-                } catch (error) {
-                  return {
-                    threadId: thread.id,
-                    threadName: thread.name,
-                    error:
-                      error instanceof Error ? error.message : String(error),
-                  };
-                }
+      return {
+        threadId: thread.id,
+        threadName: thread.name,
+        stackFrames: stackTrace.stackFrames.map((frame: DAPStackFrame) => ({
+          id: frame.id,
+          name: frame.name,
+          source: frame.source
+            ? {
+                name: frame.source.name,
+                path: frame.source.path,
               }
-            )
-          );
+            : undefined,
+          line: frame.line,
+          column: frame.column,
+        })),
+      };
+    })
+  );
 
-          return {
-            sessionId: session.id,
-            sessionName: session.name,
-            threads: stackTraces,
-          };
-        } catch (error) {
-          return {
-            sessionId: session.id,
-            sessionName: session.name,
-            error: error instanceof Error ? error.message : String(error),
-          };
-        }
-      })
-    );
-
-    return {
-      content: [
-        {
-          type: 'json',
-          json: { callStacks },
-        },
-      ],
-      isError: false,
-    };
-  } catch (error) {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Error getting call stack: ${error instanceof Error ? error.message : String(error)}`,
-        },
-      ],
-      isError: true,
-    };
-  }
+  return {
+    sessionId: session.id,
+    sessionName: session.name,
+    threads: stackTraces,
+  };
 };
 
 // Track new debug sessions as they start.

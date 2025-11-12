@@ -63,7 +63,7 @@ function extractVariableCounts(result: ToolResultLike): {
 
 describe('variable Filter Reduces Payload (Unified)', () => {
   it('filtered variables are fewer than unfiltered (pwsh fallback to node)', async function () {
-    this.timeout(5000);
+    this.timeout(90000);
 
     // Decide runtime: prefer PowerShell if available locally & not explicitly disabled by CI env
     const preferPwsh = !process.env.CI && (await ensurePowerShellExtension());

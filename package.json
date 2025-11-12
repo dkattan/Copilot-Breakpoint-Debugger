@@ -281,7 +281,6 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
-    "debug-tracker-vscode": "^0.0.15",
     "mocha": "^10.7.3"
   },
   "devDependencies": {

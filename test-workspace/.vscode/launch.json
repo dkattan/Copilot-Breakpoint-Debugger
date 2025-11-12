@@ -5,17 +5,33 @@
       "name": "Run test.ps1",
       "type": "PowerShell",
       "request": "launch",
-      "script": "${workspaceFolder}/a/test.ps1",
-      "cwd": "${workspaceFolder}/a",
+      "script": "${workspaceFolder}/test.ps1",
+      "cwd": "${workspaceFolder}",
       "createTemporaryIntegratedConsole": true
     },
     {
       "name": "Run test.js",
       "type": "node",
       "request": "launch",
+      "program": "${workspaceFolder}/test.js",
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole"
+    },
+    {
+      "name": "Run a/test.ps1",
+      "type": "PowerShell",
+      "request": "launch",
+      "script": "${workspaceFolder}/a/test.ps1",
+      "cwd": "${workspaceFolder}/a",
+      "createTemporaryIntegratedConsole": true
+    },
+    {
+      "name": "Run b/test.js",
+      "type": "node",
+      "request": "launch",
       "program": "${workspaceFolder}/b/test.js",
       "cwd": "${workspaceFolder}/b",
-      "console": "integratedTerminal"
+      "console": "internalConsole"
     }
   ]
 }

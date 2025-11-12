@@ -33,6 +33,7 @@
         "request": "launch",
         "program": "${workspaceFolder:workspace-b}/test.js",
         "cwd": "${workspaceFolder:workspace-b}",
+        "console": "internalConsole",
       },
       {
         "name": "Debug PowerShell (workspace a)",
@@ -47,6 +48,7 @@
         "request": "launch",
         "program": "${workspaceFolder:workspace-b}/test.js",
         "cwd": "${workspaceFolder:workspace-b}",
+        "console": "internalConsole",
       },
     ],
     "compounds": [

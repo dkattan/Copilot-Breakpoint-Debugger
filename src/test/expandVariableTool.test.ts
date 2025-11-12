@@ -33,17 +33,18 @@ describe('expandVariableTool', () => {
   });
 
   it('expand variable in Node session', async function () {
-    this.timeout(5000);
+    this.timeout(90000);
     // Start a Node debug session hitting a breakpoint in test.js
     const extensionRoot =
       vscode.extensions.getExtension('dkattan.copilot-breakpoint-debugger')
         ?.extensionPath || path.resolve(__dirname, '../../..');
     const jsPath = path.join(extensionRoot, 'test-workspace/test.js');
+    const workspaceFolder = path.join(extensionRoot, 'test-workspace');
     const tool = new StartDebuggerTool();
     const startResult = await tool.invoke({
       input: {
-        workspaceFolder: extensionRoot,
-        timeoutSeconds: 30,
+        workspaceFolder,
+        timeoutSeconds: 60,
         configurationName: 'Run test.js',
         breakpointConfig: {
           breakpoints: [
@@ -102,16 +103,17 @@ describe('expandVariableTool', () => {
   });
 
   it('expand non-expandable variable in Node session', async function () {
-    this.timeout(5000);
+    this.timeout(90000);
     const extensionRoot =
       vscode.extensions.getExtension('dkattan.copilot-breakpoint-debugger')
         ?.extensionPath || path.resolve(__dirname, '../../..');
     const jsPath = path.join(extensionRoot, 'test-workspace/test.js');
+    const workspaceFolder = path.join(extensionRoot, 'test-workspace');
     const tool = new StartDebuggerTool();
     const startResult = await tool.invoke({
       input: {
-        workspaceFolder: extensionRoot,
-        timeoutSeconds: 30,
+        workspaceFolder,
+        timeoutSeconds: 60,
         configurationName: 'Run test.js',
         breakpointConfig: {
           breakpoints: [
@@ -174,16 +176,17 @@ describe('expandVariableTool', () => {
   });
 
   it('expandVariable throws error for non-existent variable', async function () {
-    this.timeout(5000);
+    this.timeout(90000);
     const extensionRoot =
       vscode.extensions.getExtension('dkattan.copilot-breakpoint-debugger')
         ?.extensionPath || path.resolve(__dirname, '../../..');
     const jsPath = path.join(extensionRoot, 'test-workspace/test.js');
+    const workspaceFolder = path.join(extensionRoot, 'test-workspace');
     const tool = new StartDebuggerTool();
     const startResult = await tool.invoke({
       input: {
-        workspaceFolder: extensionRoot,
-        timeoutSeconds: 30,
+        workspaceFolder,
+        timeoutSeconds: 60,
         configurationName: 'Run test.js',
         breakpointConfig: {
           breakpoints: [

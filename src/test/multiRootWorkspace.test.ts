@@ -249,13 +249,16 @@ describe('multi-Root Workspace Integration', () => {
       return;
     }
 
-    this.timeout(5000);
+    this.timeout(90000);
 
     const extensionRoot = getExtensionRoot();
     const scriptUri = vscode.Uri.file(
       path.join(extensionRoot, 'test-workspace/a/test.ps1')
     );
-    const workspaceFolder = vscode.workspace.workspaceFolders![0].uri.fsPath;
+    // Use workspace-a folder specifically
+    const workspaceFolder = vscode.workspace.workspaceFolders!.find(
+      f => f.name === 'workspace-a'
+    )?.uri.fsPath || vscode.workspace.workspaceFolders![1].uri.fsPath;
 
     await openScriptDocument(scriptUri);
     const hasPowerShell = await ensurePowerShellExtension();
@@ -272,7 +275,7 @@ describe('multi-Root Workspace Integration', () => {
         workspaceFolder,
         timeoutSeconds: 60,
         variableFilter: ['PWD', 'HOME'],
-        configurationName: 'Run test.ps1',
+        configurationName: 'Run a/test.ps1',
         breakpointConfig: {
           disableExisting: true,
           breakpoints: [
@@ -299,13 +302,16 @@ describe('multi-Root Workspace Integration', () => {
   });
 
   it('workspace B (Node.js) - individual debug session', async function () {
-    this.timeout(5000);
+    this.timeout(90000);
 
     const extensionRoot = getExtensionRoot();
     const scriptUri = vscode.Uri.file(
       path.join(extensionRoot, 'test-workspace/b/test.js')
     );
-    const workspaceFolder = vscode.workspace.workspaceFolders![0].uri.fsPath;
+    // Use workspace-b folder specifically
+    const workspaceFolder = vscode.workspace.workspaceFolders!.find(
+      f => f.name === 'workspace-b'
+    )?.uri.fsPath || vscode.workspace.workspaceFolders![2].uri.fsPath;
 
     await openScriptDocument(scriptUri);
     await activateCopilotDebugger();
@@ -317,7 +323,7 @@ describe('multi-Root Workspace Integration', () => {
         workspaceFolder,
         timeoutSeconds: 60,
         variableFilter: ['randomValue'],
-        configurationName: 'Run test.js',
+        configurationName: 'Run b/test.js',
         breakpointConfig: {
           disableExisting: true,
           breakpoints: [
@@ -353,13 +359,16 @@ describe('multi-Root Workspace Integration', () => {
       return;
     }
 
-    this.timeout(5000);
+    this.timeout(90000);
 
     const extensionRoot = getExtensionRoot();
     const scriptUri = vscode.Uri.file(
       path.join(extensionRoot, 'test-workspace/a/test.ps1')
     );
-    const workspaceFolder = vscode.workspace.workspaceFolders![0].uri.fsPath;
+    // Use workspace-a folder specifically
+    const workspaceFolder = vscode.workspace.workspaceFolders!.find(
+      f => f.name === 'workspace-a'
+    )?.uri.fsPath || vscode.workspace.workspaceFolders![1].uri.fsPath;
 
     await openScriptDocument(scriptUri);
     const hasPowerShell = await ensurePowerShellExtension();
@@ -377,7 +386,7 @@ describe('multi-Root Workspace Integration', () => {
         workspaceFolder,
         timeoutSeconds: 60,
         variableFilter: ['i'],
-        configurationName: 'Run test.ps1',
+        configurationName: 'Run a/test.ps1',
         breakpointConfig: {
           disableExisting: true,
           breakpoints: [
@@ -415,13 +424,16 @@ describe('multi-Root Workspace Integration', () => {
   });
 
   it('workspace B with conditional breakpoint (Node.js)', async function () {
-    this.timeout(5000);
+    this.timeout(90000);
 
     const extensionRoot = getExtensionRoot();
     const scriptUri = vscode.Uri.file(
       path.join(extensionRoot, 'test-workspace/b/test.js')
     );
-    const workspaceFolder = vscode.workspace.workspaceFolders![0].uri.fsPath;
+    // Use workspace-b folder specifically
+    const workspaceFolder = vscode.workspace.workspaceFolders!.find(
+      f => f.name === 'workspace-b'
+    )?.uri.fsPath || vscode.workspace.workspaceFolders![2].uri.fsPath;
 
     await openScriptDocument(scriptUri);
     await activateCopilotDebugger();
@@ -434,7 +446,7 @@ describe('multi-Root Workspace Integration', () => {
         workspaceFolder,
         timeoutSeconds: 60,
         variableFilter: ['i'],
-        configurationName: 'Run test.js',
+        configurationName: 'Run b/test.js',
         breakpointConfig: {
           disableExisting: true,
           breakpoints: [

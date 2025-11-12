@@ -58,7 +58,7 @@ export class StartDebuggerTool
     // 2. VS Code's startDebugging() will provide a clear error if the config doesn't exist
     // 3. This avoids false negatives where configs exist but aren't detected via API
 
-    const rawResult = await startDebuggingAndWaitForStop({
+    const stopInfo = await startDebuggingAndWaitForStop({
       workspaceFolder: workspaceFolder!,
       nameOrConfiguration: effectiveConfigName,
       variableFilter,
@@ -67,21 +67,9 @@ export class StartDebuggerTool
       sessionName: '', // Empty string means match any session
     });
 
-    // Convert rawResult into LanguageModelToolResult parts
-    // For LLM consumption, we stringify JSON, but tests can access the structured rawResult
-    const parts: LanguageModelTextPart[] = rawResult.content.map(item => {
-      if (item.type === 'json' && 'json' in item) {
-        return new LanguageModelTextPart(JSON.stringify(item.json, null, 2));
-      }
-      const textValue =
-        'text' in item && item.text ? item.text : JSON.stringify(item);
-      return new LanguageModelTextPart(textValue);
-    });
-
-    // Attach the raw structured result for test validation
-    const result = new LanguageModelToolResult(parts);
-    // eslint-disable-next-line ts/no-explicit-any
-    (result as any).__rawResult = rawResult;
-    return result;
+    // Convert stopInfo into LanguageModelToolResult parts
+    return new LanguageModelToolResult([
+      new LanguageModelTextPart(JSON.stringify(stopInfo, null, 2)),
+    ]);
   }
 }

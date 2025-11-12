@@ -29,7 +29,8 @@
   "extension-test-runner.debugOptions": {
     "args": [
       "${workspaceFolder}/test-workspace.code-workspace",
-      "--disable-extensions"
+      "--install-extension",
+      "ms-vscode.PowerShell"
     ]
   }
 }

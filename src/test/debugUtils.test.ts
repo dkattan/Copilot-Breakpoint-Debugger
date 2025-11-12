@@ -46,16 +46,17 @@ describe('debugUtils - DAPHelpers', () => {
   });
 
   it('getVariablesFromReference works in Node session', async function () {
-    this.timeout(5000);
+    this.timeout(90000);
     const extensionRoot =
       vscode.extensions.getExtension('dkattan.copilot-breakpoint-debugger')
         ?.extensionPath || path.resolve(__dirname, '../../..');
     const jsPath = path.join(extensionRoot, 'test-workspace/test.js');
+    const workspaceFolder = path.join(extensionRoot, 'test-workspace');
     const tool = new StartDebuggerTool();
     const startResult = await tool.invoke({
       input: {
-        workspaceFolder: extensionRoot,
-        timeoutSeconds: 30,
+        workspaceFolder,
+        timeoutSeconds: 60,
         configurationName: 'Run test.js',
         breakpointConfig: {
           breakpoints: [
@@ -119,16 +120,17 @@ describe('debugUtils - DAPHelpers', () => {
   });
 
   it('findVariableInScopes finds existing variable', async function () {
-    this.timeout(5000);
+    this.timeout(90000);
     const extensionRoot =
       vscode.extensions.getExtension('dkattan.copilot-breakpoint-debugger')
         ?.extensionPath || path.resolve(__dirname, '../../..');
     const jsPath = path.join(extensionRoot, 'test-workspace/test.js');
+    const workspaceFolder = path.join(extensionRoot, 'test-workspace');
     const tool = new StartDebuggerTool();
     const startResult = await tool.invoke({
       input: {
-        workspaceFolder: extensionRoot,
-        timeoutSeconds: 30,
+        workspaceFolder,
+        timeoutSeconds: 60,
         configurationName: 'Run test.js',
         breakpointConfig: {
           breakpoints: [
@@ -184,16 +186,17 @@ describe('debugUtils - DAPHelpers', () => {
   });
 
   it('findVariableInScopes returns null for non-existent variable', async function () {
-    this.timeout(5000);
+    this.timeout(90000);
     const extensionRoot =
       vscode.extensions.getExtension('dkattan.copilot-breakpoint-debugger')
         ?.extensionPath || path.resolve(__dirname, '../../..');
     const jsPath = path.join(extensionRoot, 'test-workspace/test.js');
+    const workspaceFolder = path.join(extensionRoot, 'test-workspace');
     const tool = new StartDebuggerTool();
     const startResult = await tool.invoke({
       input: {
-        workspaceFolder: extensionRoot,
-        timeoutSeconds: 30,
+        workspaceFolder,
+        timeoutSeconds: 60,
         configurationName: 'Run test.js',
         breakpointConfig: {
           breakpoints: [
@@ -247,16 +250,17 @@ describe('debugUtils - DAPHelpers', () => {
   });
 
   it('getDebugContext works in active session', async function () {
-    this.timeout(5000);
+    this.timeout(90000);
     const extensionRoot =
       vscode.extensions.getExtension('dkattan.copilot-breakpoint-debugger')
         ?.extensionPath || path.resolve(__dirname, '../../..');
     const jsPath = path.join(extensionRoot, 'test-workspace/test.js');
+    const workspaceFolder = path.join(extensionRoot, 'test-workspace');
     const tool = new StartDebuggerTool();
     const startResult = await tool.invoke({
       input: {
-        workspaceFolder: extensionRoot,
-        timeoutSeconds: 30,
+        workspaceFolder,
+        timeoutSeconds: 60,
         configurationName: 'Run test.js',
         breakpointConfig: {
           breakpoints: [

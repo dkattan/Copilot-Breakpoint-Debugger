@@ -1,10 +1,10 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { StartDebuggerTool } from '../startDebuggerTool';
 import {
   activateCopilotDebugger,
   ensurePowerShellExtension,
   getExtensionRoot,
-  invokeStartDebuggerTool,
   openScriptDocument,
 } from './utils/startDebuggerToolTestUtils';
 
@@ -84,12 +84,21 @@ describe('variable Filter Reduces Payload (Unified)', () => {
     // Unfiltered run ('.' matches anything)
     const configurationName =
       runtime === 'powershell' ? 'Run test.ps1' : 'Run test.js';
-    const unfiltered = await invokeStartDebuggerTool({
-      scriptRelativePath,
-      timeoutSeconds: 60,
-      variableFilter: ['.'],
-      breakpointLines,
-      configurationName,
+    const startDebuggerTool = new StartDebuggerTool();
+    const unfiltered = await startDebuggerTool.invoke({
+      input: {
+        workspaceFolder: path.join(extensionRoot, 'test-workspace'),
+        timeoutSeconds: 60,
+        configurationName,
+        breakpointConfig: {
+          breakpoints: breakpointLines.map(line => ({
+            path: path.join(extensionRoot, scriptRelativePath),
+            line,
+          })),
+        },
+        variableFilter: ['.'],
+      },
+      toolInvocationToken: undefined,
     });
     const unfilteredCounts = extractVariableCounts(unfiltered);
     if (unfilteredCounts.total === 0) {

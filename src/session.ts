@@ -121,7 +121,6 @@ export const startDebuggingAndWaitForStop = async (params: {
     sessionName,
     workspaceFolder,
     nameOrConfiguration,
-    variableFilter,
     timeoutSeconds = 60,
     breakpointConfig,
   } = params;
@@ -285,9 +284,7 @@ export const startDebuggingAndWaitForStop = async (params: {
     // Convert to 0-based line number for comparison with VSCode positions
     const entryLineZeroBased =
       stopInfo.line !== undefined ? stopInfo.line - 1 : -1;
-    const hitMatchesBreakpoint = validated.some(
-      bp => bp.location.range.start.line === entryLineZeroBased
-    );
+    validated.some(bp => bp.location.range.start.line === entryLineZeroBased);
     if (isEntry) {
       outputChannel.appendLine(
         'Entry stop at non-breakpoint location; continuing to reach first user breakpoint.'
@@ -358,7 +355,6 @@ export const stopDebugSession = async (params: { sessionName: string }) => {
  *
  * @param params - Object containing the sessionId of the debug session to resume and optional waitForStop flag.
  * @param params.sessionId - ID of the debug session to resume.
- * @param params.waitForStop - If true, waits for the session to stop at the next breakpoint before returning (default: false).
  * @param params.breakpointConfig - Optional configuration for managing breakpoints when resuming.
  * @param params.breakpointConfig.disableExisting - If true, removes all existing breakpoints before resuming.
  * @param params.breakpointConfig.breakpoints - Array of breakpoint configurations to set before resuming.

@@ -7,11 +7,12 @@ import antfu from '@antfu/eslint-config';
 // Custom inline ESLint rule: prefer type aliases over interfaces
 // Converts any TS interface declaration into an equivalent type alias.
 // Note: Disabled by default (set severity below) so that adoption can be gradual.
-const interfaceToTypeRule = {
+const blockTypeDeclarations = {
   meta: {
     type: 'suggestion',
     docs: {
-      description: 'Convert interface to type',
+      description:
+        'Block TS type declarations in test files; import from source instead',
       recommended: false,
     },
     fixable: 'code',
@@ -19,19 +20,11 @@ const interfaceToTypeRule = {
   },
   create(context) {
     return {
-      TSInterfaceDeclaration(node) {
-        const interfaceName = node.id.name;
-        // const sourceCode = context.getSourceCode();
-        // const typeParams = node.typeParameters
-        //   ? sourceCode.getText(node.typeParameters)
-        //   : '';
-
-        // const bodyStart = node.body.range[0];
-        // const bodyEnd = node.body.range[1];
-
+      TSTypeAliasDeclaration(node) {
+        const typeName = node.id.name;
         context.report({
           node,
-          message: `Interface declaration disallowed in tests '${interfaceName}'. Import from source instead`,
+          message: `Type declaration disallowed in tests '${typeName}'. Import from source instead`,
           fix(fixer) {
             return fixer.replaceText(node, '');
           },
@@ -40,7 +33,32 @@ const interfaceToTypeRule = {
     };
   },
 };
-
+const blockInterfaceDeclarations = {
+  meta: {
+    type: 'suggestion',
+    docs: {
+      description:
+        'Block TS interface declarations in test files; import from source instead',
+      recommended: false,
+    },
+    fixable: 'code',
+    schema: [],
+  },
+  create(context) {
+    return {
+      TSInterfaceDeclaration(node) {
+        const typeName = node.id.name;
+        context.report({
+          node,
+          message: `Type declaration disallowed in tests '${typeName}'. Import from source instead`,
+          fix(fixer) {
+            return fixer.replaceText(node, '');
+          },
+        });
+      },
+    };
+  },
+};
 export default antfu(
   {
     // Enable TypeScript rules; disable stylistic so existing Prettier formatting doesn't conflict
@@ -78,7 +96,8 @@ export default antfu(
       // Register local rules under the "local" namespace
       local: {
         rules: {
-          'block-interfaces': interfaceToTypeRule,
+          'block-interfaces': blockInterfaceDeclarations,
+          'block-types': blockTypeDeclarations,
         },
       },
     },
@@ -87,6 +106,7 @@ export default antfu(
       'no-console': 'off',
       // Opt-in: enable as 'warn' (change to 'error' for strict enforcement or 'off' to disable)
       'local/block-interfaces': 'error',
+      'local/block-types': 'error',
     },
   }
 );

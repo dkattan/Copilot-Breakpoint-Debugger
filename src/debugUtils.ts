@@ -50,15 +50,20 @@ export class DAPHelpers {
     threadId: number
   ): Promise<DebugContext> {
     // Step 1: Get threads
-    const threadsResponse = await session.customRequest('threads');
+    const threadsResponse = (await session.customRequest(
+      'threads'
+    )) as DebugProtocol.ThreadsResponse;
 
-    if (!threadsResponse.threads || threadsResponse.threads.length === 0) {
+    if (
+      !threadsResponse.body.threads ||
+      threadsResponse.body.threads.length === 0
+    ) {
       throw new Error(
         `No threads available in session ${session.id} (${session.name})`
       );
     }
-    const thread: Thread | undefined = threadsResponse.threads.find(
-      (t: any) => t.id === threadId
+    const thread: Thread | undefined = threadsResponse.body.threads.find(
+      t => t.id === threadId
     );
     if (!thread) {
       throw new Error(

@@ -23,7 +23,7 @@ export class ResumeDebugSessionTool
   async invoke(
     options: LanguageModelToolInvocationOptions<ResumeDebugSessionToolParameters>
   ): Promise<LanguageModelToolResult> {
-    const { sessionId, waitForStop, breakpointConfig } = options.input;
+    const { sessionId, breakpointConfig } = options.input;
     try {
       const stopInfo = await resumeDebugSession({
         sessionId,

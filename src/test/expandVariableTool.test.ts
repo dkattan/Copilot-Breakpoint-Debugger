@@ -7,17 +7,13 @@ import { StartDebuggerTool } from '../startDebuggerTool';
 describe('expandVariableTool', () => {
   it('prepareInvocation includes variable name', async () => {
     const tool = new ExpandVariableTool();
-    interface MockPrepareOptions {
-      input: { variableName: string };
-    }
+    
     const maybePrepared = tool.prepareInvocation?.({
       input: { variableName: 'myVar' },
-    } as MockPrepareOptions);
-    interface PreparedInvocation {
-      invocationMessage: string;
-    }
+    };
+    
     const prepared = await Promise.resolve(
-      maybePrepared as PreparedInvocation | undefined
+      maybePrepared
     );
     assert.ok(prepared?.invocationMessage.includes('myVar'));
   });

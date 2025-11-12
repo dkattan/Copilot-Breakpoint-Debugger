@@ -7,34 +7,23 @@ import { StartDebuggerTool } from '../startDebuggerTool';
 describe('evaluateExpressionTool', () => {
   it('prepareInvocation includes expression', async () => {
     const tool = new EvaluateExpressionTool();
-    interface MockPrepareOptions {
-      input: { expression: string };
-    }
+
     const maybePrepared = tool.prepareInvocation?.({
       input: { expression: 'foo' },
-    } as MockPrepareOptions);
-    interface PreparedInvocation {
-      invocationMessage: string;
-    }
-    const prepared = await Promise.resolve(
-      maybePrepared as PreparedInvocation | undefined
-    );
+    });
+
+    const prepared = await Promise.resolve(maybePrepared);
     assert.ok(prepared?.invocationMessage.includes('foo'));
   });
 
   it('invoke returns error if no session or invalid expression', async () => {
     const tool = new EvaluateExpressionTool();
-    interface MockInvokeOptions {
-      input: { expression: string };
-      toolInvocationToken: undefined;
-    }
+
     const result = await tool.invoke({
       input: { expression: 'foo' },
       toolInvocationToken: undefined,
-    } as MockInvokeOptions);
-    interface LanguageModelTextPart {
-      value: string;
-    }
+    });
+
     const textPart = result.content[0] as LanguageModelTextPart;
     const combined = textPart.value;
     // Should produce error message (no session, invalid expression, or evaluation result)
@@ -93,10 +82,7 @@ describe('evaluateExpressionTool', () => {
     }
     // Evaluate randomValue
     const evalTool = new EvaluateExpressionTool();
-    interface MockEvaluateOptions {
-      input: { expression: string };
-      toolInvocationToken: undefined;
-    }
+
     const evalResult = await evalTool.invoke({
       input: { expression: 'randomValue' },
       toolInvocationToken: undefined,

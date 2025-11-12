@@ -5,7 +5,6 @@ import { StartDebuggerTool } from '../startDebuggerTool';
 import {
   activateCopilotDebugger,
   assertPowerShellExtension,
-  ensurePowerShellExtension,
   getExtensionRoot,
   openScriptDocument,
 } from './utils/startDebuggerToolTestUtils';
@@ -195,10 +194,7 @@ describe('conditional Breakpoint Integration', () => {
       toolInvocationToken: undefined,
     });
 
-    interface ToolResultPart {
-      text?: string;
-      [key: string]: unknown;
-    }
+    
     const parts: ToolResultPart[] =
       (result as { parts?: ToolResultPart[]; content?: ToolResultPart[] })
         .content ||

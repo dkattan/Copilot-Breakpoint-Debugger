@@ -10,11 +10,8 @@ import {
 
 // Helper to extract variables array lengths from text output (expects a JSON blob containing \"variablesByScope\")
 // Minimal structural typing for tool result; 'content' may be an array of parts.
-interface ToolResultLike {
-  content?: unknown;
-  parts?: Array<string | { text?: string }>;
-}
-function extractVariableCounts(result: ToolResultLike): {
+
+function extractVariableCounts(result): {
   total: number;
   byScope: Record<string, number>;
 } {

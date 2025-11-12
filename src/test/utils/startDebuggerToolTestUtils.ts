@@ -1,15 +1,9 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { StartDebuggerTool } from '../../startDebuggerTool';
-import { POWERSHELL_EXTENSION_ID } from './debugTestUtils';
+const POWERSHELL_EXTENSION_ID = 'ms-vscode.powershell';
 
-export interface StartDebuggerInvocationOptions {
-  scriptRelativePath: string; // Path relative to extension root (e.g., 'test-workspace/test.ps1')
-  timeoutSeconds?: number;
-  variableFilter?: string[];
-  breakpointLines?: number[]; // Breakpoints on first script path
-  configurationName?: string; // Launch configuration name to use
-}
+export 
 
 /** Resolve extension root path. */
 export function getExtensionRoot(): string {

@@ -46,44 +46,54 @@ export interface FoundVariable {
 // Shared DAP helper functions
 export class DAPHelpers {
   static async getDebugContext(
-    session: vscode.DebugSession
-  ): Promise<DebugContext | null> {
-    try {
-      // Step 1: Get threads
-      const threadsResponse = await session.customRequest('threads');
-      if (!threadsResponse.threads || threadsResponse.threads.length === 0) {
-        return null;
-      }
-      const firstThread: Thread = threadsResponse.threads[0];
+    session: vscode.DebugSession,
+    threadId: number
+  ): Promise<DebugContext> {
+    // Step 1: Get threads
+    const threadsResponse = await session.customRequest('threads');
 
-      // Step 2: Get stack trace for the first thread
-      const stackTraceResponse = await session.customRequest('stackTrace', {
-        threadId: firstThread.id,
-      });
-      if (
-        !stackTraceResponse.stackFrames ||
-        stackTraceResponse.stackFrames.length === 0
-      ) {
-        return null;
-      }
-      const topFrame: StackFrame = stackTraceResponse.stackFrames[0];
-
-      // Step 3: Get scopes for the top frame
-      const scopesResponse = await session.customRequest('scopes', {
-        frameId: topFrame.id,
-      });
-      if (!scopesResponse.scopes || scopesResponse.scopes.length === 0) {
-        return null;
-      }
-
-      return {
-        thread: firstThread,
-        frame: topFrame,
-        scopes: scopesResponse.scopes,
-      };
-    } catch {
-      return null;
+    if (!threadsResponse.threads || threadsResponse.threads.length === 0) {
+      throw new Error(
+        `No threads available in session ${session.id} (${session.name})`
+      );
     }
+    const thread: Thread | undefined = threadsResponse.threads.find(
+      (t: any) => t.id === threadId
+    );
+    if (!thread) {
+      throw new Error(
+        `Thread with id ${threadId} not found in session ${session.id} (${session.name})`
+      );
+    }
+    // Step 2: Get stack trace for the first thread
+    const stackTraceResponse = await session.customRequest('stackTrace', {
+      threadId: thread.id,
+    });
+    if (
+      !stackTraceResponse.stackFrames ||
+      stackTraceResponse.stackFrames.length === 0
+    ) {
+      throw new Error(
+        `No stack frames available for thread ${thread.id} in session ${session.id} (${session.name})`
+      );
+    }
+    const topFrame: StackFrame = stackTraceResponse.stackFrames[0];
+
+    // Step 3: Get scopes for the top frame
+    const scopesResponse = await session.customRequest('scopes', {
+      frameId: topFrame.id,
+    });
+    if (!scopesResponse.scopes || scopesResponse.scopes.length === 0) {
+      throw new Error(
+        `No scopes available for frame ${topFrame.id} in session ${session.id} (${session.name})`
+      );
+    }
+
+    return {
+      thread,
+      frame: topFrame,
+      scopes: scopesResponse.scopes,
+    };
   }
 
   static async getVariablesFromReference(

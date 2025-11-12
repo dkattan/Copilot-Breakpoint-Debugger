@@ -7,18 +7,12 @@ import { StartDebuggerTool } from '../startDebuggerTool';
 describe('getVariablesTool', () => {
   it('prepareInvocation returns correct message', async () => {
     const tool = new GetVariablesTool();
-    interface MockPrepareOptions {
-      input: Record<string, never>;
-    }
+
     const maybePrepared = tool.prepareInvocation?.({
       input: {},
-    } as MockPrepareOptions);
-    interface PreparedInvocation {
-      invocationMessage: string;
-    }
-    const prepared = await Promise.resolve(
-      maybePrepared as PreparedInvocation | undefined
-    );
+    });
+
+    const prepared = await Promise.resolve(maybePrepared);
     assert.ok(
       prepared?.invocationMessage.includes('variables'),
       'Should mention variables in message'

@@ -1,9 +1,8 @@
 import type { BreakpointHitInfo } from './common';
-import type { Variable } from './debugUtils';
 import * as vscode from 'vscode';
-import { activeSessions, getCallStack, outputChannel } from './common';
+import { activeSessions, outputChannel } from './common';
+import { DAPHelpers, type Variable } from './debugUtils';
 import { waitForBreakpointHit } from './events';
-import { getStackFrameVariables } from './inspection';
 
 /**
  * Variables grouped by scope
@@ -60,72 +59,6 @@ export interface StartDebugSessionResult {
     json?: DebugInfo;
   }>;
   isError: boolean;
-}
-
-/**
- * Helper function to wait for a debug session to stop and gather debug information.
- * This is used by both startDebugSession and resumeDebugSession when waitForStop is true.
- *
- * @param breakpointInfo - Information about the breakpoint hit, including session details and location.
- * @param variableFilter - Optional array of variable name patterns to filter which variables are returned.
- * @returns A response object with debug information or error details.
- */
-async function resolveBreakpointInfo(
-  breakpointInfo: BreakpointHitInfo,
-  variableFilter?: string[]
-): Promise<DebugInfo> {
-  // Get detailed call stack information
-  const callStackResult = await getCallStack({
-    sessionName: breakpointInfo.sessionName,
-  });
-  let callStackData = null;
-
-  // Get variables for the top frame if we have a frameId
-  let variablesData = null;
-  let variablesError = null;
-  if (
-    breakpointInfo.frameId !== undefined &&
-    breakpointInfo.sessionId &&
-    breakpointInfo.threadId !== undefined
-  ) {
-    outputChannel.appendLine(
-      `Attempting to get variables for frameId ${breakpointInfo.frameId}`
-    );
-
-    // Find the actual session by name since breakpointInfo.sessionId is the VSCode session ID
-    const activeSession = activeSessions.find(
-      s => s.name === breakpointInfo.sessionName
-    );
-    if (!activeSession) {
-      variablesError = `Could not find active session with name: ${breakpointInfo.sessionName}`;
-      outputChannel.appendLine(variablesError);
-    } else {
-      const variablesData = await getStackFrameVariables({
-        sessionId: activeSession.id,
-        frameId: breakpointInfo.frameId,
-        threadId: breakpointInfo.threadId,
-        filter: variableFilter ? variableFilter.join('|') : undefined,
-      });
-
-      outputChannel.appendLine(
-        `Successfully retrieved variables: ${JSON.stringify(variablesData)}`
-      );
-    }
-  } else {
-    throw new Error(
-      `Cannot get variables: ${variablesError} - frameId: ${breakpointInfo.frameId}, sessionId: ${breakpointInfo.sessionId}, threadId: ${breakpointInfo.threadId}`
-    );
-  }
-
-  // Construct a comprehensive response with all the debug information
-  const debugInfo: DebugInfo = {
-    breakpoint: breakpointInfo,
-    callStack: callStackData,
-    variables: variablesData,
-    variablesError,
-  };
-
-  return debugInfo;
 }
 
 /**
@@ -334,7 +267,6 @@ export const startDebuggingAndWaitForStop = async (params: {
   const stopPromise = waitForBreakpointHit({
     sessionName: effectiveSessionName,
     timeout: timeoutSeconds * 1000,
-    includeTermination: true,
   });
   const success = await vscode.debug.startDebugging(folder, resolvedConfig);
   if (!success) {
@@ -356,36 +288,22 @@ export const startDebuggingAndWaitForStop = async (params: {
     const hitMatchesBreakpoint = validated.some(
       bp => bp.location.range.start.line === entryLineZeroBased
     );
-    if (
-      isEntry &&
-      !hitMatchesBreakpoint &&
-      validated.length > 0 &&
-      remainingMs > 0
-    ) {
+    if (isEntry) {
       outputChannel.appendLine(
         'Entry stop at non-breakpoint location; continuing to reach first user breakpoint.'
       );
-      const active =
-        activeSessions.find(s => s.name === effectiveSessionName) ||
-        activeSessions.at(-1);
-      if (active) {
-        try {
-          await active.customRequest('continue', { threadId: 0 });
-          stopInfo = await waitForBreakpointHit({
-            sessionName: effectiveSessionName,
-            timeout: remainingMs,
-            includeTermination: true,
-          });
-        } catch (contErr) {
-          outputChannel.appendLine(
-            `Failed to continue after entry: ${contErr instanceof Error ? contErr.message : String(contErr)}`
-          );
-        }
+
+      try {
+        await stopInfo.session.customRequest('continue', { threadId: 0 });
+        stopInfo = await waitForBreakpointHit({
+          sessionName: effectiveSessionName,
+          timeout: remainingMs,
+        });
+      } catch (contErr) {
+        outputChannel.appendLine(
+          `Failed to continue after entry: ${contErr instanceof Error ? contErr.message : String(contErr)}`
+        );
       }
-    } else if (isEntry && hitMatchesBreakpoint) {
-      outputChannel.appendLine(
-        'Entry stop occurred at a user breakpoint line; treating it as the breakpoint hit.'
-      );
     }
   } catch (parseErr) {
     outputChannel.appendLine(
@@ -410,7 +328,7 @@ export const startDebuggingAndWaitForStop = async (params: {
     );
   }
 
-  return await resolveBreakpointInfo(stopInfo, variableFilter);
+  return await DAPHelpers.getDebugContext(stopInfo.session, stopInfo.threadId);
 };
 
 /**
@@ -529,7 +447,6 @@ export const resumeDebugSession = async (params: {
   );
   const stopPromise = waitForBreakpointHit({
     sessionName: session.name,
-    includeTermination: true,
   });
   await session.customRequest('continue', { threadId: 0 }); // 0 means all threads
   const stopInfo = await stopPromise;
@@ -540,5 +457,5 @@ export const resumeDebugSession = async (params: {
     );
   }
   // Otherwise resolve full breakpoint stopInfo
-  return await resolveBreakpointInfo(stopInfo);
+  return await DAPHelpers.getDebugContext(stopInfo.session, stopInfo.threadId);
 };

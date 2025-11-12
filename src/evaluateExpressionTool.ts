@@ -11,7 +11,9 @@ import { DAPHelpers } from './debugUtils';
 
 export interface EvaluateExpressionToolParameters {
   expression: string; // Expression to evaluate like in Debug Console
-  sessionId?: string; // Optional explicit session id; otherwise uses active debug session
+  sessionId: string; // Optional explicit session id; otherwise uses active debug session
+  threadId: number; // Optional thread id for context
+  frameId?: number; // Optional frame id for context
 }
 
 // DAP Evaluate Request Arguments
@@ -45,7 +47,7 @@ export class EvaluateExpressionTool
   async invoke(
     options: LanguageModelToolInvocationOptions<EvaluateExpressionToolParameters>
   ): Promise<LanguageModelToolResult> {
-    const { expression, sessionId } = options.input;
+    const { expression, sessionId, threadId } = options.input;
     try {
       // Resolve session
       let session: vscode.DebugSession | undefined;
@@ -64,7 +66,7 @@ export class EvaluateExpressionTool
       }
 
       // Gather context (need frame id when paused). If not paused evaluation may still work for some adapters.
-      const debugContext = await DAPHelpers.getDebugContext(session);
+      const debugContext = await DAPHelpers.getDebugContext(session, threadId);
 
       const evalArgs: EvaluateArguments = { expression, context: 'watch' };
       if (debugContext?.frame?.id !== undefined) {

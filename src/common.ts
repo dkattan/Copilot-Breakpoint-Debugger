@@ -42,15 +42,13 @@ export const activeSessions: vscode.DebugSession[] = [];
 
 /** Event emitter for debug session termination notifications */
 export const sessionTerminateEventEmitter = new vscode.EventEmitter<{
-  sessionId: string;
-  sessionName: string;
+  session: vscode.DebugSession;
 }>();
 export const onSessionTerminate = sessionTerminateEventEmitter.event;
 
 /** Store breakpoint hit information for notification */
 export interface BreakpointHitInfo {
-  sessionId: string;
-  sessionName: string;
+  session: vscode.DebugSession;
   threadId: number;
   reason: string;
   frameId?: number;
@@ -152,8 +150,7 @@ vscode.debug.onDidTerminateDebugSession(session => {
     outputChannel.appendLine(`Active sessions: ${activeSessions.length}`);
     // Fire termination event for listeners waiting on session end
     sessionTerminateEventEmitter.fire({
-      sessionId: session.id,
-      sessionName: session.name,
+      session,
     });
   }
 });

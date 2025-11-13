@@ -21,17 +21,20 @@ export default defineConfig({
   mocha: {
     ui: 'bdd',
     timeout: 30000,
-    asyncOnly: true,
+    parallel: false,
   },
   // Allow extensions to load; we install required ones below via the 'extensions' field.
   // Removed '--disable-extensions' so PowerShell can activate.
   launchArgs: [
     resolve(__dirname, 'test-workspace.code-workspace'),
-    '--disable-extensions',
+    // '--disable-extensions',
+    // '--install-extension',
+    // 'ms-vscode.powershell',
+    // '--profile-temp',
   ],
   // Request automatic installation of required marketplace extensions for tests.
   // @vscode/test-cli will ensure these are present before running.
-  extensions: ['ms-vscode.PowerShell'],
+  extensions: ['ms-vscode.powershell'],
   coverage: {
     reporter: ['text', 'html', 'lcov'],
     exclude: ['**/test/**', '**/node_modules/**'],

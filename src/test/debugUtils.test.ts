@@ -167,7 +167,7 @@ describe('debugUtils - DAPHelpers', () => {
     const jsPath = path.join(extensionRoot, 'test-workspace/test.js');
     const workspaceFolder = path.join(extensionRoot, 'test-workspace');
 
-    const context = await startDebuggingAndWaitForStop({
+    await startDebuggingAndWaitForStop({
       sessionName: 'getDebugContext-test',
       workspaceFolder,
       nameOrConfiguration: 'Run test.js',

@@ -159,11 +159,10 @@ npm test
 
 #### Common Pitfalls & Fixes
 
-| Symptom                                                                                                              | Cause                                                             | Fix                                                                                                  |
-| -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `Running extension tests from the command line is currently only supported if no other instance of Code is running.` | A Stable window is open while CLI tries to start Stable for tests | Close all VS Code Stable windows; keep only Insiders open                                            |
-| Tests hang at startup                                                                                                | Conflicting user-data or extensions dir locked                    | Clear `.vscode-test/` directory or ensure previous test process exited                               |
-| Breakpoints in test files not hit                                                                                    | Running compiled JS without early pause                           | Set `TEST_TS_NODE=1` env var or rely on the existing `--inspect-brk-extensions` logic for local runs |
+| Symptom                                                                                                              | Cause                                                             | Fix                                                                    |
+| -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `Running extension tests from the command line is currently only supported if no other instance of Code is running.` | A Stable window is open while CLI tries to start Stable for tests | Close all VS Code Stable windows; keep only Insiders open              |
+| Tests hang at startup                                                                                                | Conflicting user-data or extensions dir locked                    | Clear `.vscode-test/` directory or ensure previous test process exited |
 
 #### Optional Convenience Aliases (macOS / zsh)
 
@@ -184,32 +183,6 @@ npm test  # run tests (Stable headless)
 #### Running Tests Inside the Editor
 
 If you prefer not to manage dual installs, you can run and debug tests from the **Insiders** editor (Run and Debug view) using a launch configuration that points to `out/test/runTest.js`. This avoids the CLI constraint but ties up the Insiders window until tests finish.
-
-### Test Channel Selection (Default: Insiders Locally, Stable in CI)
-
-Local runs now default to the **Insiders** build for closer parity with your development editor. CI remains on Stable for reproducibility.
-
-Override locally to Stable:
-
-```bash
-TEST_USE_STABLE=1 npm test
-```
-
-Combine with TypeScript source debugging:
-
-```bash
-TEST_USE_STABLE=1 TEST_TS_NODE=1 npm test
-```
-
-Environment logic:
-
-| Context             | Channel  | How to change           |
-| ------------------- | -------- | ----------------------- |
-| CI (process.env.CI) | Stable   | Not changeable (fixed)  |
-| Local default       | Insiders | Set `TEST_USE_STABLE=1` |
-| Local forced stable | Stable   | `TEST_USE_STABLE=1`     |
-
-Log output confirms selection (e.g. `Downloading VS Code channel: insiders`).
 
 ---
 

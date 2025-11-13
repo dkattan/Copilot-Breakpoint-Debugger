@@ -174,13 +174,13 @@ export const startDebuggingAndWaitForStop = async (params: {
       `Workspace folder '${workspaceFolder}' not found. Available folders: ${workspaceFolders.map(f => f.uri.fsPath).join(', ')}`
     );
   }
-  // Handle breakpoint configuration if provided
-  // Disable existing breakpoints if requested
-  if (breakpointConfig.disableExisting) {
-    const allBreakpoints = vscode.debug.breakpoints;
-    if (allBreakpoints.length > 0) {
-      vscode.debug.removeBreakpoints(allBreakpoints);
-    }
+  // Automatic backup & isolation of existing breakpoints (no extra params required)
+  const originalBreakpoints = [...vscode.debug.breakpoints];
+  if (originalBreakpoints.length) {
+    outputChannel.appendLine(
+      `Backing up and removing ${originalBreakpoints.length} existing breakpoint(s) for isolated debug session.`
+    );
+    vscode.debug.removeBreakpoints(originalBreakpoints);
   }
 
   const seen = new Set<string>();
@@ -230,9 +230,6 @@ export const startDebuggingAndWaitForStop = async (params: {
     outputChannel.appendLine(
       `Added ${validated.length} validated breakpoint(s).`
     );
-    // Give VS Code a moment to process and propagate breakpoints to debug adapters.
-    // A longer delay improves reliability, especially for Node.js debug adapter.
-    // The debugger needs time to bind breakpoints before execution starts.
     await new Promise(resolve => setTimeout(resolve, 500));
   } else {
     outputChannel.appendLine('No valid breakpoints to add after validation.');
@@ -274,7 +271,10 @@ export const startDebuggingAndWaitForStop = async (params: {
   let remainingMs = timeoutSeconds * 1000;
   const t0 = Date.now();
 
-  let stopInfo = await stopPromise;
+  let stopInfo: BreakpointHitInfo | undefined;
+  let debugContext: Awaited<ReturnType<typeof DAPHelpers.getDebugContext>> | undefined;
+  try {
+    stopInfo = await stopPromise;
 
   const elapsed = Date.now() - t0;
   remainingMs = Math.max(0, remainingMs - elapsed);
@@ -291,7 +291,9 @@ export const startDebuggingAndWaitForStop = async (params: {
       );
 
       try {
-        await stopInfo.session.customRequest('continue', { threadId: 0 });
+        await stopInfo.session.customRequest('continue', {
+          threadId: stopInfo.threadId,
+        });
         stopInfo = await waitForBreakpointHit({
           sessionName: effectiveSessionName,
           timeout: remainingMs,
@@ -319,13 +321,34 @@ export const startDebuggingAndWaitForStop = async (params: {
   );
 
   // If the session terminated without hitting a breakpoint, return termination stopInfo
-  if (stopInfo.reason === 'terminated') {
-    throw new Error(
-      `Debug session '${effectiveSessionName}' terminated before hitting a breakpoint.`
+    if (stopInfo.reason === 'terminated') {
+      throw new Error(
+        `Debug session '${effectiveSessionName}' terminated before hitting a breakpoint.`
+      );
+    }
+    debugContext = await DAPHelpers.getDebugContext(
+      stopInfo.session,
+      stopInfo.threadId
     );
+    return debugContext;
+  } finally {
+    // Restore original breakpoints, removing any added ones first
+    const current = vscode.debug.breakpoints;
+    if (current.length) {
+      vscode.debug.removeBreakpoints(current);
+      outputChannel.appendLine(
+        `Removed ${current.length} session breakpoint(s) before restoring originals.`
+      );
+    }
+    if (originalBreakpoints.length) {
+      vscode.debug.addBreakpoints(originalBreakpoints);
+      outputChannel.appendLine(
+        `Restored ${originalBreakpoints.length} original breakpoint(s).`
+      );
+    } else {
+      outputChannel.appendLine('No original breakpoints to restore.');
+    }
   }
-
-  return await DAPHelpers.getDebugContext(stopInfo.session, stopInfo.threadId);
 };
 
 /**

@@ -47,27 +47,26 @@ export interface FoundVariable {
 export class DAPHelpers {
   static async getDebugContext(
     session: vscode.DebugSession,
-    threadId: number
+    threadId?: number
   ): Promise<DebugContext> {
     // Step 1: Get threads
-    const threadsResponse = (await session.customRequest(
-      'threads'
-    )) as DebugProtocol.ThreadsResponse;
+    const { threads } = (await session.customRequest('threads')) as {
+      threads: Thread[];
+    };
 
-    if (
-      !threadsResponse.body.threads ||
-      threadsResponse.body.threads.length === 0
-    ) {
+    if (!threads || threads.length === 0) {
       throw new Error(
         `No threads available in session ${session.id} (${session.name})`
       );
     }
-    const thread: Thread | undefined = threadsResponse.body.threads.find(
-      t => t.id === threadId
+    const effectiveThreadId =
+      typeof threadId === 'number' ? threadId : threads[0].id;
+    const thread: Thread | undefined = threads.find(
+      t => t.id === effectiveThreadId
     );
     if (!thread) {
       throw new Error(
-        `Thread with id ${threadId} not found in session ${session.id} (${session.name})`
+        `Thread with id ${effectiveThreadId} not found in session ${session.id} (${session.name})`
       );
     }
     // Step 2: Get stack trace for the first thread

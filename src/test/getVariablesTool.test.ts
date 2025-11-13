@@ -1,8 +1,8 @@
-import * as assert from 'node:assert';
+import assert from 'node:assert';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { GetVariablesTool } from '../getVariablesTool';
-import { StartDebuggerTool } from '../startDebuggerTool';
+import { startDebuggingAndWaitForStop } from '../session';
 
 describe('getVariablesTool', () => {
   it('prepareInvocation returns correct message', async () => {
@@ -13,8 +13,12 @@ describe('getVariablesTool', () => {
     });
 
     const prepared = await Promise.resolve(maybePrepared);
+    const invocationMessage =
+      typeof prepared?.invocationMessage === 'string'
+        ? prepared.invocationMessage
+        : prepared?.invocationMessage?.value;
     assert.ok(
-      prepared?.invocationMessage.includes('variables'),
+      invocationMessage?.includes('variables'),
       'Should mention variables in message'
     );
   });
@@ -34,51 +38,27 @@ describe('getVariablesTool', () => {
   });
 
   it('get all variables in Node session', async function () {
-    this.timeout(90000);
+    this.timeout(5000);
     // Start a Node debug session hitting a breakpoint in test.js
     const extensionRoot =
       vscode.extensions.getExtension('dkattan.copilot-breakpoint-debugger')
         ?.extensionPath || path.resolve(__dirname, '../../..');
     const jsPath = path.join(extensionRoot, 'test-workspace/test.js');
     const workspaceFolder = path.join(extensionRoot, 'test-workspace');
-    const tool = new StartDebuggerTool();
-    const startResult = await tool.invoke({
-      input: {
-        workspaceFolder,
-        timeoutSeconds: 60,
-        configurationName: 'Run test.js',
-        breakpointConfig: {
-          breakpoints: [
-            {
-              path: jsPath,
-              line: 5, // after randomValue assignment
-            },
-          ],
-        },
+
+    await startDebuggingAndWaitForStop({
+      sessionName: 'get-variables-node',
+      workspaceFolder,
+      nameOrConfiguration: 'Run test.js',
+      breakpointConfig: {
+        breakpoints: [
+          {
+            path: jsPath,
+            line: 5, // after randomValue assignment
+          },
+        ],
       },
-      toolInvocationToken: undefined,
     });
-    const startParts = (startResult.content || []) as Array<{
-      text?: string;
-      value?: string;
-    }>;
-    const startText = startParts
-      .map(p => {
-        if (typeof p === 'object' && p !== null) {
-          if ('value' in p) {
-            return (p as { value?: string }).value;
-          }
-          if ('value' in p) {
-            return (p as { value?: string }).value;
-          }
-        }
-        return JSON.stringify(p);
-      })
-      .join('\n');
-    if (/timed out/i.test(startText)) {
-      this.skip();
-      return;
-    }
     // Get all variables using structured method
     const getVarsTool = new GetVariablesTool();
     const variablesData = await getVarsTool.getVariables();
@@ -101,50 +81,26 @@ describe('getVariablesTool', () => {
   });
 
   it('get variables in PowerShell session', async function () {
-    this.timeout(90000);
+    this.timeout(5000);
     const extensionRoot =
       vscode.extensions.getExtension('dkattan.copilot-breakpoint-debugger')
         ?.extensionPath || path.resolve(__dirname, '../../..');
     const ps1Path = path.join(extensionRoot, 'test-workspace/test.ps1');
     const workspaceFolder = path.join(extensionRoot, 'test-workspace');
-    const tool = new StartDebuggerTool();
-    const startResult = await tool.invoke({
-      input: {
-        workspaceFolder,
-        timeoutSeconds: 60,
-        configurationName: 'Run test.ps1',
-        breakpointConfig: {
-          breakpoints: [
-            {
-              path: ps1Path,
-              line: 4,
-            },
-          ],
-        },
+
+    await startDebuggingAndWaitForStop({
+      sessionName: 'get-variables-powershell',
+      workspaceFolder,
+      nameOrConfiguration: 'Run test.ps1',
+      breakpointConfig: {
+        breakpoints: [
+          {
+            path: ps1Path,
+            line: 4,
+          },
+        ],
       },
-      toolInvocationToken: undefined,
     });
-    const startParts = (startResult.content || []) as Array<{
-      text?: string;
-      value?: string;
-    }>;
-    const startText = startParts
-      .map(p => {
-        if (typeof p === 'object' && p !== null) {
-          if ('value' in p) {
-            return (p as { value?: string }).value;
-          }
-          if ('value' in p) {
-            return (p as { value?: string }).value;
-          }
-        }
-        return JSON.stringify(p);
-      })
-      .join('\n');
-    if (/timed out/i.test(startText)) {
-      this.skip();
-      return;
-    }
     // Get all variables using structured method
     const getVarsTool = new GetVariablesTool();
     const variablesData = await getVarsTool.getVariables();

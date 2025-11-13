@@ -1,3 +1,4 @@
+import type { Part } from '../testTypes';
 import {
   assertStartDebuggerOutput,
   invokeStartDebuggerTool,
@@ -21,7 +22,7 @@ describe('startDebuggerTool Integration (PowerShell)', () => {
       this.skip();
     }
 
-    this.timeout(90000); // allow time for activation + breakpoint
+    this.timeout(5000); // allow time for activation + breakpoint
     let textOutput: string;
     try {
       const result = await invokeStartDebuggerTool({
@@ -32,7 +33,6 @@ describe('startDebuggerTool Integration (PowerShell)', () => {
         configurationName: 'Run test.ps1',
       });
       // result.content is an array of parts in new API; join text parts for legacy assertion helper
-      type Part = { value?: string; text?: string } | string;
       const toText = (p: Part): string => {
         if (typeof p === 'string') {
           return p;

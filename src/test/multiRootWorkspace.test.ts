@@ -1,12 +1,11 @@
-import type { Variable } from '../debugUtils';
-import type { DebugInfo, StartDebugSessionResult } from '../session';
-import * as assert from 'node:assert';
+import assert from 'node:assert';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { StartDebuggerTool } from '../startDebuggerTool';
+import { DAPHelpers } from '../debugUtils';
+import { startDebuggingAndWaitForStop } from '../session';
 import {
   activateCopilotDebugger,
-  ensurePowerShellExtension,
+  assertPowerShellExtension,
   getExtensionRoot,
   openScriptDocument,
 } from './utils/startDebuggerToolTestUtils';
@@ -15,131 +14,30 @@ import {
 // Tests individual workspaces (a: PowerShell, b: Node.js) and compound launch configs
 
 /**
- * Extract structured debug info from tool result
+ * Collect all variables from all scopes in the current debug session
  */
-function extractDebugInfo(
-  result: vscode.LanguageModelToolResult
-): StartDebugSessionResult {
-  // eslint-disable-next-line ts/no-explicit-any
-  const rawResult = (result as any).__rawResult as StartDebugSessionResult;
-  if (!rawResult) {
-    throw new Error('No raw result attached to tool result');
+async function collectAllVariables(
+  activeSession: vscode.DebugSession,
+  scopes: { name: string; variablesReference: number }[]
+): Promise<{ name: string; value: string }[]> {
+  const allVariables: { name: string; value: string }[] = [];
+  for (const scope of scopes) {
+    const vars = await DAPHelpers.getVariablesFromReference(
+      activeSession,
+      scope.variablesReference
+    );
+    allVariables.push(...vars);
   }
-  return rawResult;
+  return allVariables;
 }
 
 /**
- * Flatten variables from all scopes into a single array
- */
-function flattenVariables(debugInfo: DebugInfo): Variable[] {
-  if (!debugInfo.variables) {
-    return [];
-  }
-  return debugInfo.variables.flatMap(scope => scope.variables);
-}
-
-/**
- * Assert that the debug session stopped successfully at a breakpoint
- */
-function assertSuccessfulBreakpointHit(
-  result: StartDebugSessionResult,
-  expectedFile: string,
-  expectedLine?: number
-): DebugInfo {
-  // Check that it's not an error
-  assert.strictEqual(
-    result.isError,
-    false,
-    'Debug session should not have errored'
-  );
-
-  // Check we have content
-  assert.ok(result.content.length > 0, 'Result should have content');
-
-  // First content should be text describing the stop
-  const firstContent = result.content[0];
-  assert.strictEqual(firstContent.type, 'text', 'First content should be text');
-  assert.ok(
-    firstContent.text,
-    'First content should have text describing the stop'
-  );
-
-  // Should not be a timeout
-  assert.ok(
-    !firstContent.text.includes('timed out'),
-    'Debug session should not have timed out'
-  );
-
-  // Should indicate it stopped
-  assert.ok(
-    /stopped at|stopped successfully/i.test(firstContent.text),
-    `Expected stop message, got: ${firstContent.text}`
-  );
-
-  // Second content should be JSON with debug info
-  const secondContent = result.content[1];
-  assert.strictEqual(
-    secondContent.type,
-    'json',
-    'Second content should be JSON'
-  );
-  assert.ok(secondContent.json, 'Second content should have json property');
-
-  const debugInfo = secondContent.json as DebugInfo;
-
-  // Validate breakpoint info structure
-  assert.ok(debugInfo.breakpoint, 'Should have breakpoint info');
-  assert.strictEqual(
-    debugInfo.breakpoint.reason,
-    'breakpoint',
-    'Should have stopped at a breakpoint'
-  );
-
-  // Validate file path
-  if (expectedFile) {
-    assert.ok(
-      debugInfo.breakpoint.filePath,
-      'Should have file path in breakpoint info'
-    );
-    assert.ok(
-      debugInfo.breakpoint.filePath.includes(expectedFile),
-      `Expected file path to contain '${expectedFile}', got: ${debugInfo.breakpoint.filePath}`
-    );
-  }
-
-  // Validate line number if provided
-  if (expectedLine !== undefined) {
-    assert.strictEqual(
-      debugInfo.breakpoint.line,
-      expectedLine,
-      `Expected to stop at line ${expectedLine}, got: ${debugInfo.breakpoint.line}`
-    );
-  }
-
-  // Validate we have call stack
-  assert.ok(debugInfo.callStack, 'Should have call stack data');
-
-  return debugInfo;
-}
-
-/**
- * Assert that specific variables are present in the debug info
+ * Assert that specific variables are present in the collected variables
  */
 function assertVariablesPresent(
-  debugInfo: DebugInfo,
+  allVariables: { name: string; value: string }[],
   expectedVariables: string[]
 ): void {
-  if (debugInfo.variablesError) {
-    assert.fail(
-      `Variables should be available, but got error: ${debugInfo.variablesError}`
-    );
-  }
-
-  assert.ok(debugInfo.variables, 'Should have variables data');
-
-  // Flatten variables from all scopes
-  const allVariables = flattenVariables(debugInfo);
-
   // Check that expected variables are present
   for (const varName of expectedVariables) {
     const found = allVariables.some(
@@ -203,11 +101,10 @@ describe('multi-Root Workspace Integration', () => {
     // - Process 2: Always has 3 folders (multi-root workspace) - tests would run here
     // The workspace state is determined at process startup, no waiting required.
 
-    if (!vscode.workspace.workspaceFolders?.length) {
-      throw new Error(
-        'No workspace folders found. Ensure test-workspace.code-workspace is being loaded by the test runner.'
-      );
-    }
+    assert.ok(
+      vscode.workspace.workspaceFolders?.length,
+      'No workspace folders found. Ensure test-workspace.code-workspace is being loaded by the test runner.'
+    );
 
     // Check if we have the multi-root workspace (3 folders)
     if (vscode.workspace.workspaceFolders.length < 3) {
@@ -249,104 +146,116 @@ describe('multi-Root Workspace Integration', () => {
       return;
     }
 
-    this.timeout(90000);
+    this.timeout(5000);
 
     const extensionRoot = getExtensionRoot();
     const scriptUri = vscode.Uri.file(
       path.join(extensionRoot, 'test-workspace/a/test.ps1')
     );
     // Use workspace-a folder specifically
-    const workspaceFolder = vscode.workspace.workspaceFolders!.find(
-      f => f.name === 'workspace-a'
-    )?.uri.fsPath || vscode.workspace.workspaceFolders![1].uri.fsPath;
+    const workspaceFolder =
+      vscode.workspace.workspaceFolders!.find(f => f.name === 'workspace-a')
+        ?.uri.fsPath || vscode.workspace.workspaceFolders![1].uri.fsPath;
 
     await openScriptDocument(scriptUri);
-    const hasPowerShell = await ensurePowerShellExtension();
-    if (!hasPowerShell) {
-      this.skip();
-      return;
-    }
+    await assertPowerShellExtension();
     await activateCopilotDebugger();
 
-    const tool = new StartDebuggerTool();
-
-    const result = await tool.invoke({
-      input: {
-        workspaceFolder,
-        timeoutSeconds: 60,
-        variableFilter: ['PWD', 'HOME'],
-        configurationName: 'Run a/test.ps1',
-        breakpointConfig: {
-          disableExisting: true,
-          breakpoints: [
-            {
-              path: scriptUri.fsPath,
-              line: 1,
-            },
-          ],
-        },
+    const configurationName = 'Run a/test.ps1';
+    const context = await startDebuggingAndWaitForStop({
+      sessionName: 'workspace-a-pwsh',
+      workspaceFolder,
+      nameOrConfiguration: configurationName,
+      breakpointConfig: {
+        breakpoints: [
+          {
+            path: scriptUri.fsPath,
+            line: 1,
+          },
+        ],
       },
-      toolInvocationToken: undefined,
     });
 
-    // Extract and validate structured output
-    const structuredResult = extractDebugInfo(result);
-    const debugInfo = assertSuccessfulBreakpointHit(
-      structuredResult,
-      'test.ps1',
-      1
+    // Assert we stopped at the expected line
+    assert.strictEqual(
+      context.frame.line,
+      1,
+      `Expected to stop at line 1, but stopped at line ${context.frame.line}`
     );
 
-    // Verify that the variable filter worked and we got the expected variables
-    assertVariablesPresent(debugInfo, ['PWD', 'HOME']);
+    // Assert the file path contains the expected file
+    assert.ok(
+      context.frame.source?.path?.includes('test.ps1'),
+      `Expected file path to contain 'test.ps1', got: ${context.frame.source?.path}`
+    );
+
+    // Collect variables from scopes using active session
+    const activeSession = vscode.debug.activeDebugSession;
+    assert.ok(activeSession, 'No active debug session after breakpoint hit');
+
+    const allVariables = await collectAllVariables(
+      activeSession,
+      context.scopes
+    );
+
+    // Verify that we got the expected variables
+    assertVariablesPresent(allVariables, ['PWD', 'HOME']);
   });
 
   it('workspace B (Node.js) - individual debug session', async function () {
-    this.timeout(90000);
+    this.timeout(5000);
 
     const extensionRoot = getExtensionRoot();
     const scriptUri = vscode.Uri.file(
       path.join(extensionRoot, 'test-workspace/b/test.js')
     );
     // Use workspace-b folder specifically
-    const workspaceFolder = vscode.workspace.workspaceFolders!.find(
-      f => f.name === 'workspace-b'
-    )?.uri.fsPath || vscode.workspace.workspaceFolders![2].uri.fsPath;
+    const workspaceFolder =
+      vscode.workspace.workspaceFolders!.find(f => f.name === 'workspace-b')
+        ?.uri.fsPath || vscode.workspace.workspaceFolders![2].uri.fsPath;
 
     await openScriptDocument(scriptUri);
     await activateCopilotDebugger();
 
-    const tool = new StartDebuggerTool();
-
-    const result = await tool.invoke({
-      input: {
-        workspaceFolder,
-        timeoutSeconds: 60,
-        variableFilter: ['randomValue'],
-        configurationName: 'Run b/test.js',
-        breakpointConfig: {
-          disableExisting: true,
-          breakpoints: [
-            {
-              path: scriptUri.fsPath,
-              line: 1,
-            },
-          ],
-        },
+    const configurationName = 'Run b/test.js';
+    const context = await startDebuggingAndWaitForStop({
+      sessionName: 'workspace-b-node',
+      workspaceFolder,
+      nameOrConfiguration: configurationName,
+      breakpointConfig: {
+        breakpoints: [
+          {
+            path: scriptUri.fsPath,
+            line: 1,
+          },
+        ],
       },
-      toolInvocationToken: undefined,
     });
 
-    // Extract and validate structured output
-    const structuredResult = extractDebugInfo(result);
-    const debugInfo = assertSuccessfulBreakpointHit(
-      structuredResult,
-      'test.js',
-      1
+    // Assert we stopped at the expected line
+    assert.strictEqual(
+      context.frame.line,
+      1,
+      `Expected to stop at line 1, but stopped at line ${context.frame.line}`
     );
 
-    // Verify that the variable filter worked and we got the expected variables
-    assertVariablesPresent(debugInfo, ['randomValue']);
+    // Assert the file path contains the expected file
+    assert.ok(
+      context.frame.source?.path?.includes('test.js'),
+      `Expected file path to contain 'test.js', got: ${context.frame.source?.path}`
+    );
+
+    // Collect variables from scopes using active session
+    const activeSession = vscode.debug.activeDebugSession;
+    assert.ok(activeSession, 'No active debug session after breakpoint hit');
+
+    const allVariables = await collectAllVariables(
+      activeSession,
+      context.scopes
+    );
+
+    // Verify that we got the expected variables
+    assertVariablesPresent(allVariables, ['randomValue']);
   });
 
   it('workspace A with conditional breakpoint (PowerShell)', async function () {
@@ -359,61 +268,57 @@ describe('multi-Root Workspace Integration', () => {
       return;
     }
 
-    this.timeout(90000);
+    this.timeout(5000);
 
     const extensionRoot = getExtensionRoot();
     const scriptUri = vscode.Uri.file(
       path.join(extensionRoot, 'test-workspace/a/test.ps1')
     );
     // Use workspace-a folder specifically
-    const workspaceFolder = vscode.workspace.workspaceFolders!.find(
-      f => f.name === 'workspace-a'
-    )?.uri.fsPath || vscode.workspace.workspaceFolders![1].uri.fsPath;
+    const workspaceFolder =
+      vscode.workspace.workspaceFolders!.find(f => f.name === 'workspace-a')
+        ?.uri.fsPath || vscode.workspace.workspaceFolders![1].uri.fsPath;
 
     await openScriptDocument(scriptUri);
-    const hasPowerShell = await ensurePowerShellExtension();
-    if (!hasPowerShell) {
-      this.skip();
-      return;
-    }
+    await assertPowerShellExtension();
     await activateCopilotDebugger();
 
-    const tool = new StartDebuggerTool();
+    const configurationName = 'Run a/test.ps1';
+    const condition = '$i -ge 3';
+    const lineInsideLoop = 8;
 
-    // Set conditional breakpoint in loop that should trigger when $i >= 3
-    const result = await tool.invoke({
-      input: {
-        workspaceFolder,
-        timeoutSeconds: 60,
-        variableFilter: ['i'],
-        configurationName: 'Run a/test.ps1',
-        breakpointConfig: {
-          disableExisting: true,
-          breakpoints: [
-            {
-              path: scriptUri.fsPath,
-              line: 8,
-              condition: '$i -ge 3',
-            },
-          ],
-        },
+    const context = await startDebuggingAndWaitForStop({
+      sessionName: 'workspace-a-conditional-pwsh',
+      workspaceFolder,
+      nameOrConfiguration: configurationName,
+      breakpointConfig: {
+        breakpoints: [
+          {
+            path: scriptUri.fsPath,
+            line: lineInsideLoop,
+            condition,
+          },
+        ],
       },
-      toolInvocationToken: undefined,
     });
 
-    // Extract and validate structured output
-    const structuredResult = extractDebugInfo(result);
-    const debugInfo = assertSuccessfulBreakpointHit(
-      structuredResult,
-      'test.ps1',
-      8
+    // Assert we stopped at the expected line
+    assert.strictEqual(
+      context.frame.line,
+      lineInsideLoop,
+      `Expected to stop at line ${lineInsideLoop}, but stopped at line ${context.frame.line}`
+    );
+
+    // Collect variables from scopes using active session
+    const activeSession = vscode.debug.activeDebugSession;
+    assert.ok(activeSession, 'No active debug session after breakpoint hit');
+
+    const allVariables = await collectAllVariables(
+      activeSession,
+      context.scopes
     );
 
     // Verify we got the variable 'i' and that its value is >= 3
-    assertVariablesPresent(debugInfo, ['i']);
-
-    // Verify the condition worked - i should be >= 3
-    const allVariables = flattenVariables(debugInfo);
     const iVariable = allVariables.find(v => v.name === 'i' || v.name === '$i');
     assert.ok(iVariable, "Variable 'i' should be present");
     const iValue = Number.parseInt(iVariable.value, 10);
@@ -424,56 +329,56 @@ describe('multi-Root Workspace Integration', () => {
   });
 
   it('workspace B with conditional breakpoint (Node.js)', async function () {
-    this.timeout(90000);
+    this.timeout(5000);
 
     const extensionRoot = getExtensionRoot();
     const scriptUri = vscode.Uri.file(
       path.join(extensionRoot, 'test-workspace/b/test.js')
     );
     // Use workspace-b folder specifically
-    const workspaceFolder = vscode.workspace.workspaceFolders!.find(
-      f => f.name === 'workspace-b'
-    )?.uri.fsPath || vscode.workspace.workspaceFolders![2].uri.fsPath;
+    const workspaceFolder =
+      vscode.workspace.workspaceFolders!.find(f => f.name === 'workspace-b')
+        ?.uri.fsPath || vscode.workspace.workspaceFolders![2].uri.fsPath;
 
     await openScriptDocument(scriptUri);
     await activateCopilotDebugger();
 
-    const tool = new StartDebuggerTool();
+    const configurationName = 'Run b/test.js';
+    const condition = 'i >= 3';
+    const lineInsideLoop = 9;
 
-    // Set conditional breakpoint in loop that should trigger when i >= 3
-    const result = await tool.invoke({
-      input: {
-        workspaceFolder,
-        timeoutSeconds: 60,
-        variableFilter: ['i'],
-        configurationName: 'Run b/test.js',
-        breakpointConfig: {
-          disableExisting: true,
-          breakpoints: [
-            {
-              path: scriptUri.fsPath,
-              line: 9,
-              condition: 'i >= 3',
-            },
-          ],
-        },
+    const context = await startDebuggingAndWaitForStop({
+      sessionName: 'workspace-b-conditional-node',
+      workspaceFolder,
+      nameOrConfiguration: configurationName,
+      breakpointConfig: {
+        breakpoints: [
+          {
+            path: scriptUri.fsPath,
+            line: lineInsideLoop,
+            condition,
+          },
+        ],
       },
-      toolInvocationToken: undefined,
     });
 
-    // Extract and validate structured output
-    const structuredResult = extractDebugInfo(result);
-    const debugInfo = assertSuccessfulBreakpointHit(
-      structuredResult,
-      'test.js',
-      9
+    // Assert we stopped at the expected line
+    assert.strictEqual(
+      context.frame.line,
+      lineInsideLoop,
+      `Expected to stop at line ${lineInsideLoop}, but stopped at line ${context.frame.line}`
+    );
+
+    // Collect variables from scopes using active session
+    const activeSession = vscode.debug.activeDebugSession;
+    assert.ok(activeSession, 'No active debug session after breakpoint hit');
+
+    const allVariables = await collectAllVariables(
+      activeSession,
+      context.scopes
     );
 
     // Verify we got the variable 'i' and that its value is >= 3
-    assertVariablesPresent(debugInfo, ['i']);
-
-    // Verify the condition worked - i should be >= 3
-    const allVariables = flattenVariables(debugInfo);
     const iVariable = allVariables.find(v => v.name === 'i');
     assert.ok(iVariable, "Variable 'i' should be present");
     const iValue = Number.parseInt(iVariable.value, 10);

@@ -25,10 +25,6 @@ interface StoppedEventBody {
   preserveFocusHint?: boolean;
 }
 
-interface DebugConfiguration extends vscode.DebugConfiguration {
-  sessionName?: string;
-}
-
 /** Event emitter for breakpoint hit notifications */
 export const breakpointEventEmitter =
   new vscode.EventEmitter<BreakpointHitInfo>();
@@ -54,92 +50,96 @@ vscode.debug.registerDebugAdapterTrackerFactory('*', {
 
       async onDidSendMessage(message: DebugProtocolMessage): Promise<void> {
         // Log all messages sent from the debug adapter to VS Code
-        if (message.type === 'event') {
-          const event = message as DebugProtocolEvent;
-          // The 'stopped' event is fired when execution stops (e.g., at a breakpoint or exception)
-          if (event.event === 'stopped') {
-            const body = event.body as StoppedEventBody;
-            // Process any stop event - including breakpoints, exceptions, and other stops
-            const validReasons = [
-              'breakpoint',
-              'step',
-              'pause',
-              'exception',
-              'assertion',
-              'entry',
-            ];
+        if (message.type !== 'event') {
+          return;
+        }
+        const event = message as DebugProtocolEvent;
+        if (event.event !== 'stopped') {
+          return;
+        }
+        const body = event.body as StoppedEventBody;
+        const validReasons = [
+          'breakpoint',
+          'step',
+          'pause',
+          'exception',
+          'assertion',
+          'entry',
+        ];
+        if (!validReasons.includes(body.reason)) {
+          return;
+        }
 
-            if (validReasons.includes(body.reason)) {
-              // Use existing getCallStack function to get thread and stack information
-              // Collect exception details if this is an exception
-              let exceptionDetails;
-              if (body.reason === 'exception' && body.description) {
-                exceptionDetails = {
-                  description: body.description || 'Unknown exception',
-                  details: body.text || 'No additional details available',
-                };
+        try {
+          let exceptionDetails;
+          if (body.reason === 'exception' && body.description) {
+            exceptionDetails = {
+              description: body.description || 'Unknown exception',
+              details: body.text || 'No additional details available',
+            };
+          }
+
+          // Some debug adapters may send 'stopped' before frames/threads fully available.
+          // Retry a few times with incremental backoff.
+          const retries = 3;
+          let lastError: unknown;
+          let callStackData: DebugContext | undefined;
+          for (let attempt = 0; attempt < retries; attempt++) {
+            try {
+              if (attempt > 0) {
+                await new Promise(r => setTimeout(r, 50 * attempt));
               }
-
-              // Get call stack information for the session
-              // Some debug adapters (especially PowerShell) may send the stopped event before
-              // stack frames are populated. Retry a few times with small delays.
-              let callStackData: DebugContext;
-              let threadData;
-              const retries = 3;
-
-              for (let attempt = 0; attempt < retries; attempt++) {
-                if (attempt > 0) {
-                  // Wait a bit before retrying
-                  await new Promise(resolve =>
-                    setTimeout(resolve, 50 * attempt)
-                  );
-                }
-                try {
-                  callStackData = await DAPHelpers.getDebugContext(
-                    session,
-                    body.threadId
-                  );
-
-                  if (!callStackData.frame?.source?.path) {
-                    throw new Error(
-                      `Top stack frame missing source path: ${JSON.stringify(callStackData.frame)}`
-                    );
-                  }
-
-                  // Emit breakpoint/exception hit event with stack frame information
-                  const eventData = {
-                    session,
-                    threadId: body.threadId,
-                    reason: body.reason,
-                    frameId: callStackData.frame.id,
-                    filePath: callStackData.frame.source.path,
-                    line: callStackData.frame.line,
-                    exceptionInfo: exceptionDetails,
-                  } as BreakpointHitInfo;
-
-                  outputChannel.appendLine(
-                    `Firing breakpoint event: ${JSON.stringify(eventData)}`
-                  );
-                  breakpointEventEmitter.fire(eventData);
-                } catch (error) {
-                  // If this is the last attempt, throw
-                  if (attempt === retries - 1) {
-                    throw new Error(
-                      `Thread ${body.threadId} has no stack frames after ${retries} attempts`
-                    );
-                  }
-                  outputChannel.appendLine(
-                    `Retrying getDebugContext for thread ${body.threadId} (attempt ${
-                      attempt + 1
-                    }/${retries})`
-                  );
-                }
+              callStackData = await DAPHelpers.getDebugContext(
+                session,
+                body.threadId
+              );
+              if (!callStackData.frame?.source?.path) {
+                throw new Error(
+                  `Top stack frame missing source path: ${JSON.stringify(callStackData.frame)}`
+                );
               }
+              // Success
+              break;
+            } catch (err) {
+              lastError = err;
               outputChannel.appendLine(
-                `Message from debug adapter: ${JSON.stringify(message)}`
+                `getDebugContext attempt ${attempt + 1} failed for thread ${body.threadId}: ${err instanceof Error ? err.message : String(err)}`
               );
             }
           }
+
+          if (!callStackData) {
+            throw new Error(
+              `Unable to retrieve call stack after ${retries} attempts for thread ${body.threadId}: ${lastError instanceof Error ? lastError.message : String(lastError)}`
+            );
+          }
+
+          const eventData: BreakpointHitInfo = {
+            session,
+            threadId: body.threadId,
+            reason: body.reason,
+            frameId: callStackData.frame.id,
+            filePath: callStackData.frame.source?.path,
+            line: callStackData.frame.line,
+            exceptionInfo: exceptionDetails,
+          };
+          outputChannel.appendLine(
+            `Firing breakpoint event: ${JSON.stringify(eventData)}`
+          );
+          breakpointEventEmitter.fire(eventData);
+        } catch (err) {
+          // Fail fast locally without relying on a global unhandledRejection handler.
+          const msg = err instanceof Error ? err.message : String(err);
+          outputChannel.appendLine(
+            `[stopped-event-error] ${msg} (reason=${body.reason})`
+          );
+          // Emit an error reason event so waiting logic can fail early.
+          const errorEvent: BreakpointHitInfo = {
+            session,
+            threadId: body?.threadId ?? 0,
+            reason: 'error',
+          };
+          breakpointEventEmitter.fire(errorEvent);
         }
       }
 
@@ -175,10 +175,9 @@ vscode.debug.registerDebugAdapterTrackerFactory('*', {
 /**
  * Wait for a breakpoint to be hit in a debug session.
  *
- * @param params - Object containing sessionName or sessionName to identify the debug session, and optional timeout.
- * @param params.sessionName - Optional session ID to identify the debug session.
+ * @param params - Object containing sessionName to identify the debug session and optional timeout.
+ * @param params.sessionName - Session name to identify the debug session.
  * @param params.timeout - Optional timeout in milliseconds (default: 30000).
- * @param params.includeTermination - Optional flag to include session termination events (default: true).
  */
 export const waitForBreakpointHit = async (params: {
   sessionName: string;
@@ -191,6 +190,7 @@ export const waitForBreakpointHit = async (params: {
     (resolve, reject) => {
       // Declare terminateListener early to avoid use-before-define
       let terminateListener: vscode.Disposable | undefined;
+      let timeoutHandle: NodeJS.Timeout | undefined;
       // Use the breakpointEventEmitter which is already wired up to the debug adapter tracker
       const listener = onBreakpointHit(event => {
         // Check if this event is for one of our target sessions
@@ -233,6 +233,10 @@ export const waitForBreakpointHit = async (params: {
         if (eventMatchesTarget) {
           listener.dispose();
           terminateListener?.dispose();
+          if (timeoutHandle) {
+            clearTimeout(timeoutHandle);
+            timeoutHandle = undefined;
+          }
           resolve(event);
           outputChannel.appendLine(
             `Breakpoint hit detected for waitForBreakpointHit: ${JSON.stringify(event)}`
@@ -247,6 +251,10 @@ export const waitForBreakpointHit = async (params: {
         );
         listener.dispose();
         terminateListener?.dispose();
+        if (timeoutHandle) {
+          clearTimeout(timeoutHandle);
+          timeoutHandle = undefined;
+        }
         resolve({
           session: endEvent.session,
           threadId: 0,
@@ -255,9 +263,31 @@ export const waitForBreakpointHit = async (params: {
       });
 
       // Set a timeout to prevent blocking indefinitely
-      setTimeout(() => {
+      timeoutHandle = setTimeout(() => {
         listener.dispose();
         terminateListener?.dispose();
+        timeoutHandle = undefined;
+        try {
+          // Attempt to stop the relevant debug session(s) before rejecting
+          let targetSessions = activeSessions.filter(s =>
+            s.name.endsWith(sessionName)
+          );
+          if (targetSessions.length === 0 && activeSessions.length > 0) {
+            // Fallback: use most recent session if no name match
+            targetSessions = [activeSessions[activeSessions.length - 1]];
+          }
+          for (const s of targetSessions) {
+            // Fire and forget; we don't await inside the timer callback
+            void vscode.debug.stopDebugging(s);
+            outputChannel.appendLine(
+              `Timeout reached; stopping debug session ${s.name} (${s.id}).`
+            );
+          }
+        } catch (e) {
+          outputChannel.appendLine(
+            `Timeout cleanup error stopping sessions: ${e instanceof Error ? e.message : String(e)}`
+          );
+        }
         reject(
           new Error(
             `Timed out waiting for breakpoint or termination (${timeout}ms).`

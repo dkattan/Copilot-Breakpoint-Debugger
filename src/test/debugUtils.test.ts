@@ -2,7 +2,7 @@ import * as assert from 'node:assert';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { DAPHelpers } from '../debugUtils';
-import { StartDebuggerTool } from '../startDebuggerTool';
+import { startDebuggingAndWaitForStop } from '../session';
 
 describe('debugUtils - DAPHelpers', () => {
   it('createSuccessResult creates valid result', () => {
@@ -46,63 +46,33 @@ describe('debugUtils - DAPHelpers', () => {
   });
 
   it('getVariablesFromReference works in Node session', async function () {
-    this.timeout(90000);
+    this.timeout(5000);
     const extensionRoot =
       vscode.extensions.getExtension('dkattan.copilot-breakpoint-debugger')
         ?.extensionPath || path.resolve(__dirname, '../../..');
     const jsPath = path.join(extensionRoot, 'test-workspace/test.js');
     const workspaceFolder = path.join(extensionRoot, 'test-workspace');
-    const tool = new StartDebuggerTool();
-    const startResult = await tool.invoke({
-      input: {
-        workspaceFolder,
-        timeoutSeconds: 60,
-        configurationName: 'Run test.js',
-        breakpointConfig: {
-          breakpoints: [
-            {
-              path: jsPath,
-              line: 5,
-            },
-          ],
-        },
+
+    const context = await startDebuggingAndWaitForStop({
+      sessionName: 'getVariablesFromReference-test',
+      workspaceFolder,
+      nameOrConfiguration: 'Run test.js',
+      breakpointConfig: {
+        breakpoints: [
+          {
+            path: jsPath,
+            line: 5,
+          },
+        ],
       },
-      toolInvocationToken: undefined,
     });
-    const startParts = (startResult.content || []) as Array<{
-      text?: string;
-      value?: string;
-    }>;
-    const startText = startParts
-      .map(p => {
-        if (typeof p === 'object' && p !== null) {
-          if ('value' in p) {
-            return (p as { value?: string }).value;
-          }
-          if ('value' in p) {
-            return (p as { value?: string }).value;
-          }
-        }
-        return JSON.stringify(p);
-      })
-      .join('\n');
-    if (/timed out/i.test(startText)) {
-      this.skip();
-      return;
-    }
+
     // Get active session and test getVariablesFromReference
     const activeSession = vscode.debug.activeDebugSession;
-    if (!activeSession) {
-      this.skip();
-      return;
-    }
-    const debugContext = await DAPHelpers.getDebugContext(activeSession);
-    if (!debugContext) {
-      this.skip();
-      return;
-    }
+    assert.ok(activeSession, 'No active debug session');
+
     // Get variables from first scope
-    const firstScope = debugContext.scopes[0];
+    const firstScope = context.scopes[0];
     const variables = await DAPHelpers.getVariablesFromReference(
       activeSession,
       firstScope.variablesReference
@@ -120,64 +90,34 @@ describe('debugUtils - DAPHelpers', () => {
   });
 
   it('findVariableInScopes finds existing variable', async function () {
-    this.timeout(90000);
+    this.timeout(5000);
     const extensionRoot =
       vscode.extensions.getExtension('dkattan.copilot-breakpoint-debugger')
         ?.extensionPath || path.resolve(__dirname, '../../..');
     const jsPath = path.join(extensionRoot, 'test-workspace/test.js');
     const workspaceFolder = path.join(extensionRoot, 'test-workspace');
-    const tool = new StartDebuggerTool();
-    const startResult = await tool.invoke({
-      input: {
-        workspaceFolder,
-        timeoutSeconds: 60,
-        configurationName: 'Run test.js',
-        breakpointConfig: {
-          breakpoints: [
-            {
-              path: jsPath,
-              line: 5,
-            },
-          ],
-        },
+
+    const context = await startDebuggingAndWaitForStop({
+      sessionName: 'findVariableInScopes-test',
+      workspaceFolder,
+      nameOrConfiguration: 'Run test.js',
+      breakpointConfig: {
+        breakpoints: [
+          {
+            path: jsPath,
+            line: 5,
+          },
+        ],
       },
-      toolInvocationToken: undefined,
     });
-    const startParts = (startResult.content || []) as Array<{
-      text?: string;
-      value?: string;
-    }>;
-    const startText = startParts
-      .map(p => {
-        if (typeof p === 'object' && p !== null) {
-          if ('value' in p) {
-            return (p as { value?: string }).value;
-          }
-          if ('value' in p) {
-            return (p as { value?: string }).value;
-          }
-        }
-        return JSON.stringify(p);
-      })
-      .join('\n');
-    if (/timed out/i.test(startText)) {
-      this.skip();
-      return;
-    }
+
     const activeSession = vscode.debug.activeDebugSession;
-    if (!activeSession) {
-      this.skip();
-      return;
-    }
-    const debugContext = await DAPHelpers.getDebugContext(activeSession);
-    if (!debugContext) {
-      this.skip();
-      return;
-    }
+    assert.ok(activeSession, 'No active debug session');
+
     // Find randomValue variable
     const found = await DAPHelpers.findVariableInScopes(
       activeSession,
-      debugContext.scopes,
+      context.scopes,
       'randomValue'
     );
     assert.ok(found, 'Should find randomValue variable');
@@ -186,119 +126,64 @@ describe('debugUtils - DAPHelpers', () => {
   });
 
   it('findVariableInScopes returns null for non-existent variable', async function () {
-    this.timeout(90000);
+    this.timeout(5000);
     const extensionRoot =
       vscode.extensions.getExtension('dkattan.copilot-breakpoint-debugger')
         ?.extensionPath || path.resolve(__dirname, '../../..');
     const jsPath = path.join(extensionRoot, 'test-workspace/test.js');
     const workspaceFolder = path.join(extensionRoot, 'test-workspace');
-    const tool = new StartDebuggerTool();
-    const startResult = await tool.invoke({
-      input: {
-        workspaceFolder,
-        timeoutSeconds: 60,
-        configurationName: 'Run test.js',
-        breakpointConfig: {
-          breakpoints: [
-            {
-              path: jsPath,
-              line: 5,
-            },
-          ],
-        },
+
+    const context = await startDebuggingAndWaitForStop({
+      sessionName: 'findVariableInScopes-null-test',
+      workspaceFolder,
+      nameOrConfiguration: 'Run test.js',
+      breakpointConfig: {
+        breakpoints: [
+          {
+            path: jsPath,
+            line: 5,
+          },
+        ],
       },
-      toolInvocationToken: undefined,
     });
-    const startParts = (startResult.content || []) as Array<{
-      text?: string;
-      value?: string;
-    }>;
-    const startText = startParts
-      .map(p => {
-        if (typeof p === 'object' && p !== null) {
-          if ('value' in p) {
-            return (p as { value?: string }).value;
-          }
-          if ('value' in p) {
-            return (p as { value?: string }).value;
-          }
-        }
-        return JSON.stringify(p);
-      })
-      .join('\n');
-    if (/timed out/i.test(startText)) {
-      this.skip();
-      return;
-    }
+
     const activeSession = vscode.debug.activeDebugSession;
-    if (!activeSession) {
-      this.skip();
-      return;
-    }
-    const debugContext = await DAPHelpers.getDebugContext(activeSession);
-    if (!debugContext) {
-      this.skip();
-      return;
-    }
+    assert.ok(activeSession, 'No active debug session');
+
     // Try to find non-existent variable
     const found = await DAPHelpers.findVariableInScopes(
       activeSession,
-      debugContext.scopes,
+      context.scopes,
       'thisVariableDoesNotExist12345'
     );
     assert.strictEqual(found, null, 'Should not find non-existent variable');
   });
 
   it('getDebugContext works in active session', async function () {
-    this.timeout(90000);
+    this.timeout(5000);
     const extensionRoot =
       vscode.extensions.getExtension('dkattan.copilot-breakpoint-debugger')
         ?.extensionPath || path.resolve(__dirname, '../../..');
     const jsPath = path.join(extensionRoot, 'test-workspace/test.js');
     const workspaceFolder = path.join(extensionRoot, 'test-workspace');
-    const tool = new StartDebuggerTool();
-    const startResult = await tool.invoke({
-      input: {
-        workspaceFolder,
-        timeoutSeconds: 60,
-        configurationName: 'Run test.js',
-        breakpointConfig: {
-          breakpoints: [
-            {
-              path: jsPath,
-              line: 5,
-            },
-          ],
-        },
+
+    const context = await startDebuggingAndWaitForStop({
+      sessionName: 'getDebugContext-test',
+      workspaceFolder,
+      nameOrConfiguration: 'Run test.js',
+      breakpointConfig: {
+        breakpoints: [
+          {
+            path: jsPath,
+            line: 5,
+          },
+        ],
       },
-      toolInvocationToken: undefined,
     });
-    const startParts = (startResult.content || []) as Array<{
-      text?: string;
-      value?: string;
-    }>;
-    const startText = startParts
-      .map(p => {
-        if (typeof p === 'object' && p !== null) {
-          if ('value' in p) {
-            return (p as { value?: string }).value;
-          }
-          if ('value' in p) {
-            return (p as { value?: string }).value;
-          }
-        }
-        return JSON.stringify(p);
-      })
-      .join('\n');
-    if (/timed out/i.test(startText)) {
-      this.skip();
-      return;
-    }
+
     const activeSession = vscode.debug.activeDebugSession;
-    if (!activeSession) {
-      this.skip();
-      return;
-    }
+    assert.ok(activeSession, 'No active debug session');
+
     const debugContext = await DAPHelpers.getDebugContext(activeSession);
     assert.ok(debugContext, 'Should get debug context');
     assert.ok(debugContext?.thread, 'Should have thread');

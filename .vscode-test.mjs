@@ -1,5 +1,7 @@
+// import { execSync } from 'node:child_process';
 import { existsSync, rmSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+// import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import { defineConfig } from '@vscode/test-cli';
@@ -19,10 +21,14 @@ export default defineConfig({
   mocha: {
     ui: 'bdd',
     timeout: 30000,
+    asyncOnly: true,
   },
   // Allow extensions to load; we install required ones below via the 'extensions' field.
   // Removed '--disable-extensions' so PowerShell can activate.
-  launchArgs: [resolve(__dirname, 'test-workspace.code-workspace')],
+  launchArgs: [
+    resolve(__dirname, 'test-workspace.code-workspace'),
+    '--disable-extensions',
+  ],
   // Request automatic installation of required marketplace extensions for tests.
   // @vscode/test-cli will ensure these are present before running.
   extensions: ['ms-vscode.PowerShell'],

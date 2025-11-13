@@ -1,69 +1,45 @@
+import assert from 'node:assert';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { StartDebuggerTool } from '../startDebuggerTool';
+import { DAPHelpers, type DebugContext } from '../debugUtils';
+import { startDebuggingAndWaitForStop } from '../session';
 import {
   activateCopilotDebugger,
-  ensurePowerShellExtension,
+  assertPowerShellExtension,
   getExtensionRoot,
   openScriptDocument,
 } from './utils/startDebuggerToolTestUtils';
 
-// Helper to extract variables array lengths from text output (expects a JSON blob containing \"variablesByScope\")
-// Minimal structural typing for tool result; 'content' may be an array of parts.
-
-function extractVariableCounts(result): {
+// Helper to extract variables array lengths from debug context
+async function extractVariableCounts(
+  context: DebugContext,
+  session: vscode.DebugSession
+): Promise<{
   total: number;
   byScope: Record<string, number>;
-} {
-  const rawContent = result?.content;
-  const partsArray = Array.isArray(result?.parts)
-    ? result.parts.map(p => (typeof p === 'string' ? p : p.text || ''))
-    : Array.isArray(rawContent)
-      ? rawContent.map(p => (typeof p === 'string' ? p : ''))
-      : [typeof rawContent === 'string' ? rawContent : ''];
-  const parts: string[] = partsArray;
-  for (const text of parts) {
-    if (typeof text !== 'string') {
-      continue;
-    }
-    if (!text.includes('variablesByScope')) {
-      continue;
-    }
-    // Attempt to isolate JSON substring if text contains other info
-    const candidateMatches = text.match(/\{[\s\S]*\}/g) || [];
-    for (const candidate of candidateMatches) {
-      if (!candidate.includes('variablesByScope')) {
-        continue;
-      }
-      try {
-        const parsed = JSON.parse(candidate);
-        const container = parsed.variables || parsed; // handle nested
-        const scopes = container.variablesByScope;
-        if (!Array.isArray(scopes)) {
-          continue;
-        }
-        const byScope: Record<string, number> = {};
-        let total = 0;
-        for (const s of scopes) {
-          const count = Array.isArray(s.variables) ? s.variables.length : 0;
-          byScope[s.scopeName || s.name || 'unknown'] = count;
-          total += count;
-        }
-        return { total, byScope };
-      } catch {
-        // ignore parse errors
-      }
-    }
+}> {
+  const byScope: Record<string, number> = {};
+  let total = 0;
+
+  for (const scope of context.scopes) {
+    const variables = await DAPHelpers.getVariablesFromReference(
+      session,
+      scope.variablesReference
+    );
+    const count = variables.length;
+    byScope[scope.name] = count;
+    total += count;
   }
-  return { total: 0, byScope: {} };
+
+  return { total, byScope };
 }
 
 describe('variable Filter Reduces Payload (Unified)', () => {
   it('filtered variables are fewer than unfiltered (pwsh fallback to node)', async function () {
-    this.timeout(90000);
+    this.timeout(5000);
 
     // Decide runtime: prefer PowerShell if available locally & not explicitly disabled by CI env
-    const preferPwsh = !process.env.CI && (await ensurePowerShellExtension());
+    const preferPwsh = !process.env.CI && (await assertPowerShellExtension());
     const runtime: 'powershell' | 'node' = preferPwsh ? 'powershell' : 'node';
     await activateCopilotDebugger();
 
@@ -81,54 +57,76 @@ describe('variable Filter Reduces Payload (Unified)', () => {
     );
     await openScriptDocument(scriptUri);
 
+    if (!vscode.workspace.workspaceFolders?.length) {
+      throw new Error(
+        'No workspace folders found. Ensure test-workspace.code-workspace is loaded.'
+      );
+    }
+    const workspaceFolder = vscode.workspace.workspaceFolders[0].uri.fsPath;
+
     // Unfiltered run ('.' matches anything)
     const configurationName =
       runtime === 'powershell' ? 'Run test.ps1' : 'Run test.js';
-    const startDebuggerTool = new StartDebuggerTool();
-    const unfiltered = await startDebuggerTool.invoke({
-      input: {
-        workspaceFolder: path.join(extensionRoot, 'test-workspace'),
-        timeoutSeconds: 60,
-        configurationName,
-        breakpointConfig: {
-          breakpoints: breakpointLines.map(line => ({
-            path: path.join(extensionRoot, scriptRelativePath),
-            line,
-          })),
-        },
-        variableFilter: ['.'],
+    const unfilteredContext = await startDebuggingAndWaitForStop({
+      sessionName: 'variablefilter-unfiltered',
+      workspaceFolder,
+      nameOrConfiguration: configurationName,
+      breakpointConfig: {
+        breakpoints: breakpointLines.map(line => ({
+          path: path.join(extensionRoot, scriptRelativePath),
+          line,
+        })),
       },
-      toolInvocationToken: undefined,
+      variableFilter: ['.'],
+      timeoutSeconds: 60,
     });
-    const unfilteredCounts = extractVariableCounts(unfiltered);
+
+    const activeSession = vscode.debug.activeDebugSession;
+    assert(activeSession, 'No active debug session after unfiltered run');
+
+    const unfilteredCounts = await extractVariableCounts(
+      unfilteredContext,
+      activeSession
+    );
     if (unfilteredCounts.total === 0) {
-      console.log('VariableFilterTest: Unfiltered result object:', unfiltered);
+      console.log('VariableFilterTest: Unfiltered context:', unfilteredContext);
     }
 
     // Filtered run
-    const filtered = await invokeStartDebuggerTool({
-      scriptRelativePath,
-      timeoutSeconds: 60,
+    const filteredContext = await startDebuggingAndWaitForStop({
+      sessionName: 'variablefilter-filtered',
+      workspaceFolder,
+      nameOrConfiguration: configurationName,
+      breakpointConfig: {
+        breakpoints: breakpointLines.map(line => ({
+          path: path.join(extensionRoot, scriptRelativePath),
+          line,
+        })),
+      },
       variableFilter: [filteredPattern],
-      breakpointLines,
-      configurationName,
+      timeoutSeconds: 60,
     });
-    const filteredCounts = extractVariableCounts(filtered);
+
+    const filteredSession = vscode.debug.activeDebugSession;
+    assert(filteredSession, 'No active debug session after filtered run');
+
+    const filteredCounts = await extractVariableCounts(
+      filteredContext,
+      filteredSession
+    );
 
     if (unfilteredCounts.total === 0) {
       // Adapter produced no variables; skip to avoid false failure (seen occasionally in pwsh envs)
       this.skip();
       return;
     }
-    if (filteredCounts.total === 0) {
-      throw new Error(
-        `Filtered run captured zero variables; expected at least one match for pattern ${filteredPattern}`
-      );
-    }
-    if (filteredCounts.total >= unfilteredCounts.total) {
-      throw new Error(
-        `Filter did not reduce variables (runtime=${runtime}): filtered=${filteredCounts.total}, unfiltered=${unfilteredCounts.total}`
-      );
-    }
+    assert(
+      filteredCounts.total > 0,
+      `Filtered run captured zero variables; expected at least one match for pattern ${filteredPattern}`
+    );
+    assert(
+      filteredCounts.total < unfilteredCounts.total,
+      `Filter did not reduce variables (runtime=${runtime}): filtered=${filteredCounts.total}, unfiltered=${unfilteredCounts.total}`
+    );
   });
 });

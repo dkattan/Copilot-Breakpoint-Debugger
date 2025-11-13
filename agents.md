@@ -213,28 +213,3 @@ The test CLI (`@vscode/test-cli` via `npm test`) downloads a Stable build into `
 1. Install VS Code Stable and VS Code Insiders.
 1. Open the repo in **Insiders**.
 1. Run tests from a terminal: `npm test`.
-1. For interactive debugging set `TEST_TS_NODE=1` to use the ts-node bootstrap (`out/test/suite/indexTsNode.js`).
-
-#### Tips
-
-- Use aliases: `alias codei='open -a "Visual Studio Code - Insiders"'`.
-- Clear `.vscode-test/` if previous runs leave stale state.
-- Breakpoints: enable `--inspect-brk-extensions` by setting `TEST_EARLY_BREAK=1` or `TEST_DEBUG=1` before running `npm test`.
-
-### Test Channel Selection (Default Insiders Locally)
-
-Local runs default to **Insiders**; CI always uses Stable.
-
-Force Stable locally:
-
-```bash
-TEST_USE_STABLE=1 npm test
-```
-
-With TypeScript source debugging:
-
-```bash
-TEST_USE_STABLE=1 TEST_TS_NODE=1 npm test
-```
-
-Console output will show which channel was downloaded.

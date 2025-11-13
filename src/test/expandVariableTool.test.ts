@@ -1,21 +1,32 @@
-import * as assert from 'node:assert';
+import assert from 'node:assert';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { ExpandVariableTool } from '../expandVariableTool';
-import { StartDebuggerTool } from '../startDebuggerTool';
+import { startDebuggingAndWaitForStop } from '../session';
+import {
+  activateCopilotDebugger,
+  getExtensionRoot,
+  openScriptDocument,
+} from './utils/startDebuggerToolTestUtils';
 
 describe('expandVariableTool', () => {
   it('prepareInvocation includes variable name', async () => {
     const tool = new ExpandVariableTool();
-    
-    const maybePrepared = tool.prepareInvocation?.({
-      input: { variableName: 'myVar' },
-    };
-    
-    const prepared = await Promise.resolve(
-      maybePrepared
+    const maybePrepared = tool.prepareInvocation
+      ? tool.prepareInvocation({
+          input: { variableName: 'myVar' },
+        })
+      : undefined;
+
+    const prepared = await Promise.resolve(maybePrepared);
+    const invocationMessage =
+      typeof prepared?.invocationMessage === 'string'
+        ? prepared.invocationMessage
+        : prepared?.invocationMessage?.value;
+    assert.ok(
+      invocationMessage?.includes('myVar'),
+      'Invocation message should include variable name'
     );
-    assert.ok(prepared?.invocationMessage.includes('myVar'));
   });
 
   it('expandVariable throws error for invalid variable', async () => {
@@ -29,51 +40,44 @@ describe('expandVariableTool', () => {
   });
 
   it('expand variable in Node session', async function () {
-    this.timeout(90000);
+    this.timeout(5000);
     // Start a Node debug session hitting a breakpoint in test.js
-    const extensionRoot =
-      vscode.extensions.getExtension('dkattan.copilot-breakpoint-debugger')
-        ?.extensionPath || path.resolve(__dirname, '../../..');
+    const extensionRoot = getExtensionRoot();
     const jsPath = path.join(extensionRoot, 'test-workspace/test.js');
-    const workspaceFolder = path.join(extensionRoot, 'test-workspace');
-    const tool = new StartDebuggerTool();
-    const startResult = await tool.invoke({
-      input: {
-        workspaceFolder,
-        timeoutSeconds: 60,
-        configurationName: 'Run test.js',
-        breakpointConfig: {
-          breakpoints: [
-            {
-              path: jsPath,
-              line: 5, // after randomValue assignment
-            },
-          ],
-        },
-      },
-      toolInvocationToken: undefined,
-    });
-    const startParts = (startResult.content || []) as Array<{
-      text?: string;
-      value?: string;
-    }>;
-    const startText = startParts
-      .map(p => {
-        if (typeof p === 'object' && p !== null) {
-          if ('value' in p) {
-            return (p as { value?: string }).value;
-          }
-          if ('value' in p) {
-            return (p as { value?: string }).value;
-          }
-        }
-        return JSON.stringify(p);
-      })
-      .join('\n');
-    if (/timed out/i.test(startText)) {
-      this.skip();
-      return;
+    const scriptUri = vscode.Uri.file(jsPath);
+
+    if (!vscode.workspace.workspaceFolders?.length) {
+      throw new Error(
+        'No workspace folders found. Ensure test-workspace.code-workspace is loaded.'
+      );
     }
+    const workspaceFolder = vscode.workspace.workspaceFolders[0].uri.fsPath;
+
+    await openScriptDocument(scriptUri);
+    await activateCopilotDebugger();
+
+    const configurationName = 'Run test.js';
+    const context = await startDebuggingAndWaitForStop({
+      sessionName: 'expand-var-node',
+      workspaceFolder,
+      nameOrConfiguration: configurationName,
+      breakpointConfig: {
+        breakpoints: [
+          {
+            path: jsPath,
+            line: 5, // after randomValue assignment
+          },
+        ],
+      },
+    });
+
+    // Assert we stopped at the expected line
+    assert.strictEqual(
+      context.frame.line,
+      5,
+      'Should stop at line 5'
+    );
+
     // Expand a variable (like 'process' which should be expandable)
     const expandTool = new ExpandVariableTool();
     const expandedData = await expandTool.expandVariable('process');
@@ -99,50 +103,43 @@ describe('expandVariableTool', () => {
   });
 
   it('expand non-expandable variable in Node session', async function () {
-    this.timeout(90000);
-    const extensionRoot =
-      vscode.extensions.getExtension('dkattan.copilot-breakpoint-debugger')
-        ?.extensionPath || path.resolve(__dirname, '../../..');
+    this.timeout(5000);
+    const extensionRoot = getExtensionRoot();
     const jsPath = path.join(extensionRoot, 'test-workspace/test.js');
-    const workspaceFolder = path.join(extensionRoot, 'test-workspace');
-    const tool = new StartDebuggerTool();
-    const startResult = await tool.invoke({
-      input: {
-        workspaceFolder,
-        timeoutSeconds: 60,
-        configurationName: 'Run test.js',
-        breakpointConfig: {
-          breakpoints: [
-            {
-              path: jsPath,
-              line: 5,
-            },
-          ],
-        },
-      },
-      toolInvocationToken: undefined,
-    });
-    const startParts = (startResult.content || []) as Array<{
-      text?: string;
-      value?: string;
-    }>;
-    const startText = startParts
-      .map(p => {
-        if (typeof p === 'object' && p !== null) {
-          if ('value' in p) {
-            return (p as { value?: string }).value;
-          }
-          if ('value' in p) {
-            return (p as { value?: string }).value;
-          }
-        }
-        return JSON.stringify(p);
-      })
-      .join('\n');
-    if (/timed out/i.test(startText)) {
-      this.skip();
-      return;
+    const scriptUri = vscode.Uri.file(jsPath);
+
+    if (!vscode.workspace.workspaceFolders?.length) {
+      throw new Error(
+        'No workspace folders found. Ensure test-workspace.code-workspace is loaded.'
+      );
     }
+    const workspaceFolder = vscode.workspace.workspaceFolders[0].uri.fsPath;
+
+    await openScriptDocument(scriptUri);
+    await activateCopilotDebugger();
+
+    const configurationName = 'Run test.js';
+    const context = await startDebuggingAndWaitForStop({
+      sessionName: 'expand-non-expandable-node',
+      workspaceFolder,
+      nameOrConfiguration: configurationName,
+      breakpointConfig: {
+        breakpoints: [
+          {
+            path: jsPath,
+            line: 5,
+          },
+        ],
+      },
+    });
+
+    // Assert we stopped at the expected line
+    assert.strictEqual(
+      context.frame.line,
+      5,
+      'Should stop at line 5'
+    );
+
     // Expand randomValue which is a simple number
     const expandTool = new ExpandVariableTool();
     const expandedData = await expandTool.expandVariable('randomValue');
@@ -172,47 +169,43 @@ describe('expandVariableTool', () => {
   });
 
   it('expandVariable throws error for non-existent variable', async function () {
-    this.timeout(90000);
-    const extensionRoot =
-      vscode.extensions.getExtension('dkattan.copilot-breakpoint-debugger')
-        ?.extensionPath || path.resolve(__dirname, '../../..');
+    this.timeout(5000);
+    const extensionRoot = getExtensionRoot();
     const jsPath = path.join(extensionRoot, 'test-workspace/test.js');
-    const workspaceFolder = path.join(extensionRoot, 'test-workspace');
-    const tool = new StartDebuggerTool();
-    const startResult = await tool.invoke({
-      input: {
-        workspaceFolder,
-        timeoutSeconds: 60,
-        configurationName: 'Run test.js',
-        breakpointConfig: {
-          breakpoints: [
-            {
-              path: jsPath,
-              line: 5,
-            },
-          ],
-        },
-      },
-      toolInvocationToken: undefined,
-    });
-    const startParts = (startResult.content || []) as Array<{
-      text?: string;
-      value?: string;
-    }>;
-    const startText = startParts
-      .map(p => {
-        if (typeof p === 'object' && p !== null) {
-          if ('value' in p) {
-            return (p as { value?: string }).value;
-          }
-        }
-        return JSON.stringify(p);
-      })
-      .join('\n');
-    if (/timed out/i.test(startText)) {
-      this.skip();
-      return;
+    const scriptUri = vscode.Uri.file(jsPath);
+
+    if (!vscode.workspace.workspaceFolders?.length) {
+      throw new Error(
+        'No workspace folders found. Ensure test-workspace.code-workspace is loaded.'
+      );
     }
+    const workspaceFolder = vscode.workspace.workspaceFolders[0].uri.fsPath;
+
+    await openScriptDocument(scriptUri);
+    await activateCopilotDebugger();
+
+    const configurationName = 'Run test.js';
+    const context = await startDebuggingAndWaitForStop({
+      sessionName: 'expand-non-existent-node',
+      workspaceFolder,
+      nameOrConfiguration: configurationName,
+      breakpointConfig: {
+        breakpoints: [
+          {
+            path: jsPath,
+            line: 5,
+          },
+        ],
+      },
+    });
+
+    // Assert we stopped at the expected line
+    assert.strictEqual(
+      context.frame.line,
+      5,
+      'Should stop at line 5'
+    );
+
     // Try to expand a variable that doesn't exist - should throw error
     const expandTool = new ExpandVariableTool();
     await assert.rejects(

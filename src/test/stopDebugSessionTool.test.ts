@@ -2,10 +2,10 @@ import type {
   LanguageModelToolInvocationPrepareOptions,
   PreparedToolInvocation,
 } from 'vscode';
-import * as assert from 'node:assert';
+import assert from 'node:assert';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { StartDebuggerTool } from '../startDebuggerTool';
+import { startDebuggingAndWaitForStop } from '../session';
 import {
   StopDebugSessionTool,
   type StopDebugSessionToolParameters,
@@ -56,46 +56,39 @@ describe('stopDebugSessionTool', () => {
   });
 
   it('start then stop session', async function () {
-    this.timeout(90000);
+    this.timeout(5000);
     const extensionRoot =
       vscode.extensions.getExtension('dkattan.copilot-breakpoint-debugger')
         ?.extensionPath || path.resolve(__dirname, '../../..');
     const jsPath = path.join(extensionRoot, 'test-workspace/test.js');
     const workspaceFolder = path.join(extensionRoot, 'test-workspace');
-    // Start
-    const startTool = new StartDebuggerTool();
-    const startResult = await startTool.invoke({
-      input: {
-        workspaceFolder,
-        timeoutSeconds: 60,
-        configurationName: 'Run test.js',
-        breakpointConfig: { breakpoints: [{ path: jsPath, line: 5 }] },
-      },
-      toolInvocationToken: undefined,
-    });
-    const startParts = (startResult.content || []) as Array<{
-      text?: string;
-      value?: string;
-    }>;
-    const startText = startParts
-      .map(p => {
-        if (typeof p === 'object' && p !== null) {
-          if ('value' in p) {
-            return (p as { value?: string }).value;
-          }
-          if ('value' in p) {
-            return (p as { value?: string }).value;
-          }
-        }
-        return JSON.stringify(p);
-      })
-      .join('\n');
-    if (/timed out/i.test(startText)) {
-      this.skip();
+
+    if (!vscode.workspace.workspaceFolders?.length) {
+      assert.fail(
+        'No workspace folders found. Ensure test-workspace.code-workspace is loaded.'
+      );
     }
-    // Extract session name from start output (best-effort)
-    const match = startText.match(/Debug session (.*?) stopped/);
-    const sessionName = match ? match[1] : 'Inline Node Test';
+
+    // Start debugging and wait for stop
+    const context = await startDebuggingAndWaitForStop({
+      sessionName: 'stop-session-test',
+      workspaceFolder,
+      nameOrConfiguration: 'Run test.js',
+      breakpointConfig: { breakpoints: [{ path: jsPath, line: 5 }] },
+    });
+
+    // Verify we stopped at expected line
+    assert.strictEqual(
+      context.frame.line,
+      5,
+      `Stopped at unexpected line ${context.frame.line}, expected 5`
+    );
+
+    // Now test stopping the session
+    const activeSession = vscode.debug.activeDebugSession;
+    assert.ok(activeSession, 'No active debug session after breakpoint hit');
+
+    const sessionName = activeSession.name;
     const stopTool = new StopDebugSessionTool();
     const stopResult = await stopTool.invoke({
       input: { sessionName },

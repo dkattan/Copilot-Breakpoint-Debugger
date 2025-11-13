@@ -137,3 +137,57 @@ export class ExpandVariableTool
     };
   }
 }
+
+/**
+ * Pure helper to expand a variable within a provided debug session.
+ * Enables unit testing without relying on vscode.debug.activeDebugSession.
+ */
+export async function expandVariableInSession(
+  session: vscode.DebugSession,
+  variableName: string
+): Promise<ExpandedVariableData> {
+  const debugContext = await DAPHelpers.getDebugContext(session);
+  const foundVariable: FoundVariable | null =
+    await DAPHelpers.findVariableInScopes(
+      session,
+      debugContext.scopes,
+      variableName
+    );
+  if (!foundVariable) {
+    throw new Error(`Variable '${variableName}' not found in current scope`);
+  }
+  const expanded: ExpandedVariableData = {
+    variable: foundVariable.variable,
+    children: [],
+  };
+  if (foundVariable.variable.isExpandable) {
+    // Retrieve original variable for variablesReference
+    let original: Variable | null = null;
+    for (const scope of debugContext.scopes) {
+      try {
+        const vars: VariablesResponse = await session.customRequest(
+          'variables',
+          {
+            variablesReference: scope.variablesReference,
+          }
+        );
+        original =
+          (vars.variables.find(
+            (v: Variable) => (v.evaluateName || v.name) === variableName
+          ) as Variable | undefined) || null;
+        if (original) {
+          break;
+        }
+      } catch {
+        continue;
+      }
+    }
+    if (original && original.variablesReference > 0) {
+      expanded.children = await DAPHelpers.getVariablesFromReference(
+        session,
+        original.variablesReference
+      );
+    }
+  }
+  return expanded;
+}

@@ -1,31 +1,39 @@
-import * as assert from 'node:assert';
+import assert from 'node:assert';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { EvaluateExpressionTool } from '../evaluateExpressionTool';
-import { StartDebuggerTool } from '../startDebuggerTool';
+import { startDebuggingAndWaitForStop } from '../session';
 
 describe('evaluateExpressionTool', () => {
   it('prepareInvocation includes expression', async () => {
     const tool = new EvaluateExpressionTool();
 
     const maybePrepared = tool.prepareInvocation?.({
-      input: { expression: 'foo' },
+      input: { expression: 'foo', sessionId: '', threadId: 0 },
     });
-
     const prepared = await Promise.resolve(maybePrepared);
-    assert.ok(prepared?.invocationMessage.includes('foo'));
+    const invocationMessage =
+      typeof prepared?.invocationMessage === 'string'
+        ? prepared.invocationMessage
+        : prepared?.invocationMessage?.value;
+    assert.ok(invocationMessage?.includes('foo'));
   });
 
   it('invoke returns error if no session or invalid expression', async () => {
     const tool = new EvaluateExpressionTool();
 
     const result = await tool.invoke({
-      input: { expression: 'foo' },
+      input: { expression: 'foo', sessionId: '', threadId: 0 },
       toolInvocationToken: undefined,
     });
 
-    const textPart = result.content[0] as LanguageModelTextPart;
-    const combined = textPart.value;
+    const first = result.content[0] as
+      | { value?: string; text?: string }
+      | string;
+    const combined =
+      typeof first === 'string'
+        ? first
+        : String(first.value || first.text || '');
     // Should produce error message (no session, invalid expression, or evaluation result)
     assert.ok(
       /Error:|not defined|\{"expression"/.test(combined),
@@ -34,59 +42,34 @@ describe('evaluateExpressionTool', () => {
   });
 
   it('evaluate variable in Node session', async function () {
-    this.timeout(90000);
+    this.timeout(5000);
     // Start a Node debug session hitting a breakpoint in test.js
     const extensionRoot =
       vscode.extensions.getExtension('dkattan.copilot-breakpoint-debugger')
         ?.extensionPath || path.resolve(__dirname, '../../..');
     const jsPath = path.join(extensionRoot, 'test-workspace/test.js');
     const workspaceFolder = path.join(extensionRoot, 'test-workspace');
-    const tool = new StartDebuggerTool();
-    const startResult = await tool.invoke({
-      input: {
-        workspaceFolder,
-        timeoutSeconds: 60,
-        configurationName: 'Run test.js',
-        breakpointConfig: {
-          breakpoints: [
-            {
-              path: jsPath,
-              line: 5, // after randomValue assignment
-            },
-          ],
-        },
+
+    await startDebuggingAndWaitForStop({
+      sessionName: 'eval-expression-node',
+      workspaceFolder,
+      nameOrConfiguration: 'Run test.js',
+      breakpointConfig: {
+        breakpoints: [
+          {
+            path: jsPath,
+            line: 5, // after randomValue assignment
+          },
+        ],
       },
-      toolInvocationToken: undefined,
     });
-    // LanguageModelToolResult has a content array containing LanguageModelTextPart or unknown types
-    const startParts = (startResult.content || []) as Array<{
-      text?: string;
-      value?: string;
-    }>;
-    const startText = startParts
-      .map(p => {
-        if (typeof p === 'object' && p !== null) {
-          if ('value' in p) {
-            return (p as { value?: string }).value;
-          }
-          if ('value' in p) {
-            return (p as { value?: string }).value;
-          }
-        }
-        return JSON.stringify(p);
-      })
-      .join('\n');
-    if (/timed out/i.test(startText)) {
-      this.skip();
-      return;
-    }
     // Evaluate randomValue
     const evalTool = new EvaluateExpressionTool();
 
     const evalResult = await evalTool.invoke({
-      input: { expression: 'randomValue' },
+      input: { expression: 'randomValue', sessionId: '', threadId: 0 },
       toolInvocationToken: undefined,
-    } as MockEvaluateOptions);
+    });
     const evalParts = (evalResult.content || []) as Array<{
       text?: string;
       value?: string;

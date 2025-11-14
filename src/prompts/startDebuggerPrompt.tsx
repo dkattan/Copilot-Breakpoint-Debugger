@@ -1,5 +1,5 @@
 import type { BasePromptElementProps, PromptSizing } from '@vscode/prompt-tsx';
-import { AssistantMessage, PromptElement, TextChunk } from '@vscode/prompt-tsx';
+import { PromptElement, TextChunk } from '@vscode/prompt-tsx';
 
 export interface StartDebuggerPromptProps extends BasePromptElementProps {
   summary: {
@@ -40,28 +40,22 @@ export class StartDebuggerPrompt extends PromptElement<
 
     return (
       <>
-        <AssistantMessage priority={300}>
-          <TextChunk priority={300}>Breakpoint Summary</TextChunk>
+        <TextChunk priority={300}>
+          Breakpoint Summary
           <br />
-          <TextChunk priority={300}>{JSON.stringify(summary)}</TextChunk>
-        </AssistantMessage>
-        <AssistantMessage priority={200}>
-          <TextChunk priority={200}>Thread &amp; Frame</TextChunk>
+          {JSON.stringify(summary)}
+        </TextChunk>
+        <TextChunk priority={200}>
+          Thread &amp; Frame
           <br />
-          <TextChunk priority={200}>
-            {JSON.stringify({ thread, frame })}
-          </TextChunk>
-        </AssistantMessage>
+          {JSON.stringify({ thread, frame })}
+        </TextChunk>
         {scopes.map(scope => (
-          <AssistantMessage priority={50}>
-            <TextChunk priority={50}>
-              Scope {scope.scopeName} ({scope.variables.length} variables)
-            </TextChunk>
+          <TextChunk priority={50}>
+            Scope {scope.scopeName} ({scope.variables.length} variables)
             <br />
-            <TextChunk priority={50}>
-              {JSON.stringify(scope.variables)}
-            </TextChunk>
-          </AssistantMessage>
+            {JSON.stringify(scope.variables)}
+          </TextChunk>
         ))}
       </>
     );

@@ -273,7 +273,7 @@ export const waitForBreakpointHit = async (params: {
             s.name.endsWith(sessionName)
           );
           if (targetSessions.length === 0 && activeSessions.length > 0) {
-            // Fallback: use most recent session if no name match
+            // Last resort: use most recent session if no name match
             targetSessions = [activeSessions[activeSessions.length - 1]];
           }
           for (const s of targetSessions) {

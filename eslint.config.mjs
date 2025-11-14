@@ -118,11 +118,13 @@ export default antfu(
         'error',
         {
           selector: 'TSTypeAliasDeclaration',
-          message: 'Type declarations are disallowed in test files. Import from source instead.',
+          message:
+            'Type declarations are disallowed in test files. Import from source instead.',
         },
         {
           selector: 'TSInterfaceDeclaration',
-          message: 'Interface declarations are disallowed in test files. Import from source instead.',
+          message:
+            'Interface declarations are disallowed in test files. Import from source instead.',
         },
       ],
     },

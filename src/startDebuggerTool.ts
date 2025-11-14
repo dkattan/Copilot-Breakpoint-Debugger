@@ -138,11 +138,8 @@ export class StartDebuggerTool
       options.tokenizationOptions
     );
 
-    const fallback = `Breakpoint hit in ${summary.file ?? 'unknown file'}:${summary.line ?? '?'}`;
-
     return new LanguageModelToolResult([
       new LanguageModelPromptTsxPart(promptJson),
-      new LanguageModelTextPart(fallback),
     ]);
   }
 }

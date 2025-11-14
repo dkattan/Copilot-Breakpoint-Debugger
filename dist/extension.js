@@ -1,1029 +1,735 @@
 'use strict';
-var __create = Object.create;
-var __defProp = Object.defineProperty;
-var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __getProtoOf = Object.getPrototypeOf;
-var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
-};
-var __copyProps = (to, from, except, desc) => {
-  if ((from && typeof from === 'object') || typeof from === 'function') {
-    for (let key of __getOwnPropNames(from))
-      if (!__hasOwnProp.call(to, key) && key !== except)
-        __defProp(to, key, {
-          get: () => from[key],
-          enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable,
-        });
-  }
-  return to;
-};
-var __toESM = (mod, isNodeMode, target) => (
-  (target = mod != null ? __create(__getProtoOf(mod)) : {}),
-  __copyProps(
-    // If the importer is in node compatibility mode or this is not an ESM
-    // file that has been converted to a CommonJS file using a Babel-
-    // compatible transform (i.e. "__esModule" has not been set), then set
-    // "default" to the CommonJS "module.exports" for node compatibility.
-    isNodeMode || !mod || !mod.__esModule
-      ? __defProp(target, 'default', { value: mod, enumerable: true })
-      : target,
-    mod
-  )
-);
-var __toCommonJS = mod =>
-  __copyProps(__defProp({}, '__esModule', { value: true }), mod);
-
-// src/extension.ts
-var extension_exports = {};
-__export(extension_exports, {
-  activate: () => activate,
-  deactivate: () => deactivate,
+var me = Object.create;
+var O = Object.defineProperty;
+var fe = Object.getOwnPropertyDescriptor;
+var be = Object.getOwnPropertyNames;
+var ve = Object.getPrototypeOf,
+  he = Object.prototype.hasOwnProperty;
+var we = (t, e) => {
+    for (var n in e) O(t, n, { get: e[n], enumerable: !0 });
+  },
+  X = (t, e, n, o) => {
+    if ((e && typeof e == 'object') || typeof e == 'function')
+      for (let r of be(e))
+        !he.call(t, r) &&
+          r !== n &&
+          O(t, r, {
+            get: () => e[r],
+            enumerable: !(o = fe(e, r)) || o.enumerable,
+          });
+    return t;
+  };
+var T = (t, e, n) => (
+    (n = t != null ? me(ve(t)) : {}),
+    X(
+      e || !t || !t.__esModule
+        ? O(n, 'default', { value: t, enumerable: !0 })
+        : n,
+      t
+    )
+  ),
+  xe = t => X(O({}, '__esModule', { value: !0 }), t);
+var De = {};
+we(De, { activate: () => Se, deactivate: () => ye });
+module.exports = xe(De);
+var E = T(require('vscode'));
+var ne = T(require('vscode')),
+  S = require('vscode');
+var y = T(require('vscode')),
+  s = y.window.createOutputChannel('Debug Tools'),
+  Y = new y.EventEmitter(),
+  $e = Y.event,
+  b = [],
+  ee = new y.EventEmitter(),
+  oe = ee.event;
+y.debug.onDidStartDebugSession(t => {
+  (b.push(t),
+    s.appendLine(`Debug session started: ${t.name} (ID: ${t.id})`),
+    s.appendLine(`Active sessions: ${b.length}`),
+    Y.fire(t));
 });
-module.exports = __toCommonJS(extension_exports);
-var vscode8 = __toESM(require('vscode'));
-
-// src/evaluateExpressionTool.ts
-var vscode2 = __toESM(require('vscode'));
-var import_vscode2 = require('vscode');
-
-// src/common.ts
-var vscode = __toESM(require('vscode'));
-var outputChannel = vscode.window.createOutputChannel('Debug Tools');
-var sessionStartEventEmitter = new vscode.EventEmitter();
-var onSessionStart = sessionStartEventEmitter.event;
-var activeSessions = [];
-var sessionTerminateEventEmitter = new vscode.EventEmitter();
-var onSessionTerminate = sessionTerminateEventEmitter.event;
-vscode.debug.onDidStartDebugSession(session => {
-  activeSessions.push(session);
-  outputChannel.appendLine(
-    `Debug session started: ${session.name} (ID: ${session.id})`
-  );
-  outputChannel.appendLine(`Active sessions: ${activeSessions.length}`);
-  sessionStartEventEmitter.fire(session);
+y.debug.onDidTerminateDebugSession(t => {
+  let e = b.indexOf(t);
+  e >= 0 &&
+    (b.splice(e, 1),
+    s.appendLine(`Debug session terminated: ${t.name} (ID: ${t.id})`),
+    s.appendLine(`Active sessions: ${b.length}`),
+    ee.fire({ session: t }));
 });
-vscode.debug.onDidTerminateDebugSession(session => {
-  const index = activeSessions.indexOf(session);
-  if (index >= 0) {
-    activeSessions.splice(index, 1);
-    outputChannel.appendLine(
-      `Debug session terminated: ${session.name} (ID: ${session.id})`
-    );
-    outputChannel.appendLine(`Active sessions: ${activeSessions.length}`);
-    sessionTerminateEventEmitter.fire({
-      session,
-    });
-  }
+y.debug.onDidChangeActiveDebugSession(t => {
+  s.appendLine(`Active debug session changed: ${t ? t.name : 'None'}`);
 });
-vscode.debug.onDidChangeActiveDebugSession(session => {
-  outputChannel.appendLine(
-    `Active debug session changed: ${session ? session.name : 'None'}`
-  );
-});
-
-// src/debugUtils.ts
-var import_vscode = require('vscode');
-var DAPHelpers = class {
-  static async getDebugContext(session, threadId) {
-    const { threads } = await session.customRequest('threads');
-    if (!threads || threads.length === 0) {
-      throw new Error(
-        `No threads available in session ${session.id} (${session.name})`
-      );
+var L = require('vscode'),
+  f = class {
+    static async getDebugContext(e, n) {
+      let { threads: o } = await e.customRequest('threads');
+      if (!o || o.length === 0)
+        throw new Error(`No threads available in session ${e.id} (${e.name})`);
+      let r = typeof n == 'number' ? n : o[0].id,
+        a = o.find(i => i.id === r);
+      if (!a)
+        throw new Error(
+          `Thread with id ${r} not found in session ${e.id} (${e.name})`
+        );
+      let l = await e.customRequest('stackTrace', { threadId: a.id });
+      if (!l.stackFrames || l.stackFrames.length === 0)
+        throw new Error(
+          `No stack frames available for thread ${a.id} in session ${e.id} (${e.name})`
+        );
+      let c = l.stackFrames[0],
+        p = await e.customRequest('scopes', { frameId: c.id });
+      if (!p.scopes || p.scopes.length === 0)
+        throw new Error(
+          `No scopes available for frame ${c.id} in session ${e.id} (${e.name})`
+        );
+      return { thread: a, frame: c, scopes: p.scopes };
     }
-    const effectiveThreadId =
-      typeof threadId === 'number' ? threadId : threads[0].id;
-    const thread = threads.find(t => t.id === effectiveThreadId);
-    if (!thread) {
-      throw new Error(
-        `Thread with id ${effectiveThreadId} not found in session ${session.id} (${session.name})`
-      );
+    static async getVariablesFromReference(e, n) {
+      let o;
+      try {
+        o = await e.customRequest('variables', { variablesReference: n });
+      } catch {
+        return [];
+      }
+      return o?.variables
+        ? o.variables.map(r => ({
+            name: r.evaluateName || r.name,
+            value: r.value,
+            type: r.type,
+            isExpandable: r.variablesReference > 0,
+          }))
+        : [];
     }
-    const stackTraceResponse = await session.customRequest('stackTrace', {
-      threadId: thread.id,
-    });
-    if (
-      !stackTraceResponse.stackFrames ||
-      stackTraceResponse.stackFrames.length === 0
-    ) {
-      throw new Error(
-        `No stack frames available for thread ${thread.id} in session ${session.id} (${session.name})`
-      );
+    static async findVariableInScopes(e, n, o) {
+      for (let r of n) {
+        let l = (
+          await this.getVariablesFromReference(e, r.variablesReference)
+        ).find(c => c.name === o);
+        if (l) return { variable: l, scopeName: r.name };
+      }
+      return null;
     }
-    const topFrame = stackTraceResponse.stackFrames[0];
-    const scopesResponse = await session.customRequest('scopes', {
-      frameId: topFrame.id,
-    });
-    if (!scopesResponse.scopes || scopesResponse.scopes.length === 0) {
-      throw new Error(
-        `No scopes available for frame ${topFrame.id} in session ${session.id} (${session.name})`
-      );
+    static createSuccessResult(e) {
+      let n = new L.LanguageModelTextPart(e);
+      return new L.LanguageModelToolResult([n]);
     }
-    return {
-      thread,
-      frame: topFrame,
-      scopes: scopesResponse.scopes,
-    };
-  }
-  static async getVariablesFromReference(session, variablesReference) {
-    let variablesResponse;
+    static createErrorResult(e) {
+      let n = new L.LanguageModelTextPart(`Error: ${e}`);
+      return new L.LanguageModelToolResult([n]);
+    }
+  };
+var A = class {
+  async invoke(e) {
+    let { expression: n, sessionId: o, threadId: r } = e.input;
     try {
-      variablesResponse = await session.customRequest('variables', {
-        variablesReference,
-      });
-    } catch {
-      return [];
-    }
-    if (!variablesResponse?.variables) {
-      return [];
-    }
-    return variablesResponse.variables.map(v => ({
-      name: v.evaluateName || v.name,
-      value: v.value,
-      type: v.type,
-      isExpandable: v.variablesReference > 0,
-    }));
-  }
-  static async findVariableInScopes(session, scopes, variableName) {
-    for (const scope of scopes) {
-      const variables = await this.getVariablesFromReference(
-        session,
-        scope.variablesReference
-      );
-      const foundVariable = variables.find(v => v.name === variableName);
-      if (foundVariable) {
-        return { variable: foundVariable, scopeName: scope.name };
-      }
-    }
-    return null;
-  }
-  static createSuccessResult(message) {
-    const textPart = new import_vscode.LanguageModelTextPart(message);
-    return new import_vscode.LanguageModelToolResult([textPart]);
-  }
-  static createErrorResult(message) {
-    const textPart = new import_vscode.LanguageModelTextPart(
-      `Error: ${message}`
-    );
-    return new import_vscode.LanguageModelToolResult([textPart]);
-  }
-};
-
-// src/evaluateExpressionTool.ts
-var EvaluateExpressionTool = class {
-  async invoke(options) {
-    const { expression, sessionId, threadId } = options.input;
-    try {
-      let session;
-      if (sessionId) {
-        session = activeSessions.find(s => s.id === sessionId);
-      }
-      if (!session) {
-        session = vscode2.debug.activeDebugSession || activeSessions[0];
-      }
-      if (!session) {
-        return new import_vscode2.LanguageModelToolResult([
-          new import_vscode2.LanguageModelTextPart(
+      let a;
+      if (
+        (o && (a = b.find(u => u.id === o)),
+        a || (a = ne.debug.activeDebugSession || b[0]),
+        !a)
+      )
+        return new S.LanguageModelToolResult([
+          new S.LanguageModelTextPart(
             'Error: No active debug session found to evaluate expression.'
           ),
         ]);
-      }
-      const debugContext = await DAPHelpers.getDebugContext(session, threadId);
-      const evalArgs = { expression, context: 'watch' };
-      if (debugContext?.frame?.id !== void 0) {
-        evalArgs.frameId = debugContext.frame.id;
-      }
-      outputChannel.appendLine(
-        `EvaluateExpressionTool: evaluating '${expression}' in session '${session.name}'.`
-      );
-      let evalResponse;
+      let l = await f.getDebugContext(a, r),
+        c = { expression: n, context: 'watch' };
+      (l?.frame?.id !== void 0 && (c.frameId = l.frame.id),
+        s.appendLine(
+          `EvaluateExpressionTool: evaluating '${n}' in session '${a.name}'.`
+        ));
+      let p;
       try {
-        evalResponse = await session.customRequest('evaluate', evalArgs);
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : JSON.stringify(err);
-        return new import_vscode2.LanguageModelToolResult([
-          new import_vscode2.LanguageModelTextPart(
-            `Error evaluating expression '${expression}': ${message}`
+        p = await a.customRequest('evaluate', c);
+      } catch (u) {
+        let m = u instanceof Error ? u.message : JSON.stringify(u);
+        return new S.LanguageModelToolResult([
+          new S.LanguageModelTextPart(
+            `Error evaluating expression '${n}': ${m}`
           ),
         ]);
       }
-      const resultJson = {
-        expression,
-        result: evalResponse?.result,
-        type: evalResponse?.type,
-        presentationHint: evalResponse?.presentationHint,
-        variablesReference: evalResponse?.variablesReference,
+      let i = {
+        expression: n,
+        result: p?.result,
+        type: p?.type,
+        presentationHint: p?.presentationHint,
+        variablesReference: p?.variablesReference,
       };
-      return new import_vscode2.LanguageModelToolResult([
-        new import_vscode2.LanguageModelTextPart(JSON.stringify(resultJson)),
+      return new S.LanguageModelToolResult([
+        new S.LanguageModelTextPart(JSON.stringify(i)),
       ]);
-    } catch (error) {
-      return new import_vscode2.LanguageModelToolResult([
-        new import_vscode2.LanguageModelTextPart(
-          `Unexpected error evaluating expression: ${error instanceof Error ? error.message : String(error)}`
+    } catch (a) {
+      return new S.LanguageModelToolResult([
+        new S.LanguageModelTextPart(
+          `Unexpected error evaluating expression: ${a instanceof Error ? a.message : String(a)}`
         ),
       ]);
     }
   }
-  prepareInvocation(options) {
+  prepareInvocation(e) {
     return {
-      invocationMessage: `Evaluating expression '${options.input.expression}' in debug session`,
+      invocationMessage: `Evaluating expression '${e.input.expression}' in debug session`,
     };
   }
 };
-
-// src/expandVariableTool.ts
-var vscode3 = __toESM(require('vscode'));
-var ExpandVariableTool = class {
-  /**
-   * Expand a variable and get its children as structured data.
-   * @param variableName The name of the variable to expand
-   * @returns ExpandedVariableData object or throws an error
-   */
-  async expandVariable(variableName) {
-    const activeSession = vscode3.debug.activeDebugSession;
-    if (!activeSession) {
-      throw new Error('No active debug session found');
-    }
-    const debugContext = await DAPHelpers.getDebugContext(activeSession);
-    if (!debugContext) {
+var te = T(require('vscode'));
+var B = class {
+  async expandVariable(e) {
+    let n = te.debug.activeDebugSession;
+    if (!n) throw new Error('No active debug session found');
+    let o = await f.getDebugContext(n);
+    if (!o)
       throw new Error(
         'Unable to get debug context (threads, frames, or scopes)'
       );
+    let r = await f.findVariableInScopes(n, o.scopes, e);
+    if (!r) throw new Error(`Variable '${e}' not found in current scope`);
+    let a = { variable: r.variable, children: [] };
+    if (r.variable.isExpandable) {
+      let l = await this.getOriginalVariable(n, o.scopes, e);
+      l &&
+        l.variablesReference > 0 &&
+        (a.children = await f.getVariablesFromReference(
+          n,
+          l.variablesReference
+        ));
     }
-    const foundVariable = await DAPHelpers.findVariableInScopes(
-      activeSession,
-      debugContext.scopes,
-      variableName
-    );
-    if (!foundVariable) {
-      throw new Error(`Variable '${variableName}' not found in current scope`);
-    }
-    const expandedData = {
-      variable: foundVariable.variable,
-      children: [],
-    };
-    if (foundVariable.variable.isExpandable) {
-      const originalVariable = await this.getOriginalVariable(
-        activeSession,
-        debugContext.scopes,
-        variableName
-      );
-      if (originalVariable && originalVariable.variablesReference > 0) {
-        expandedData.children = await DAPHelpers.getVariablesFromReference(
-          activeSession,
-          originalVariable.variablesReference
-        );
-      }
-    }
-    return expandedData;
+    return a;
   }
-  async invoke(options) {
-    const { variableName } = options.input;
+  async invoke(e) {
+    let { variableName: n } = e.input;
     try {
-      const expandedData = await this.expandVariable(variableName);
-      const result = JSON.stringify(expandedData, null, 2);
-      return DAPHelpers.createSuccessResult(result);
-    } catch (_error) {
-      const errorMessage =
-        _error instanceof Error ? _error.message : 'Unknown error occurred';
-      return DAPHelpers.createErrorResult(
-        `Failed to expand variable: ${errorMessage}`
-      );
+      let o = await this.expandVariable(n),
+        r = JSON.stringify(o, null, 2);
+      return f.createSuccessResult(r);
+    } catch (o) {
+      let r = o instanceof Error ? o.message : 'Unknown error occurred';
+      return f.createErrorResult(`Failed to expand variable: ${r}`);
     }
   }
-  async getOriginalVariable(session, scopes, variableName) {
-    for (const scope of scopes) {
-      let variablesResponse;
+  async getOriginalVariable(e, n, o) {
+    for (let r of n) {
+      let a;
       try {
-        variablesResponse = await session.customRequest('variables', {
-          variablesReference: scope.variablesReference,
+        a = await e.customRequest('variables', {
+          variablesReference: r.variablesReference,
         });
       } catch {
         continue;
       }
-      if (variablesResponse?.variables) {
-        const foundVariable = variablesResponse.variables.find(
-          v => (v.evaluateName || v.name) === variableName
-        );
-        if (foundVariable) {
-          return foundVariable;
-        }
+      if (a?.variables) {
+        let l = a.variables.find(c => (c.evaluateName || c.name) === o);
+        if (l) return l;
       }
     }
     return null;
   }
-  prepareInvocation(options) {
+  prepareInvocation(e) {
     return {
-      invocationMessage: `Expanding variable '${options.input.variableName}'`,
+      invocationMessage: `Expanding variable '${e.input.variableName}'`,
     };
   }
 };
-
-// src/getVariablesTool.ts
-var vscode4 = __toESM(require('vscode'));
-var GetVariablesTool = class {
-  /**
-   * Get all variables from the active debug session as structured data.
-   * @returns VariablesData object or throws an error
-   */
+var re = T(require('vscode'));
+var H = class {
   async getVariables() {
-    const activeSession = vscode4.debug.activeDebugSession;
-    if (!activeSession) {
-      throw new Error('No active debug session found');
-    }
-    const debugContext = await DAPHelpers.getDebugContext(activeSession);
-    if (!debugContext) {
+    let e = re.debug.activeDebugSession;
+    if (!e) throw new Error('No active debug session found');
+    let n = await f.getDebugContext(e);
+    if (!n)
       throw new Error(
         'Unable to get debug context (threads, frames, or scopes)'
       );
+    let o = { type: 'variables', sessionId: e.id, scopes: [] };
+    for (let r of n.scopes) {
+      let a = await f.getVariablesFromReference(e, r.variablesReference);
+      a.length > 0 && o.scopes.push({ name: r.name, variables: a });
     }
-    const variablesData = {
-      type: 'variables',
-      sessionId: activeSession.id,
-      scopes: [],
-    };
-    for (const scope of debugContext.scopes) {
-      const variables = await DAPHelpers.getVariablesFromReference(
-        activeSession,
-        scope.variablesReference
-      );
-      if (variables.length > 0) {
-        variablesData.scopes.push({ name: scope.name, variables });
-      }
-    }
-    if (variablesData.scopes.length === 0) {
+    if (o.scopes.length === 0)
       throw new Error('No variables found in current scope');
-    }
-    return variablesData;
+    return o;
   }
-  async invoke(_options) {
+  async invoke(e) {
     try {
-      const variablesData = await this.getVariables();
-      const serialized = JSON.stringify(variablesData, null, 2);
-      return DAPHelpers.createSuccessResult(serialized);
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error occurred';
-      return DAPHelpers.createErrorResult(
-        `Failed to get variables: ${errorMessage}`
-      );
+      let n = await this.getVariables(),
+        o = JSON.stringify(n, null, 2);
+      return f.createSuccessResult(o);
+    } catch (n) {
+      let o = n instanceof Error ? n.message : 'Unknown error occurred';
+      return f.createErrorResult(`Failed to get variables: ${o}`);
     }
   }
-  prepareInvocation(_options) {
-    return {
-      invocationMessage: 'Getting all variables from debug session',
-    };
+  prepareInvocation(e) {
+    return { invocationMessage: 'Getting all variables from debug session' };
   }
 };
-
-// src/resumeDebugSessionTool.ts
-var import_vscode3 = require('vscode');
-
-// src/session.ts
-var path = __toESM(require('node:path'));
-var vscode6 = __toESM(require('vscode'));
-
-// src/events.ts
-var vscode5 = __toESM(require('vscode'));
-var breakpointEventEmitter = new vscode5.EventEmitter();
-var onBreakpointHit = breakpointEventEmitter.event;
-vscode5.debug.registerDebugAdapterTrackerFactory('*', {
-  createDebugAdapterTracker: session => {
-    class DebugAdapterTrackerImpl {
+var R = require('vscode');
+var w = T(require('node:path')),
+  g = T(require('vscode'));
+var N = T(require('vscode'));
+var z = new N.EventEmitter(),
+  ke = z.event;
+N.debug.registerDebugAdapterTrackerFactory('*', {
+  createDebugAdapterTracker: t => {
+    class e {
       onWillStartSession() {
-        outputChannel.appendLine(`Debug session starting: ${session.name}`);
+        s.appendLine(`Debug session starting: ${t.name}`);
       }
-      onWillReceiveMessage(message) {
-        outputChannel.appendLine(
-          `Message received by debug adapter: ${JSON.stringify(message)}`
-        );
+      onWillReceiveMessage(o) {
+        s.appendLine(`Message received by debug adapter: ${JSON.stringify(o)}`);
       }
-      async onDidSendMessage(message) {
-        if (message.type !== 'event') {
-          return;
-        }
-        const event = message;
-        if (event.event !== 'stopped') {
-          return;
-        }
-        const body = event.body;
-        const validReasons = [
-          'breakpoint',
-          'step',
-          'pause',
-          'exception',
-          'assertion',
-          'entry',
-        ];
-        if (!validReasons.includes(body.reason)) {
-          return;
-        }
-        try {
-          let exceptionDetails;
-          if (body.reason === 'exception' && body.description) {
-            exceptionDetails = {
-              description: body.description || 'Unknown exception',
-              details: body.text || 'No additional details available',
+      async onDidSendMessage(o) {
+        if (o.type !== 'event') return;
+        let r = o;
+        if (r.event !== 'stopped') return;
+        let a = r.body;
+        if (
+          [
+            'breakpoint',
+            'step',
+            'pause',
+            'exception',
+            'assertion',
+            'entry',
+          ].includes(a.reason)
+        )
+          try {
+            let c;
+            a.reason === 'exception' &&
+              a.description &&
+              (c = {
+                description: a.description || 'Unknown exception',
+                details: a.text || 'No additional details available',
+              });
+            let p = 3,
+              i,
+              u;
+            for (let h = 0; h < p; h++)
+              try {
+                if (
+                  (h > 0 && (await new Promise(x => setTimeout(x, 50 * h))),
+                  (u = await f.getDebugContext(t, a.threadId)),
+                  !u.frame?.source?.path)
+                )
+                  throw new Error(
+                    `Top stack frame missing source path: ${JSON.stringify(u.frame)}`
+                  );
+                break;
+              } catch (x) {
+                ((i = x),
+                  s.appendLine(
+                    `getDebugContext attempt ${h + 1} failed for thread ${a.threadId}: ${x instanceof Error ? x.message : String(x)}`
+                  ));
+              }
+            if (!u)
+              throw new Error(
+                `Unable to retrieve call stack after ${p} attempts for thread ${a.threadId}: ${i instanceof Error ? i.message : String(i)}`
+              );
+            let m = {
+              session: t,
+              threadId: a.threadId,
+              reason: a.reason,
+              frameId: u.frame.id,
+              filePath: u.frame.source?.path,
+              line: u.frame.line,
+              exceptionInfo: c,
             };
+            (s.appendLine(`Firing breakpoint event: ${JSON.stringify(m)}`),
+              z.fire(m));
+          } catch (c) {
+            let p = c instanceof Error ? c.message : String(c);
+            s.appendLine(`[stopped-event-error] ${p} (reason=${a.reason})`);
+            let i = { session: t, threadId: a?.threadId ?? 0, reason: 'error' };
+            z.fire(i);
           }
-          const retries = 3;
-          let lastError;
-          let callStackData;
-          for (let attempt = 0; attempt < retries; attempt++) {
-            try {
-              if (attempt > 0) {
-                await new Promise(r => setTimeout(r, 50 * attempt));
-              }
-              callStackData = await DAPHelpers.getDebugContext(
-                session,
-                body.threadId
-              );
-              if (!callStackData.frame?.source?.path) {
-                throw new Error(
-                  `Top stack frame missing source path: ${JSON.stringify(callStackData.frame)}`
-                );
-              }
-              break;
-            } catch (err) {
-              lastError = err;
-              outputChannel.appendLine(
-                `getDebugContext attempt ${attempt + 1} failed for thread ${body.threadId}: ${err instanceof Error ? err.message : String(err)}`
-              );
-            }
-          }
-          if (!callStackData) {
-            throw new Error(
-              `Unable to retrieve call stack after ${retries} attempts for thread ${body.threadId}: ${lastError instanceof Error ? lastError.message : String(lastError)}`
-            );
-          }
-          const eventData = {
-            session,
-            threadId: body.threadId,
-            reason: body.reason,
-            frameId: callStackData.frame.id,
-            filePath: callStackData.frame.source?.path,
-            line: callStackData.frame.line,
-            exceptionInfo: exceptionDetails,
-          };
-          outputChannel.appendLine(
-            `Firing breakpoint event: ${JSON.stringify(eventData)}`
-          );
-          breakpointEventEmitter.fire(eventData);
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          outputChannel.appendLine(
-            `[stopped-event-error] ${msg} (reason=${body.reason})`
-          );
-          const errorEvent = {
-            session,
-            threadId: body?.threadId ?? 0,
-            reason: 'error',
-          };
-          breakpointEventEmitter.fire(errorEvent);
-        }
       }
-      onWillSendMessage(message) {
-        outputChannel.appendLine(
-          `Message sent to debug adapter: ${JSON.stringify(message)}`
+      onWillSendMessage(o) {
+        s.appendLine(`Message sent to debug adapter: ${JSON.stringify(o)}`);
+      }
+      onDidReceiveMessage(o) {
+        s.appendLine(
+          `Message received from debug adapter: ${JSON.stringify(o)}`
         );
       }
-      onDidReceiveMessage(message) {
-        outputChannel.appendLine(
-          `Message received from debug adapter: ${JSON.stringify(message)}`
-        );
+      onError(o) {
+        s.appendLine(`Debug adapter error: ${o.message}`);
       }
-      onError(error) {
-        outputChannel.appendLine(`Debug adapter error: ${error.message}`);
-      }
-      onExit(code, signal) {
-        outputChannel.appendLine(
-          `Debug adapter exited: code=${code}, signal=${signal}`
-        );
+      onExit(o, r) {
+        s.appendLine(`Debug adapter exited: code=${o}, signal=${r}`);
       }
     }
-    return new DebugAdapterTrackerImpl();
+    return new e();
   },
 });
-var waitForBreakpointHit = async params => {
-  const { sessionName, timeout = 3e4 } = params;
-  const breakpointHitPromise = new Promise((resolve2, reject) => {
-    let terminateListener;
-    let timeoutHandle;
-    const listener = onBreakpointHit(event => {
-      outputChannel.appendLine(
-        `Breakpoint hit detected for waitForBreakpointHit for session ${event.session.name} with id ${event.session.id}`
-      );
-      const currentSessions = activeSessions;
-      if (currentSessions.length === 0) {
-        throw new Error(
-          `No active debug sessions found while waiting for breakpoint hit.`
+var J = async t => {
+  let { sessionName: e, timeout: n = 3e4 } = t;
+  return await new Promise((r, a) => {
+    let l,
+      c,
+      p = ke(i => {
+        s.appendLine(
+          `Breakpoint hit detected for waitForBreakpointHit for session ${i.session.name} with id ${i.session.id}`
         );
-      }
-      let targetSession = currentSessions.find(
-        s => s.name.endsWith(sessionName) && s.parentSession
-        //||
-        // (s.configuration &&
-        //   (s.configuration as DebugConfiguration).sessionName ===
-        //     sessionName)
-      );
-      if (!targetSession) {
-        targetSession = currentSessions[currentSessions.length - 1];
-        outputChannel.appendLine(
-          `Using most recent session for matching: ${targetSession.name} (${targetSession.id})`
-        );
-      }
-      const eventMatchesTarget =
-        // event.sessionName === targetSession.id ||
-        event.session.name === targetSession.name ||
-        event.session.name.startsWith(targetSession.name) ||
-        targetSession.name.startsWith(event.session.name);
-      if (eventMatchesTarget) {
-        listener.dispose();
-        terminateListener?.dispose();
-        if (timeoutHandle) {
-          clearTimeout(timeoutHandle);
-          timeoutHandle = void 0;
-        }
-        resolve2(event);
-        outputChannel.appendLine(
-          `Breakpoint hit detected for waitForBreakpointHit: ${JSON.stringify(event)}`
-        );
-      }
-    });
-    terminateListener = onSessionTerminate(endEvent => {
-      outputChannel.appendLine(
-        `Session termination detected for waitForBreakpointHit: ${JSON.stringify(endEvent)}`
-      );
-      listener.dispose();
-      terminateListener?.dispose();
-      if (timeoutHandle) {
-        clearTimeout(timeoutHandle);
-        timeoutHandle = void 0;
-      }
-      resolve2({
-        session: endEvent.session,
-        threadId: 0,
-        reason: 'terminated',
-      });
-    });
-    timeoutHandle = setTimeout(() => {
-      listener.dispose();
-      terminateListener?.dispose();
-      timeoutHandle = void 0;
-      try {
-        let targetSessions = activeSessions.filter(s =>
-          s.name.endsWith(sessionName)
-        );
-        if (targetSessions.length === 0 && activeSessions.length > 0) {
-          targetSessions = [activeSessions[activeSessions.length - 1]];
-        }
-        for (const s of targetSessions) {
-          void vscode5.debug.stopDebugging(s);
-          outputChannel.appendLine(
-            `Timeout reached; stopping debug session ${s.name} (${s.id}).`
+        let u = b;
+        if (u.length === 0)
+          throw new Error(
+            'No active debug sessions found while waiting for breakpoint hit.'
           );
-        }
-      } catch (e) {
-        outputChannel.appendLine(
-          `Timeout cleanup error stopping sessions: ${e instanceof Error ? e.message : String(e)}`
-        );
-      }
-      reject(
-        new Error(
-          `Timed out waiting for breakpoint or termination (${timeout}ms).`
-        )
-      );
-    }, timeout);
-  });
-  return await breakpointHitPromise;
-};
-
-// src/session.ts
-var normalizeFsPath = value =>
-  path.normalize(value).replace(/\\/g, '/').replace(/\/+$/, '');
-var startDebuggingAndWaitForStop = async params => {
-  const {
-    sessionName,
-    workspaceFolder,
-    nameOrConfiguration,
-    timeoutSeconds = 60,
-    breakpointConfig,
-  } = params;
-  const extensionRoot = vscode6.extensions.getExtension(
-    'dkattan.copilot-breakpoint-debugger'
-  )?.extensionPath;
-  const resolvedWorkspaceFolder = path.isAbsolute(workspaceFolder)
-    ? workspaceFolder
-    : extensionRoot
-      ? path.resolve(extensionRoot, workspaceFolder)
-      : path.resolve(workspaceFolder);
-  const normalizedRequestedFolder = normalizeFsPath(resolvedWorkspaceFolder);
-  const workspaceFolders = vscode6.workspace.workspaceFolders;
-  if (!workspaceFolders || workspaceFolders.length === 0) {
-    throw new Error('No workspace folders are currently open.');
-  }
-  outputChannel.appendLine(
-    `Available workspace folders: ${workspaceFolders.map(f => `${f.name} -> ${f.uri.fsPath}`).join(', ')}`
-  );
-  outputChannel.appendLine(
-    `Looking for workspace folder (resolved): ${resolvedWorkspaceFolder}`
-  );
-  const normalizedFolders = workspaceFolders.map(f => ({
-    folder: f,
-    normalized: normalizeFsPath(f.uri.fsPath),
-  }));
-  let folderEntry = normalizedFolders.find(
-    f => f.normalized === normalizedRequestedFolder
-  );
-  if (!folderEntry) {
-    const childOfRequested = normalizedFolders.find(f =>
-      f.normalized.startsWith(`${normalizedRequestedFolder}/`)
-    );
-    if (childOfRequested) {
-      folderEntry = childOfRequested;
-      outputChannel.appendLine(
-        `Requested parent folder '${resolvedWorkspaceFolder}' not open; using child workspace folder '${folderEntry.folder.uri.fsPath}'.`
-      );
-    }
-  }
-  if (!folderEntry) {
-    const parentOfRequested = normalizedFolders.find(f =>
-      normalizedRequestedFolder.startsWith(`${f.normalized}/`)
-    );
-    if (parentOfRequested) {
-      folderEntry = parentOfRequested;
-      outputChannel.appendLine(
-        `Requested subfolder '${resolvedWorkspaceFolder}' not open; using parent workspace folder '${folderEntry.folder.uri.fsPath}'.`
-      );
-    }
-  }
-  const folder = folderEntry?.folder;
-  if (!folder) {
-    throw new Error(
-      `Workspace folder '${workspaceFolder}' not found. Available folders: ${workspaceFolders.map(f => f.uri.fsPath).join(', ')}`
-    );
-  }
-  const folderFsPath = folder.uri.fsPath;
-  const originalBreakpoints = [...vscode6.debug.breakpoints];
-  if (originalBreakpoints.length) {
-    outputChannel.appendLine(
-      `Backing up and removing ${originalBreakpoints.length} existing breakpoint(s) for isolated debug session.`
-    );
-    vscode6.debug.removeBreakpoints(originalBreakpoints);
-  }
-  const seen = /* @__PURE__ */ new Set();
-  const validated = [];
-  for (const bp of breakpointConfig.breakpoints) {
-    const absolutePath = path.isAbsolute(bp.path)
-      ? bp.path
-      : path.join(folderFsPath, bp.path);
-    try {
-      const doc = await vscode6.workspace.openTextDocument(
-        vscode6.Uri.file(absolutePath)
-      );
-      const lineCount = doc.lineCount;
-      if (bp.line < 1 || bp.line > lineCount) {
-        outputChannel.appendLine(
-          `Skipping breakpoint ${absolutePath}:${bp.line} (out of range, file has ${lineCount} lines).`
-        );
-        continue;
-      }
-      const key = `${absolutePath}:${bp.line}`;
-      if (seen.has(key)) {
-        outputChannel.appendLine(`Skipping duplicate breakpoint ${key}.`);
-        continue;
-      }
-      seen.add(key);
-      const uri = vscode6.Uri.file(absolutePath);
-      const location = new vscode6.Position(bp.line - 1, 0);
-      validated.push(
-        new vscode6.SourceBreakpoint(
-          new vscode6.Location(uri, location),
-          true,
-          bp.condition,
-          bp.hitCondition,
-          bp.logMessage
-        )
-      );
-    } catch (e) {
-      outputChannel.appendLine(
-        `Failed to open file for breakpoint path ${absolutePath}: ${e instanceof Error ? e.message : String(e)}`
-      );
-    }
-  }
-  if (validated.length) {
-    vscode6.debug.addBreakpoints(validated);
-    outputChannel.appendLine(
-      `Added ${validated.length} validated breakpoint(s).`
-    );
-    await new Promise(resolve2 => setTimeout(resolve2, 500));
-  } else {
-    outputChannel.appendLine('No valid breakpoints to add after validation.');
-  }
-  const launchConfig = vscode6.workspace.getConfiguration('launch', folder.uri);
-  const allConfigs = launchConfig.get('configurations') || [];
-  const found = allConfigs.find(c => c.name === nameOrConfiguration);
-  if (!found) {
-    throw new Error(
-      `Launch configuration '${nameOrConfiguration}' not found in ${folder.uri.fsPath}. Add it to .vscode/launch.json.`
-    );
-  }
-  const resolvedConfig = { ...found };
-  if (!('stopOnEntry' in resolvedConfig)) {
-    resolvedConfig.stopOnEntry = true;
-  } else {
-    resolvedConfig.stopOnEntry = true;
-  }
-  const effectiveSessionName = sessionName || resolvedConfig.name || '';
-  outputChannel.appendLine(
-    `Starting debugger with configuration '${resolvedConfig.name}' (stopOnEntry forced to true). Waiting for first stop event.`
-  );
-  const stopPromise = waitForBreakpointHit({
-    sessionName: effectiveSessionName,
-    timeout: timeoutSeconds * 1e3,
-  });
-  const success = await vscode6.debug.startDebugging(folder, resolvedConfig);
-  if (!success) {
-    throw new Error(`Failed to start debug session '${effectiveSessionName}'.`);
-  }
-  let remainingMs = timeoutSeconds * 1e3;
-  const t0 = Date.now();
-  let stopInfo;
-  let debugContext;
-  try {
-    stopInfo = await stopPromise;
-    const elapsed = Date.now() - t0;
-    remainingMs = Math.max(0, remainingMs - elapsed);
-    try {
-      const isEntry = stopInfo.reason === 'entry';
-      const entryLineZeroBased =
-        stopInfo.line !== void 0 ? stopInfo.line - 1 : -1;
-      validated.some(bp => bp.location.range.start.line === entryLineZeroBased);
-      if (isEntry) {
-        outputChannel.appendLine(
-          'Entry stop at non-breakpoint location; continuing to reach first user breakpoint.'
-        );
+        let m = u.find(x => x.name.endsWith(e) && x.parentSession);
+        (m ||
+          ((m = u[u.length - 1]),
+          s.appendLine(
+            `Using most recent session for matching: ${m.name} (${m.id})`
+          )),
+          (i.session.name === m.name ||
+            i.session.name.startsWith(m.name) ||
+            m.name.startsWith(i.session.name)) &&
+            (p.dispose(),
+            l?.dispose(),
+            c && (clearTimeout(c), (c = void 0)),
+            r(i),
+            s.appendLine(
+              `Breakpoint hit detected for waitForBreakpointHit: ${JSON.stringify(i)}`
+            )));
+      });
+    ((l = oe(i => {
+      (s.appendLine(
+        `Session termination detected for waitForBreakpointHit: ${JSON.stringify(i)}`
+      ),
+        p.dispose(),
+        l?.dispose(),
+        c && (clearTimeout(c), (c = void 0)),
+        r({ session: i.session, threadId: 0, reason: 'terminated' }));
+    })),
+      (c = setTimeout(() => {
+        (p.dispose(), l?.dispose(), (c = void 0));
         try {
-          await stopInfo.session.customRequest('continue', {
-            threadId: stopInfo.threadId,
-          });
-          stopInfo = await waitForBreakpointHit({
-            sessionName: effectiveSessionName,
-            timeout: remainingMs,
-          });
-        } catch (contErr) {
-          outputChannel.appendLine(
-            `Failed to continue after entry: ${contErr instanceof Error ? contErr.message : String(contErr)}`
+          let i = b.filter(u => u.name.endsWith(e));
+          i.length === 0 && b.length > 0 && (i = [b[b.length - 1]]);
+          for (let u of i)
+            (N.debug.stopDebugging(u),
+              s.appendLine(
+                `Timeout reached; stopping debug session ${u.name} (${u.id}).`
+              ));
+        } catch (i) {
+          s.appendLine(
+            `Timeout cleanup error stopping sessions: ${i instanceof Error ? i.message : String(i)}`
           );
         }
-      }
-    } catch (parseErr) {
-      outputChannel.appendLine(
-        `Failed to parse first stop JSON for entry evaluation: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`
-      );
-    }
-    if (!success) {
-      throw new Error(`Failed to start debug session '${sessionName}'.`);
-    }
-    outputChannel.appendLine(
-      `Active sessions after start: ${activeSessions.map(s => `${s.name}:${s.id}`).join(', ')}`
-    );
-    if (stopInfo.reason === 'terminated') {
-      throw new Error(
-        `Debug session '${effectiveSessionName}' terminated before hitting a breakpoint.`
-      );
-    }
-    debugContext = await DAPHelpers.getDebugContext(
-      stopInfo.session,
-      stopInfo.threadId
-    );
-    return debugContext;
-  } finally {
-    const current = vscode6.debug.breakpoints;
-    if (current.length) {
-      vscode6.debug.removeBreakpoints(current);
-      outputChannel.appendLine(
-        `Removed ${current.length} session breakpoint(s) before restoring originals.`
-      );
-    }
-    if (originalBreakpoints.length) {
-      vscode6.debug.addBreakpoints(originalBreakpoints);
-      outputChannel.appendLine(
-        `Restored ${originalBreakpoints.length} original breakpoint(s).`
-      );
-    } else {
-      outputChannel.appendLine('No original breakpoints to restore.');
-    }
-  }
-};
-var stopDebugSession = async params => {
-  const { sessionName } = params;
-  const matchingSessions = activeSessions.filter(
-    session => session.name === sessionName
-  );
-  if (matchingSessions.length === 0) {
-    throw new Error(`No debug session(s) found with name '${sessionName}'.`);
-  }
-  for (const session of matchingSessions) {
-    await vscode6.debug.stopDebugging(session);
-  }
-};
-var resumeDebugSession = async params => {
-  const { sessionId, breakpointConfig } = params;
-  let session = activeSessions.find(s => s.id === sessionId);
-  if (!session) {
-    session = activeSessions.find(s => s.name.includes(sessionId));
-  }
-  if (!session) {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `No debug session found with ID '${sessionId}'.`,
-        },
-      ],
-      isError: true,
-    };
-  }
-  if (breakpointConfig) {
-    if (breakpointConfig.disableExisting) {
-      const allBreakpoints = vscode6.debug.breakpoints;
-      if (allBreakpoints.length > 0) {
-        vscode6.debug.removeBreakpoints(allBreakpoints);
-      }
-    }
-    if (
-      breakpointConfig.breakpoints &&
-      breakpointConfig.breakpoints.length > 0
-    ) {
-      const workspaceFolder =
-        session.workspaceFolder?.uri.fsPath ||
-        vscode6.workspace.workspaceFolders?.[0]?.uri.fsPath;
-      if (!workspaceFolder) {
-        throw new Error(
-          'Cannot determine workspace folder for breakpoint paths'
+        a(
+          new Error(`Timed out waiting for breakpoint or termination (${n}ms).`)
         );
-      }
-      const newBreakpoints = breakpointConfig.breakpoints.map(bp => {
-        const absolutePath = path.isAbsolute(bp.path)
-          ? bp.path
-          : path.join(workspaceFolder, bp.path);
-        const uri = vscode6.Uri.file(absolutePath);
-        const location = new vscode6.Position(bp.line - 1, 0);
-        return new vscode6.SourceBreakpoint(
-          new vscode6.Location(uri, location),
-          true,
-          // enabled
-          bp.condition,
-          bp.hitCondition,
-          bp.logMessage
-        );
-      });
-      vscode6.debug.addBreakpoints(newBreakpoints);
-    }
-  }
-  outputChannel.appendLine(
-    `Resuming debug session '${session.name}' (ID: ${sessionId})`
-  );
-  const stopPromise = waitForBreakpointHit({
-    sessionName: session.name,
+      }, n)));
   });
-  await session.customRequest('continue', { threadId: 0 });
-  const stopInfo = await stopPromise;
-  if (stopInfo.reason === 'terminated') {
-    throw new Error(
-      `Debug session '${session.name}' terminated before hitting a breakpoint.`
-    );
-  }
-  return await DAPHelpers.getDebugContext(stopInfo.session, stopInfo.threadId);
 };
-
-// src/resumeDebugSessionTool.ts
-var ResumeDebugSessionTool = class {
-  async invoke(options) {
-    const { sessionId, breakpointConfig } = options.input;
+var ae = t => w.normalize(t).replace(/\\/g, '/').replace(/\/+$/, '');
+var se = async t => {
+    let {
+        sessionName: e,
+        workspaceFolder: n,
+        nameOrConfiguration: o,
+        timeoutSeconds: r = 60,
+        breakpointConfig: a,
+      } = t,
+      l = g.extensions.getExtension(
+        'dkattan.copilot-breakpoint-debugger'
+      )?.extensionPath,
+      c = w.isAbsolute(n) ? n : l ? w.resolve(l, n) : w.resolve(n),
+      p = ae(c),
+      i = g.workspace.workspaceFolders;
+    if (!i || i.length === 0)
+      throw new Error('No workspace folders are currently open.');
+    (s.appendLine(
+      `Available workspace folders: ${i.map(d => `${d.name} -> ${d.uri.fsPath}`).join(', ')}`
+    ),
+      s.appendLine(`Looking for workspace folder (resolved): ${c}`));
+    let u = i.map(d => ({ folder: d, normalized: ae(d.uri.fsPath) })),
+      m = u.find(d => d.normalized === p);
+    if (!m) {
+      let d = u.find(v => v.normalized.startsWith(`${p}/`));
+      d &&
+        ((m = d),
+        s.appendLine(
+          `Requested parent folder '${c}' not open; using child workspace folder '${m.folder.uri.fsPath}'.`
+        ));
+    }
+    if (!m) {
+      let d = u.find(v => p.startsWith(`${v.normalized}/`));
+      d &&
+        ((m = d),
+        s.appendLine(
+          `Requested subfolder '${c}' not open; using parent workspace folder '${m.folder.uri.fsPath}'.`
+        ));
+    }
+    let h = m?.folder;
+    if (!h)
+      throw new Error(
+        `Workspace folder '${n}' not found. Available folders: ${i.map(d => d.uri.fsPath).join(', ')}`
+      );
+    let x = h.uri.fsPath,
+      P = [...g.debug.breakpoints];
+    P.length &&
+      (s.appendLine(
+        `Backing up and removing ${P.length} existing breakpoint(s) for isolated debug session.`
+      ),
+      g.debug.removeBreakpoints(P));
+    let G = new Set(),
+      C = [];
+    for (let d of a.breakpoints) {
+      let v = w.isAbsolute(d.path) ? d.path : w.join(x, d.path);
+      try {
+        let D = (await g.workspace.openTextDocument(g.Uri.file(v))).lineCount;
+        if (d.line < 1 || d.line > D) {
+          s.appendLine(
+            `Skipping breakpoint ${v}:${d.line} (out of range, file has ${D} lines).`
+          );
+          continue;
+        }
+        let j = `${v}:${d.line}`;
+        if (G.has(j)) {
+          s.appendLine(`Skipping duplicate breakpoint ${j}.`);
+          continue;
+        }
+        G.add(j);
+        let ge = g.Uri.file(v),
+          ue = new g.Position(d.line - 1, 0);
+        C.push(
+          new g.SourceBreakpoint(
+            new g.Location(ge, ue),
+            !0,
+            d.condition,
+            d.hitCondition,
+            d.logMessage
+          )
+        );
+      } catch ($) {
+        s.appendLine(
+          `Failed to open file for breakpoint path ${v}: ${$ instanceof Error ? $.message : String($)}`
+        );
+      }
+    }
+    C.length
+      ? (g.debug.addBreakpoints(C),
+        s.appendLine(`Added ${C.length} validated breakpoint(s).`),
+        await new Promise(d => setTimeout(d, 500)))
+      : s.appendLine('No valid breakpoints to add after validation.');
+    let Z = (
+      g.workspace.getConfiguration('launch', h.uri).get('configurations') || []
+    ).find(d => d.name === o);
+    if (!Z)
+      throw new Error(
+        `Launch configuration '${o}' not found in ${h.uri.fsPath}. Add it to .vscode/launch.json.`
+      );
+    let I = { ...Z };
+    ('stopOnEntry' in I, (I.stopOnEntry = !0));
+    let F = e || I.name || '';
+    s.appendLine(
+      `Starting debugger with configuration '${I.name}' (stopOnEntry forced to true). Waiting for first stop event.`
+    );
+    let ce = J({ sessionName: F, timeout: r * 1e3 }),
+      K = await g.debug.startDebugging(h, I);
+    if (!K) throw new Error(`Failed to start debug session '${F}'.`);
+    let _ = r * 1e3,
+      pe = Date.now(),
+      k,
+      Q;
     try {
-      const stopInfo = await resumeDebugSession({
-        sessionId,
-        breakpointConfig,
-      });
-      return new import_vscode3.LanguageModelToolResult([
-        new import_vscode3.LanguageModelTextPart(
-          JSON.stringify(stopInfo, null, 2)
+      k = await ce;
+      let d = Date.now() - pe;
+      _ = Math.max(0, _ - d);
+      try {
+        let v = k.reason === 'entry',
+          $ = k.line !== void 0 ? k.line - 1 : -1;
+        if ((C.some(D => D.location.range.start.line === $), v)) {
+          s.appendLine(
+            'Entry stop at non-breakpoint location; continuing to reach first user breakpoint.'
+          );
+          try {
+            (await k.session.customRequest('continue', {
+              threadId: k.threadId,
+            }),
+              (k = await J({ sessionName: F, timeout: _ })));
+          } catch (D) {
+            s.appendLine(
+              `Failed to continue after entry: ${D instanceof Error ? D.message : String(D)}`
+            );
+          }
+        }
+      } catch (v) {
+        s.appendLine(
+          `Failed to parse first stop JSON for entry evaluation: ${v instanceof Error ? v.message : String(v)}`
+        );
+      }
+      if (!K) throw new Error(`Failed to start debug session '${e}'.`);
+      if (
+        (s.appendLine(
+          `Active sessions after start: ${b.map(v => `${v.name}:${v.id}`).join(', ')}`
         ),
+        k.reason === 'terminated')
+      )
+        throw new Error(
+          `Debug session '${F}' terminated before hitting a breakpoint.`
+        );
+      return ((Q = await f.getDebugContext(k.session, k.threadId)), Q);
+    } finally {
+      let d = g.debug.breakpoints;
+      (d.length &&
+        (g.debug.removeBreakpoints(d),
+        s.appendLine(
+          `Removed ${d.length} session breakpoint(s) before restoring originals.`
+        )),
+        P.length
+          ? (g.debug.addBreakpoints(P),
+            s.appendLine(`Restored ${P.length} original breakpoint(s).`))
+          : s.appendLine('No original breakpoints to restore.'));
+    }
+  },
+  ie = async t => {
+    let { sessionName: e } = t,
+      n = b.filter(o => o.name === e);
+    if (n.length === 0)
+      throw new Error(`No debug session(s) found with name '${e}'.`);
+    for (let o of n) await g.debug.stopDebugging(o);
+  },
+  le = async t => {
+    let { sessionId: e, breakpointConfig: n } = t,
+      o = b.find(l => l.id === e);
+    if ((o || (o = b.find(l => l.name.includes(e))), !o))
+      return {
+        content: [
+          { type: 'text', text: `No debug session found with ID '${e}'.` },
+        ],
+        isError: !0,
+      };
+    if (n) {
+      if (n.disableExisting) {
+        let l = g.debug.breakpoints;
+        l.length > 0 && g.debug.removeBreakpoints(l);
+      }
+      if (n.breakpoints && n.breakpoints.length > 0) {
+        let l =
+          o.workspaceFolder?.uri.fsPath ||
+          g.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (!l)
+          throw new Error(
+            'Cannot determine workspace folder for breakpoint paths'
+          );
+        let c = n.breakpoints.map(p => {
+          let i = w.isAbsolute(p.path) ? p.path : w.join(l, p.path),
+            u = g.Uri.file(i),
+            m = new g.Position(p.line - 1, 0);
+          return new g.SourceBreakpoint(
+            new g.Location(u, m),
+            !0,
+            p.condition,
+            p.hitCondition,
+            p.logMessage
+          );
+        });
+        g.debug.addBreakpoints(c);
+      }
+    }
+    s.appendLine(`Resuming debug session '${o.name}' (ID: ${e})`);
+    let r = J({ sessionName: o.name });
+    await o.customRequest('continue', { threadId: 0 });
+    let a = await r;
+    if (a.reason === 'terminated')
+      throw new Error(
+        `Debug session '${o.name}' terminated before hitting a breakpoint.`
+      );
+    return await f.getDebugContext(a.session, a.threadId);
+  };
+var q = class {
+  async invoke(e) {
+    let { sessionId: n, breakpointConfig: o } = e.input;
+    try {
+      let r = await le({ sessionId: n, breakpointConfig: o });
+      return new R.LanguageModelToolResult([
+        new R.LanguageModelTextPart(JSON.stringify(r, null, 2)),
       ]);
-    } catch (error) {
-      return new import_vscode3.LanguageModelToolResult([
-        new import_vscode3.LanguageModelTextPart(
-          `Error resuming debug session: ${error instanceof Error ? error.message : String(error)}`
+    } catch (r) {
+      return new R.LanguageModelToolResult([
+        new R.LanguageModelTextPart(
+          `Error resuming debug session: ${r instanceof Error ? r.message : String(r)}`
         ),
       ]);
     }
   }
-  prepareInvocation(options) {
+  prepareInvocation(e) {
     return {
-      invocationMessage: `Resuming debug session '${options.input.sessionId}'${options.input.waitForStop ? ' and waiting for breakpoint' : ''}`,
+      invocationMessage: `Resuming debug session '${e.input.sessionId}'${e.input.waitForStop ? ' and waiting for breakpoint' : ''}`,
     };
   }
 };
-
-// src/startDebuggerTool.ts
-var vscode7 = __toESM(require('vscode'));
-var import_vscode4 = require('vscode');
-var StartDebuggerTool = class {
-  async invoke(options) {
-    const {
-      workspaceFolder,
-      variableFilter,
-      timeoutSeconds,
-      configurationName,
-      breakpointConfig,
-    } = options.input;
-    const config = vscode7.workspace.getConfiguration('copilot-debugger');
-    const effectiveConfigName =
-      configurationName || config.get('defaultLaunchConfiguration');
-    if (!effectiveConfigName) {
-      return new import_vscode4.LanguageModelToolResult([
-        new import_vscode4.LanguageModelTextPart(
+var de = T(require('vscode')),
+  M = require('vscode');
+var U = class {
+  async invoke(e) {
+    let {
+        workspaceFolder: n,
+        variableFilter: o,
+        timeoutSeconds: r,
+        configurationName: a,
+        breakpointConfig: l,
+      } = e.input,
+      c = de.workspace.getConfiguration('copilot-debugger'),
+      p = a || c.get('defaultLaunchConfiguration');
+    if (!p)
+      return new M.LanguageModelToolResult([
+        new M.LanguageModelTextPart(
           'Error: No launch configuration specified. Set "copilot-debugger.defaultLaunchConfiguration" in settings or provide configurationName parameter.'
         ),
       ]);
-    }
-    const stopInfo = await startDebuggingAndWaitForStop({
-      workspaceFolder,
-      nameOrConfiguration: effectiveConfigName,
-      variableFilter,
-      timeoutSeconds,
-      breakpointConfig,
+    let i = await se({
+      workspaceFolder: n,
+      nameOrConfiguration: p,
+      variableFilter: o,
+      timeoutSeconds: r,
+      breakpointConfig: l,
       sessionName: '',
-      // Empty string means match any session
     });
-    return new import_vscode4.LanguageModelToolResult([
-      new import_vscode4.LanguageModelTextPart(
-        JSON.stringify(stopInfo, null, 2)
-      ),
+    return new M.LanguageModelToolResult([
+      new M.LanguageModelTextPart(JSON.stringify(i, null, 2)),
     ]);
   }
 };
-
-// src/stopDebugSessionTool.ts
-var import_vscode5 = require('vscode');
-var StopDebugSessionTool = class {
-  async invoke(options) {
-    const { sessionName } = options.input;
+var V = require('vscode');
+var W = class {
+  async invoke(e) {
+    let { sessionName: n } = e.input;
     try {
-      const raw = await stopDebugSession({ sessionName });
-      return new import_vscode5.LanguageModelToolResult([
-        new import_vscode5.LanguageModelTextPart(JSON.stringify(raw)),
+      let o = await ie({ sessionName: n });
+      return new V.LanguageModelToolResult([
+        new V.LanguageModelTextPart(JSON.stringify(o)),
       ]);
-    } catch (error) {
-      return new import_vscode5.LanguageModelToolResult([
-        new import_vscode5.LanguageModelTextPart(
-          `Error stopping debug session: ${error instanceof Error ? error.message : String(error)}`
+    } catch (o) {
+      return new V.LanguageModelToolResult([
+        new V.LanguageModelTextPart(
+          `Error stopping debug session: ${o instanceof Error ? o.message : String(o)}`
         ),
       ]);
     }
   }
-  prepareInvocation(options) {
+  prepareInvocation(e) {
     return {
-      invocationMessage: `Stopping debug session(s) named '${options.input.sessionName}'`,
+      invocationMessage: `Stopping debug session(s) named '${e.input.sessionName}'`,
     };
   }
 };
-
-// src/extension.ts
-function activate(context) {
-  registerTools(context);
+function Se(t) {
+  Te(t);
 }
-function registerTools(context) {
-  context.subscriptions.push(
-    vscode8.lm.registerTool(
-      'start_debugger_with_breakpoints',
-      new StartDebuggerTool()
-    ),
-    vscode8.lm.registerTool(
-      'resume_debug_session',
-      new ResumeDebugSessionTool()
-    ),
-    vscode8.lm.registerTool('get_variables', new GetVariablesTool()),
-    vscode8.lm.registerTool('expand_variable', new ExpandVariableTool()),
-    vscode8.lm.registerTool(
-      'evaluate_expression',
-      new EvaluateExpressionTool()
-    ),
-    vscode8.lm.registerTool('stop_debug_session', new StopDebugSessionTool())
+function Te(t) {
+  t.subscriptions.push(
+    E.lm.registerTool('start_debugger_with_breakpoints', new U()),
+    E.lm.registerTool('resume_debug_session', new q()),
+    E.lm.registerTool('get_variables', new H()),
+    E.lm.registerTool('expand_variable', new B()),
+    E.lm.registerTool('evaluate_expression', new A()),
+    E.lm.registerTool('stop_debug_session', new W())
   );
 }
-function deactivate() {}
-// Annotate the CommonJS export names for ESM import in node:
-0 &&
-  (module.exports = {
-    activate,
-    deactivate,
-  });
-//# sourceMappingURL=extension.js.map
+function ye() {}
+0 && (module.exports = { activate, deactivate });

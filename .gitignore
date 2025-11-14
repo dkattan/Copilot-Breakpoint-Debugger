@@ -1,5 +1,6 @@
 out
 node_modules
+dist
 *.local.json
 .vscode-test
 score_tally.txt

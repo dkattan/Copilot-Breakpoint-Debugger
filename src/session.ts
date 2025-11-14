@@ -305,8 +305,10 @@ export const startDebuggingAndWaitForStop = async (params: {
       // Convert to 0-based line number for comparison with VSCode positions
       const entryLineZeroBased =
         stopInfo.line !== undefined ? stopInfo.line - 1 : -1;
-      validated.some(bp => bp.location.range.start.line === entryLineZeroBased);
-      if (isEntry) {
+      const hitRequestedBreakpoint = validated.some(
+        bp => bp.location.range.start.line === entryLineZeroBased
+      );
+      if (isEntry && !hitRequestedBreakpoint) {
         outputChannel.appendLine(
           'Entry stop at non-breakpoint location; continuing to reach first user breakpoint.'
         );

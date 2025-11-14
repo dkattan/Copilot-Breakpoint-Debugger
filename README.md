@@ -6,16 +6,20 @@ Use GitHub Copilot (or any LM-enabled workflow in VS Code) to start, inspect, an
 
 The extension contributes Language Model Tools that Copilot can invoke:
 
-1. **Start Debugger** (`start_debugger_with_breakpoints`) – Launch a configured debug session and wait for the first breakpoint (optionally set new breakpoints or filter variables).
+1. **Start Debugger** (`start_debugger_with_breakpoints`) – Launch a configured debug session and wait for the first breakpoint (optionally set breakpoints/logpoints or filter variables).
 2. **Resume Debug Session** (`resume_debug_session`) – Continue execution of an existing paused session and optionally wait for the next stop.
 3. **Get Variables** (`get_variables`) – Retrieve all variables in the current top stack frame scopes.
 4. **Expand Variable** (`expand_variable`) – Drill into a single variable to inspect its immediate children.
+5. **Evaluate Expression** (`evaluate_expression`) – Run an arbitrary expression (like the Debug Console) in the paused stack frame.
+6. **Stop Debug Session** (`stop_debug_session`) – Terminate matching debug sessions when you’re done.
 
 All tools return structured data that Copilot can reason over (JSON-like text parts containing call stacks, variables, and metadata).
 
 ## 🚀 Getting Started
 
-1. Install the extension from the VS Code Marketplace (coming soon). For now, clone the repo and run:
+1. Install the extension from the VS Code Marketplace: `ext install dkattan.copilot-breakpoint-debugger` (or `code --install-extension dkattan.copilot-breakpoint-debugger`).
+
+   Prefer to hack on it locally? Clone the repo and run:
 
 ```bash
 git clone https://github.com/dkattan/vscode-copilot-debugger.git
@@ -24,7 +28,7 @@ npm install
 npm run compile
 ```
 
-1. Open the folder in VS Code.
+1. Open the folder in VS Code (Insiders recommended for dev).
 
 1. Set a default launch configuration name or inline JSON in your settings:
 
@@ -47,9 +51,18 @@ npm run compile
 Start the debugger and stop at the first breakpoint; only show variables matching ^PWD$.
 ```
 
-```text
+````text
 Resume the last debug session, add a breakpoint at src/server.ts line 42, and wait for it to hit.
+
+```text
+Evaluate the expression user.profile[0].email in the currently paused session.
+````
+
+```text
+Stop every debug session named "Web API".
 ```
+
+````
 
 ## 🐞 Debug Info Returned
 
@@ -100,9 +113,9 @@ This ensures quality code is committed without relying on CI for feedback.
 
 #### Test Organization
 
-- **Unit Tests**: `src/test/extension.test.ts`, `src/test/getStackFrameVariables.test.ts`
-- **Integration Tests (Node.js)**: `src/test/*.node.test.ts` - Test debug functionality with Node.js
-- **Integration Tests (PowerShell)**: `src/test/*.test.ts` (non-.node) - Test with PowerShell (local only)
+- **Smoke Test**: `src/test/extension.test.ts` validates the harness is wired up.
+- **DAP Helpers**: `src/test/debugUtils.test.ts` exercises breakpoint handling, variable inspection, and logpoints with Node.
+- **Multi-root Integration**: `src/test/multiRootWorkspace.test.ts` runs full start/resume flows across multiple workspace folders.
 
 #### Running Tests
 
@@ -112,7 +125,7 @@ npm test
 
 # Run tests in CI mode (skips PowerShell-only tests)
 CI=true npm test
-```
+````
 
 #### Test Execution Notes
 
@@ -124,13 +137,7 @@ You can optionally install the "Extension Test Runner" (`ms-vscode.extension-tes
 
 #### CI Testing Strategy
 
-Integration tests that start actual debug sessions are **skipped in CI** because:
-
-- VS Code debug sessions don't reliably initialize in headless CI environments
-- Even Microsoft's official extension samples skip complex debugging tests in CI
-- Tests run automatically via git hooks before local commits
-
-PowerShell-based tests are skipped in CI since they require PowerShell runtime. The Node.js test equivalents provide the same coverage using JavaScript.
+Integration tests that start actual debug sessions are **skipped in CI** because headless VS Code processes aren’t reliable on hosted runners. Instead, git hooks run the full suite locally before every commit. The Node.js-based integration tests provide cross-platform coverage without depending on PowerShell.
 
 ### Using VS Code Insiders for Development (Recommended Dual Setup)
 

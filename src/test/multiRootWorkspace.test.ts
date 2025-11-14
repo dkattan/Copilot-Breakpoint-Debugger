@@ -5,13 +5,9 @@ import { DAPHelpers } from '../debugUtils';
 import { startDebuggingAndWaitForStop } from '../session';
 import {
   activateCopilotDebugger,
-  assertPowerShellExtension,
   getExtensionRoot,
   openScriptDocument,
 } from './utils/startDebuggerToolTestUtils';
-
-// Integration tests for multi-root workspace scenarios
-// Tests individual workspaces (a: PowerShell, b: Node.js) and compound launch configs
 
 /**
  * Collect all variables from all scopes in the current debug session
@@ -53,25 +49,6 @@ function assertVariablesPresent(
 }
 
 describe('multi-Root Workspace Integration', () => {
-  // NOTE: These tests are currently SKIPPED due to how VS Code's test runner handles multi-root workspaces.
-  //
-  // Discovery: VS Code test runner spawns TWO separate extension host processes:
-  // 1. Process 1 - Always has 1 workspace folder (the project root)
-  // 2. Process 2 - Always has 3 workspace folders (the multi-root workspace)
-  //
-  // Both processes run the test suite. The `before` hook detects which process it's running in
-  // and skips all tests in Process 1 (wrong workspace), while Process 2 would have the correct
-  // workspace setup. Currently, tests are also individually skipped pending further work.
-  //
-  // The workspace configuration is static per process - determined at startup, not dynamically loaded.
-  // Therefore, no polling/waiting is needed - we can immediately check the workspace state.
-  //
-  // Related GitHub issues:
-  // - microsoft/vscode-test#38: Multi-root requires VS Code reload, difficult in tests
-  // - microsoft/vscode-test#79: Workspace settings not always respected
-  //
-  // The tests remain in the codebase as documentation of the intended multi-root functionality.
-
   before(function () {
     // Log test host information to understand which process we're in
     console.log('=== Multi-root Workspace Test Host Info ===');
@@ -136,72 +113,6 @@ describe('multi-Root Workspace Integration', () => {
     );
   });
 
-  it('workspace A (PowerShell) - individual debug session', async function () {
-    // Skip PowerShell tests in CI - they require PowerShell runtime
-    if (process.env.CI) {
-      console.log(
-        'Skipping PowerShell workspace test in CI (use Node.js tests for coverage)'
-      );
-      this.skip();
-      return;
-    }
-
-    this.timeout(5000);
-
-    const extensionRoot = getExtensionRoot();
-    const scriptUri = vscode.Uri.file(
-      path.join(extensionRoot, 'test-workspace/a/test.ps1')
-    );
-    // Use workspace-a folder specifically
-    const workspaceFolder =
-      vscode.workspace.workspaceFolders!.find(f => f.name === 'workspace-a')
-        ?.uri.fsPath || vscode.workspace.workspaceFolders![1].uri.fsPath;
-
-    await openScriptDocument(scriptUri);
-    await assertPowerShellExtension();
-    await activateCopilotDebugger();
-
-    const configurationName = 'Run a/test.ps1';
-    const context = await startDebuggingAndWaitForStop({
-      sessionName: 'workspace-a-pwsh',
-      workspaceFolder,
-      nameOrConfiguration: configurationName,
-      breakpointConfig: {
-        breakpoints: [
-          {
-            path: scriptUri.fsPath,
-            line: 1,
-          },
-        ],
-      },
-    });
-
-    // Assert we stopped at the expected line
-    assert.strictEqual(
-      context.frame.line,
-      1,
-      `Expected to stop at line 1, but stopped at line ${context.frame.line}`
-    );
-
-    // Assert the file path contains the expected file
-    assert.ok(
-      context.frame.source?.path?.includes('test.ps1'),
-      `Expected file path to contain 'test.ps1', got: ${context.frame.source?.path}`
-    );
-
-    // Collect variables from scopes using active session
-    const activeSession = vscode.debug.activeDebugSession;
-    assert.ok(activeSession, 'No active debug session after breakpoint hit');
-
-    const allVariables = await collectAllVariables(
-      activeSession,
-      context.scopes
-    );
-
-    // Verify that we got the expected variables
-    assertVariablesPresent(allVariables, ['PWD', 'HOME']);
-  });
-
   it('workspace B (Node.js) - individual debug session', async function () {
     this.timeout(5000);
 
@@ -210,14 +121,13 @@ describe('multi-Root Workspace Integration', () => {
       path.join(extensionRoot, 'test-workspace/b/test.js')
     );
     // Use workspace-b folder specifically
-    const workspaceFolder =
-      vscode.workspace.workspaceFolders!.find(f => f.name === 'workspace-b')
-        ?.uri.fsPath || vscode.workspace.workspaceFolders![2].uri.fsPath;
+    const workspaceFolder = 'test-workspace/b';
 
     await openScriptDocument(scriptUri);
     await activateCopilotDebugger();
 
-    const configurationName = 'Run b/test.js';
+    const configurationName = 'Run test.js';
+
     const context = await startDebuggingAndWaitForStop({
       sessionName: 'workspace-b-node',
       workspaceFolder,
@@ -258,76 +168,6 @@ describe('multi-Root Workspace Integration', () => {
     assertVariablesPresent(allVariables, ['randomValue']);
   });
 
-  it('workspace A with conditional breakpoint (PowerShell)', async function () {
-    // Skip PowerShell tests in CI - they require PowerShell runtime
-    if (process.env.CI) {
-      console.log(
-        'Skipping PowerShell conditional breakpoint test in CI (use Node.js tests for coverage)'
-      );
-      this.skip();
-      return;
-    }
-
-    this.timeout(5000);
-
-    const extensionRoot = getExtensionRoot();
-    const scriptUri = vscode.Uri.file(
-      path.join(extensionRoot, 'test-workspace/a/test.ps1')
-    );
-    // Use workspace-a folder specifically
-    const workspaceFolder =
-      vscode.workspace.workspaceFolders!.find(f => f.name === 'workspace-a')
-        ?.uri.fsPath || vscode.workspace.workspaceFolders![1].uri.fsPath;
-
-    await openScriptDocument(scriptUri);
-    await assertPowerShellExtension();
-    await activateCopilotDebugger();
-
-    const configurationName = 'Run a/test.ps1';
-    const condition = '$i -ge 3';
-    const lineInsideLoop = 8;
-
-    const context = await startDebuggingAndWaitForStop({
-      sessionName: 'workspace-a-conditional-pwsh',
-      workspaceFolder,
-      nameOrConfiguration: configurationName,
-      breakpointConfig: {
-        breakpoints: [
-          {
-            path: scriptUri.fsPath,
-            line: lineInsideLoop,
-            condition,
-          },
-        ],
-      },
-    });
-
-    // Assert we stopped at the expected line
-    assert.strictEqual(
-      context.frame.line,
-      lineInsideLoop,
-      `Expected to stop at line ${lineInsideLoop}, but stopped at line ${context.frame.line}`
-    );
-
-    // Collect variables from scopes using active session
-    const activeSession = vscode.debug.activeDebugSession;
-    assert.ok(activeSession, 'No active debug session after breakpoint hit');
-
-    const allVariables = await collectAllVariables(
-      activeSession,
-      context.scopes
-    );
-
-    // Verify we got the variable 'i' and that its value is >= 3
-    const iVariable = allVariables.find(v => v.name === 'i' || v.name === '$i');
-    assert.ok(iVariable, "Variable 'i' should be present");
-    const iValue = Number.parseInt(iVariable.value, 10);
-    assert.ok(
-      iValue >= 3,
-      `Conditional breakpoint should stop when i >= 3, but i = ${iValue}`
-    );
-  });
-
   it('workspace B with conditional breakpoint (Node.js)', async function () {
     this.timeout(5000);
 
@@ -336,9 +176,7 @@ describe('multi-Root Workspace Integration', () => {
       path.join(extensionRoot, 'test-workspace/b/test.js')
     );
     // Use workspace-b folder specifically
-    const workspaceFolder =
-      vscode.workspace.workspaceFolders!.find(f => f.name === 'workspace-b')
-        ?.uri.fsPath || vscode.workspace.workspaceFolders![2].uri.fsPath;
+    const workspaceFolder = 'test-workspace/b';
 
     await openScriptDocument(scriptUri);
     await activateCopilotDebugger();

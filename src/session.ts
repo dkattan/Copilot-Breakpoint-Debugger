@@ -272,55 +272,57 @@ export const startDebuggingAndWaitForStop = async (params: {
   const t0 = Date.now();
 
   let stopInfo: BreakpointHitInfo | undefined;
-  let debugContext: Awaited<ReturnType<typeof DAPHelpers.getDebugContext>> | undefined;
+  let debugContext:
+    | Awaited<ReturnType<typeof DAPHelpers.getDebugContext>>
+    | undefined;
   try {
     stopInfo = await stopPromise;
 
-  const elapsed = Date.now() - t0;
-  remainingMs = Math.max(0, remainingMs - elapsed);
-  // Entry stop handling: only auto-continue if entry location is NOT a user breakpoint line.
-  try {
-    const isEntry = stopInfo.reason === 'entry';
-    // Convert to 0-based line number for comparison with VSCode positions
-    const entryLineZeroBased =
-      stopInfo.line !== undefined ? stopInfo.line - 1 : -1;
-    validated.some(bp => bp.location.range.start.line === entryLineZeroBased);
-    if (isEntry) {
-      outputChannel.appendLine(
-        'Entry stop at non-breakpoint location; continuing to reach first user breakpoint.'
-      );
-
-      try {
-        await stopInfo.session.customRequest('continue', {
-          threadId: stopInfo.threadId,
-        });
-        stopInfo = await waitForBreakpointHit({
-          sessionName: effectiveSessionName,
-          timeout: remainingMs,
-        });
-      } catch (contErr) {
+    const elapsed = Date.now() - t0;
+    remainingMs = Math.max(0, remainingMs - elapsed);
+    // Entry stop handling: only auto-continue if entry location is NOT a user breakpoint line.
+    try {
+      const isEntry = stopInfo.reason === 'entry';
+      // Convert to 0-based line number for comparison with VSCode positions
+      const entryLineZeroBased =
+        stopInfo.line !== undefined ? stopInfo.line - 1 : -1;
+      validated.some(bp => bp.location.range.start.line === entryLineZeroBased);
+      if (isEntry) {
         outputChannel.appendLine(
-          `Failed to continue after entry: ${contErr instanceof Error ? contErr.message : String(contErr)}`
+          'Entry stop at non-breakpoint location; continuing to reach first user breakpoint.'
         );
+
+        try {
+          await stopInfo.session.customRequest('continue', {
+            threadId: stopInfo.threadId,
+          });
+          stopInfo = await waitForBreakpointHit({
+            sessionName: effectiveSessionName,
+            timeout: remainingMs,
+          });
+        } catch (contErr) {
+          outputChannel.appendLine(
+            `Failed to continue after entry: ${contErr instanceof Error ? contErr.message : String(contErr)}`
+          );
+        }
       }
+    } catch (parseErr) {
+      outputChannel.appendLine(
+        `Failed to parse first stop JSON for entry evaluation: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`
+      );
     }
-  } catch (parseErr) {
+
+    if (!success) {
+      throw new Error(`Failed to start debug session '${sessionName}'.`);
+    }
+
     outputChannel.appendLine(
-      `Failed to parse first stop JSON for entry evaluation: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`
+      `Active sessions after start: ${activeSessions
+        .map(s => `${s.name}:${s.id}`)
+        .join(', ')}`
     );
-  }
 
-  if (!success) {
-    throw new Error(`Failed to start debug session '${sessionName}'.`);
-  }
-
-  outputChannel.appendLine(
-    `Active sessions after start: ${activeSessions
-      .map(s => `${s.name}:${s.id}`)
-      .join(', ')}`
-  );
-
-  // If the session terminated without hitting a breakpoint, return termination stopInfo
+    // If the session terminated without hitting a breakpoint, return termination stopInfo
     if (stopInfo.reason === 'terminated') {
       throw new Error(
         `Debug session '${effectiveSessionName}' terminated before hitting a breakpoint.`

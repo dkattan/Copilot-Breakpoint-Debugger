@@ -2,7 +2,6 @@ import type { StartDebuggerInvocationOptions } from '../../testTypes';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { StartDebuggerTool } from '../../startDebuggerTool';
-const POWERSHELL_EXTENSION_ID = 'ms-vscode.powershell';
 
 export /** Resolve extension root path. */
 function getExtensionRoot(): string {
@@ -10,17 +9,6 @@ function getExtensionRoot(): string {
     vscode.extensions.getExtension('dkattan.copilot-breakpoint-debugger')
       ?.extensionPath || path.resolve(__dirname, '../../..')
   );
-}
-
-/** Ensure PowerShell extension is available and activated; throws if missing. */
-export async function assertPowerShellExtension(): Promise<void> {
-  const pwshExtension = vscode.extensions.getExtension(POWERSHELL_EXTENSION_ID);
-  if (!pwshExtension) {
-    throw new Error(`${POWERSHELL_EXTENSION_ID} is not installed`);
-  }
-  if (!pwshExtension.isActive) {
-    await pwshExtension.activate();
-  }
 }
 
 /** Activate our extension under test. */
@@ -54,11 +42,6 @@ export async function invokeStartDebuggerTool(
   const workspaceFolder = vscode.workspace.workspaceFolders[0].uri.fsPath;
 
   await openScriptDocument(scriptUri);
-
-  // Only check for PowerShell extension if using PowerShell scripts
-  if (opts.scriptRelativePath.endsWith('.ps1')) {
-    await assertPowerShellExtension();
-  }
 
   await activateCopilotDebugger();
 

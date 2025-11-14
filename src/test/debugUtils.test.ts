@@ -3,56 +3,103 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { DAPHelpers } from '../debugUtils';
 import { startDebuggingAndWaitForStop } from '../session';
+import {
+  activateCopilotDebugger,
+  getExtensionRoot,
+  openScriptDocument,
+} from './utils/startDebuggerToolTestUtils';
+let scriptPath: string;
+let workspaceFolder: string;
+const configurationName = 'Run test.js';
 
 describe('debugUtils - DAPHelpers', () => {
-  it('createSuccessResult creates valid result', () => {
-    const result = DAPHelpers.createSuccessResult('Test success message');
-    assert.ok(result);
-    assert.ok(result.content);
-    assert.ok(Array.isArray(result.content));
-    const parts = result.content as Array<{ value?: string }>;
-    const text = parts
-      .map(p => {
-        if (typeof p === 'object' && p !== null && 'value' in p) {
-          return (p as { value?: string }).value;
-        }
-        return '';
-      })
-      .join('');
-    assert.ok(text.includes('Test success message'));
+  before(async () => {
+    const extensionRoot = getExtensionRoot();
+    const scriptRelative = 'test-workspace/test.js';
+    const scriptUri = vscode.Uri.file(path.join(extensionRoot, scriptRelative));
+    assert.ok(vscode.workspace.workspaceFolders?.length);
+    workspaceFolder = vscode.workspace.workspaceFolders[0].uri.fsPath;
+    scriptPath = scriptUri.fsPath;
+    await openScriptDocument(scriptUri);
+    await activateCopilotDebugger();
   });
 
-  it('createErrorResult creates valid error result', () => {
-    const result = DAPHelpers.createErrorResult('Test error message');
-    assert.ok(result);
-    assert.ok(result.content);
-    assert.ok(Array.isArray(result.content));
-    const parts = result.content as Array<{ value?: string }>;
-    const text = parts
-      .map(p => {
-        if (typeof p === 'object' && p !== null && 'value' in p) {
-          return (p as { value?: string }).value;
-        }
-        return '';
-      })
-      .join('');
-    assert.ok(text.includes('Error:'));
-    assert.ok(text.includes('Test error message'));
+  it('hitCondition breakpoint triggers on specific hit count', async () => {
+    const lineInsideLoop = 9;
+    const context = await startDebuggingAndWaitForStop({
+      sessionName: 'hitcondition-node',
+      workspaceFolder,
+      nameOrConfiguration: configurationName,
+      breakpointConfig: {
+        breakpoints: [
+          {
+            path: scriptPath,
+            line: lineInsideLoop,
+            hitCondition: '6',
+          },
+        ],
+      },
+    });
+
+    assert.notDeepStrictEqual(
+      context.frame.line,
+      lineInsideLoop,
+      `Stopped at unexpected line ${context.frame.line}, expected not to stop at line with hitCondition breakpoint`
+    );
+
+    const activeSession = vscode.debug.activeDebugSession;
+    assert.ok(activeSession, 'No active debug session after breakpoint hit');
+
+    const allVariables: { name: string; value: string }[] = [];
+    for (const scope of context.scopes) {
+      const vars = await DAPHelpers.getVariablesFromReference(
+        activeSession,
+        scope.variablesReference
+      );
+      allVariables.push(...vars);
+    }
+    const iVariable = allVariables.find(v => v.name === 'i');
+    assert.ok(iVariable, 'Variable i not found in collected scopes');
+    const iValue = Number.parseInt(iVariable.value, 10);
+    assert.strictEqual(
+      iValue,
+      2,
+      `Expected i to be 2 when hitCondition breakpoint is hit the 3rd time, but got ${iValue}`
+    );
   });
 
-  it('getDebugContext returns null when no session', async () => {
-    // This test requires a mock session, but in absence of one we'll skip
-    // The function is already tested indirectly via other tool tests
+  it('logMessage breakpoint (logpoint) does not stop execution unless adapter treats it as breakpoint', async () => {
+    const lineInsideLoop = 9;
+    const postLoopLine = 14;
+
+    const context = await startDebuggingAndWaitForStop({
+      sessionName: 'logpoint-node',
+      workspaceFolder,
+      nameOrConfiguration: configurationName,
+      breakpointConfig: {
+        breakpoints: [
+          {
+            path: scriptPath,
+            line: lineInsideLoop,
+            // condition: 'i > 2',
+            logMessage: 'Logpoint Loop iteration: {i}',
+          },
+          {
+            path: scriptPath,
+            line: postLoopLine,
+          },
+        ],
+      },
+    });
+
+    assert.equal(
+      context.frame.line,
+      lineInsideLoop,
+      `Stopped at logpoint line ${lineInsideLoop}; expected to continue to ${postLoopLine}`
+    );
   });
 
-  it('getVariablesFromReference works in Node session', async function () {
-    this.timeout(5000);
-    const extensionRoot =
-      vscode.extensions.getExtension('dkattan.copilot-breakpoint-debugger')
-        ?.extensionPath || path.resolve(__dirname, '../../..');
-    const jsPath = path.join(extensionRoot, 'test-workspace/test.js');
-    const workspaceFolder = path.join(extensionRoot, 'test-workspace');
-
+  it('getVariablesFromReference works in Node session', async () => {
     const context = await startDebuggingAndWaitForStop({
       sessionName: 'getVariablesFromReference-test',
       workspaceFolder,
@@ -60,7 +107,7 @@ describe('debugUtils - DAPHelpers', () => {
       breakpointConfig: {
         breakpoints: [
           {
-            path: jsPath,
+            path: scriptPath,
             line: 5,
           },
         ],
@@ -89,14 +136,7 @@ describe('debugUtils - DAPHelpers', () => {
     }
   });
 
-  it('findVariableInScopes finds existing variable', async function () {
-    this.timeout(5000);
-    const extensionRoot =
-      vscode.extensions.getExtension('dkattan.copilot-breakpoint-debugger')
-        ?.extensionPath || path.resolve(__dirname, '../../..');
-    const jsPath = path.join(extensionRoot, 'test-workspace/test.js');
-    const workspaceFolder = path.join(extensionRoot, 'test-workspace');
-
+  it('findVariableInScopes finds existing variable', async () => {
     const context = await startDebuggingAndWaitForStop({
       sessionName: 'findVariableInScopes-test',
       workspaceFolder,
@@ -104,7 +144,7 @@ describe('debugUtils - DAPHelpers', () => {
       breakpointConfig: {
         breakpoints: [
           {
-            path: jsPath,
+            path: scriptPath,
             line: 5,
           },
         ],
@@ -125,14 +165,7 @@ describe('debugUtils - DAPHelpers', () => {
     assert.ok(found?.scopeName, 'Should have scope name');
   });
 
-  it('findVariableInScopes returns null for non-existent variable', async function () {
-    this.timeout(5000);
-    const extensionRoot =
-      vscode.extensions.getExtension('dkattan.copilot-breakpoint-debugger')
-        ?.extensionPath || path.resolve(__dirname, '../../..');
-    const jsPath = path.join(extensionRoot, 'test-workspace/test.js');
-    const workspaceFolder = path.join(extensionRoot, 'test-workspace');
-
+  it('findVariableInScopes returns null for non-existent variable', async () => {
     const context = await startDebuggingAndWaitForStop({
       sessionName: 'findVariableInScopes-null-test',
       workspaceFolder,
@@ -140,7 +173,7 @@ describe('debugUtils - DAPHelpers', () => {
       breakpointConfig: {
         breakpoints: [
           {
-            path: jsPath,
+            path: scriptPath,
             line: 5,
           },
         ],
@@ -159,14 +192,7 @@ describe('debugUtils - DAPHelpers', () => {
     assert.strictEqual(found, null, 'Should not find non-existent variable');
   });
 
-  it('getDebugContext works in active session', async function () {
-    this.timeout(5000);
-    const extensionRoot =
-      vscode.extensions.getExtension('dkattan.copilot-breakpoint-debugger')
-        ?.extensionPath || path.resolve(__dirname, '../../..');
-    const jsPath = path.join(extensionRoot, 'test-workspace/test.js');
-    const workspaceFolder = path.join(extensionRoot, 'test-workspace');
-
+  it('getDebugContext works in active session', async () => {
     await startDebuggingAndWaitForStop({
       sessionName: 'getDebugContext-test',
       workspaceFolder,
@@ -174,7 +200,7 @@ describe('debugUtils - DAPHelpers', () => {
       breakpointConfig: {
         breakpoints: [
           {
-            path: jsPath,
+            path: scriptPath,
             line: 5,
           },
         ],

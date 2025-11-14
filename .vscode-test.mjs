@@ -27,7 +27,7 @@ export default defineConfig({
   // Removed '--disable-extensions' so PowerShell can activate.
   launchArgs: [
     resolve(__dirname, 'test-workspace.code-workspace'),
-    // '--disable-extensions',
+    '--disable-extensions',
     // '--install-extension',
     // 'ms-vscode.powershell',
     // '--profile-temp',

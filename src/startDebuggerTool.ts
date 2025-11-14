@@ -14,9 +14,9 @@ export interface StartDebuggerToolParameters {
   variableFilter?: string[]; // Optional variable name filters (regex fragments joined by |)
   timeoutSeconds?: number; // Optional timeout for waiting for breakpoint (defaults handled downstream)
   configurationName?: string; // Optional launch configuration name (overrides setting)
-  breakpointConfig?: {
+  breakpointConfig: {
     disableExisting?: boolean;
-    breakpoints?: Array<{
+    breakpoints: Array<{
       path: string;
       line: number;
       condition?: string; // Optional conditional expression (e.g., "x > 5")
@@ -39,6 +39,14 @@ export class StartDebuggerTool
       configurationName,
       breakpointConfig,
     } = options.input;
+
+    if (!breakpointConfig?.breakpoints?.length) {
+      return new LanguageModelToolResult([
+        new LanguageModelTextPart(
+          'Error: Provide at least one breakpoint (path + line) before starting the debugger.'
+        ),
+      ]);
+    }
 
     const resolvedWorkspaceFolder =
       workspaceFolder?.trim() ||
@@ -69,17 +77,12 @@ export class StartDebuggerTool
     // 2. VS Code's startDebugging() will provide a clear error if the config doesn't exist
     // 3. This avoids false negatives where configs exist but aren't detected via API
 
-    const effectiveBreakpointConfig = {
-      disableExisting: breakpointConfig?.disableExisting,
-      breakpoints: breakpointConfig?.breakpoints ?? [],
-    };
-
     const stopInfo = await startDebuggingAndWaitForStop({
       workspaceFolder: resolvedWorkspaceFolder,
       nameOrConfiguration: effectiveConfigName,
       variableFilter,
       timeoutSeconds,
-      breakpointConfig: effectiveBreakpointConfig,
+      breakpointConfig,
       sessionName: '', // Empty string means match any session
     });
 

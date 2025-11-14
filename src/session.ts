@@ -1,8 +1,12 @@
 import type { BreakpointHitInfo } from './common';
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { activeSessions, outputChannel } from './common';
 import { DAPHelpers, type Variable } from './debugUtils';
 import { waitForBreakpointHit } from './events';
+
+const normalizeFsPath = (value: string) =>
+  path.normalize(value).replace(/\\/g, '/').replace(/\/+$/, '');
 
 /**
  * Variables grouped by scope
@@ -124,6 +128,15 @@ export const startDebuggingAndWaitForStop = async (params: {
     timeoutSeconds = 60,
     breakpointConfig,
   } = params;
+  const extensionRoot = vscode.extensions.getExtension(
+    'dkattan.copilot-breakpoint-debugger'
+  )?.extensionPath;
+  const resolvedWorkspaceFolder = path.isAbsolute(workspaceFolder)
+    ? workspaceFolder
+    : extensionRoot
+      ? path.resolve(extensionRoot, workspaceFolder)
+      : path.resolve(workspaceFolder);
+  const normalizedRequestedFolder = normalizeFsPath(resolvedWorkspaceFolder);
   // Ensure that workspace folders exist and are accessible.
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (!workspaceFolders || workspaceFolders.length === 0) {
@@ -133,47 +146,53 @@ export const startDebuggingAndWaitForStop = async (params: {
   outputChannel.appendLine(
     `Available workspace folders: ${workspaceFolders.map(f => `${f.name} -> ${f.uri.fsPath}`).join(', ')}`
   );
-  outputChannel.appendLine(`Looking for workspace folder: ${workspaceFolder}`);
+  outputChannel.appendLine(
+    `Looking for workspace folder (resolved): ${resolvedWorkspaceFolder}`
+  );
 
-  // Try exact match first
-  let folder = workspaceFolders.find(f => f.uri?.fsPath === workspaceFolder);
+  const normalizedFolders = workspaceFolders.map(f => ({
+    folder: f,
+    normalized: normalizeFsPath(f.uri.fsPath),
+  }));
+  // Try exact match first (supporting relative -> absolute resolution)
+  let folderEntry = normalizedFolders.find(
+    f => f.normalized === normalizedRequestedFolder
+  );
 
   // If no exact match, we might have been given a parent folder (repo root) while only a child (e.g. test-workspace) is opened,
   // OR we might have been given a child while only the parent is opened. Support both directions.
-  if (!folder) {
+  if (!folderEntry) {
     // Case 1: Requested path is parent of an opened workspace folder
-    const childOfRequested = workspaceFolders.find(
-      f =>
-        f.uri.fsPath.startsWith(`${workspaceFolder}/`) ||
-        f.uri.fsPath.startsWith(`${workspaceFolder}\\`)
+    const childOfRequested = normalizedFolders.find(f =>
+      f.normalized.startsWith(`${normalizedRequestedFolder}/`)
     );
     if (childOfRequested) {
-      folder = childOfRequested;
+      folderEntry = childOfRequested;
       outputChannel.appendLine(
-        `Requested parent folder '${workspaceFolder}' not open; using child workspace folder '${folder.uri.fsPath}'.`
+        `Requested parent folder '${resolvedWorkspaceFolder}' not open; using child workspace folder '${folderEntry.folder.uri.fsPath}'.`
       );
     }
   }
-  if (!folder) {
+  if (!folderEntry) {
     // Case 2: Requested path is a subfolder of an opened workspace folder
-    const parentOfRequested = workspaceFolders.find(
-      f =>
-        workspaceFolder.startsWith(`${f.uri.fsPath}/`) ||
-        workspaceFolder.startsWith(`${f.uri.fsPath}\\`)
+    const parentOfRequested = normalizedFolders.find(f =>
+      normalizedRequestedFolder.startsWith(`${f.normalized}/`)
     );
     if (parentOfRequested) {
-      folder = parentOfRequested;
+      folderEntry = parentOfRequested;
       outputChannel.appendLine(
-        `Requested subfolder '${workspaceFolder}' not open; using parent workspace folder '${folder.uri.fsPath}'.`
+        `Requested subfolder '${resolvedWorkspaceFolder}' not open; using parent workspace folder '${folderEntry.folder.uri.fsPath}'.`
       );
     }
   }
 
+  const folder = folderEntry?.folder;
   if (!folder) {
     throw new Error(
       `Workspace folder '${workspaceFolder}' not found. Available folders: ${workspaceFolders.map(f => f.uri.fsPath).join(', ')}`
     );
   }
+  const folderFsPath = folder.uri.fsPath;
   // Automatic backup & isolation of existing breakpoints (no extra params required)
   const originalBreakpoints = [...vscode.debug.breakpoints];
   if (originalBreakpoints.length) {
@@ -186,9 +205,9 @@ export const startDebuggingAndWaitForStop = async (params: {
   const seen = new Set<string>();
   const validated: vscode.SourceBreakpoint[] = [];
   for (const bp of breakpointConfig.breakpoints) {
-    const absolutePath = bp.path.startsWith('/')
+    const absolutePath = path.isAbsolute(bp.path)
       ? bp.path
-      : `${workspaceFolder}/${bp.path}`;
+      : path.join(folderFsPath, bp.path);
     try {
       const doc = await vscode.workspace.openTextDocument(
         vscode.Uri.file(absolutePath)
@@ -446,9 +465,10 @@ export const resumeDebugSession = async (params: {
       }
 
       const newBreakpoints = breakpointConfig.breakpoints.map(bp => {
-        const uri = vscode.Uri.file(
-          bp.path.startsWith('/') ? bp.path : `${workspaceFolder}/${bp.path}`
-        );
+        const absolutePath = path.isAbsolute(bp.path)
+          ? bp.path
+          : path.join(workspaceFolder, bp.path);
+        const uri = vscode.Uri.file(absolutePath);
         const location = new vscode.Position(bp.line - 1, 0); // VSCode uses 0-based line numbers
         return new vscode.SourceBreakpoint(
           new vscode.Location(uri, location),

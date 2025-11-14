@@ -1,4 +1,4 @@
-"use strict";
+'use strict';
 var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -10,45 +10,54 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 var __copyProps = (to, from, except, desc) => {
-  if (from && typeof from === "object" || typeof from === "function") {
+  if ((from && typeof from === 'object') || typeof from === 'function') {
     for (let key of __getOwnPropNames(from))
       if (!__hasOwnProp.call(to, key) && key !== except)
-        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+        __defProp(to, key, {
+          get: () => from[key],
+          enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable,
+        });
   }
   return to;
 };
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
-  // If the importer is in node compatibility mode or this is not an ESM
-  // file that has been converted to a CommonJS file using a Babel-
-  // compatible transform (i.e. "__esModule" has not been set), then set
-  // "default" to the CommonJS "module.exports" for node compatibility.
-  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
-  mod
-));
-var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var __toESM = (mod, isNodeMode, target) => (
+  (target = mod != null ? __create(__getProtoOf(mod)) : {}),
+  __copyProps(
+    // If the importer is in node compatibility mode or this is not an ESM
+    // file that has been converted to a CommonJS file using a Babel-
+    // compatible transform (i.e. "__esModule" has not been set), then set
+    // "default" to the CommonJS "module.exports" for node compatibility.
+    isNodeMode || !mod || !mod.__esModule
+      ? __defProp(target, 'default', { value: mod, enumerable: true })
+      : target,
+    mod
+  )
+);
+var __toCommonJS = mod =>
+  __copyProps(__defProp({}, '__esModule', { value: true }), mod);
 
 // src/extension.ts
 var extension_exports = {};
 __export(extension_exports, {
   activate: () => activate,
-  deactivate: () => deactivate
+  deactivate: () => deactivate,
 });
 module.exports = __toCommonJS(extension_exports);
-var vscode8 = __toESM(require("vscode"));
+var vscode8 = __toESM(require('vscode'));
 
 // src/evaluateExpressionTool.ts
-var vscode2 = __toESM(require("vscode"));
-var import_vscode2 = require("vscode");
+var vscode2 = __toESM(require('vscode'));
+var import_vscode2 = require('vscode');
 
 // src/common.ts
-var vscode = __toESM(require("vscode"));
-var outputChannel = vscode.window.createOutputChannel("Debug Tools");
+var vscode = __toESM(require('vscode'));
+var outputChannel = vscode.window.createOutputChannel('Debug Tools');
 var sessionStartEventEmitter = new vscode.EventEmitter();
 var onSessionStart = sessionStartEventEmitter.event;
 var activeSessions = [];
 var sessionTerminateEventEmitter = new vscode.EventEmitter();
 var onSessionTerminate = sessionTerminateEventEmitter.event;
-vscode.debug.onDidStartDebugSession((session) => {
+vscode.debug.onDidStartDebugSession(session => {
   activeSessions.push(session);
   outputChannel.appendLine(
     `Debug session started: ${session.name} (ID: ${session.id})`
@@ -56,7 +65,7 @@ vscode.debug.onDidStartDebugSession((session) => {
   outputChannel.appendLine(`Active sessions: ${activeSessions.length}`);
   sessionStartEventEmitter.fire(session);
 });
-vscode.debug.onDidTerminateDebugSession((session) => {
+vscode.debug.onDidTerminateDebugSession(session => {
   const index = activeSessions.indexOf(session);
   if (index >= 0) {
     activeSessions.splice(index, 1);
@@ -65,46 +74,48 @@ vscode.debug.onDidTerminateDebugSession((session) => {
     );
     outputChannel.appendLine(`Active sessions: ${activeSessions.length}`);
     sessionTerminateEventEmitter.fire({
-      session
+      session,
     });
   }
 });
-vscode.debug.onDidChangeActiveDebugSession((session) => {
+vscode.debug.onDidChangeActiveDebugSession(session => {
   outputChannel.appendLine(
-    `Active debug session changed: ${session ? session.name : "None"}`
+    `Active debug session changed: ${session ? session.name : 'None'}`
   );
 });
 
 // src/debugUtils.ts
-var import_vscode = require("vscode");
+var import_vscode = require('vscode');
 var DAPHelpers = class {
   static async getDebugContext(session, threadId) {
-    const { threads } = await session.customRequest("threads");
+    const { threads } = await session.customRequest('threads');
     if (!threads || threads.length === 0) {
       throw new Error(
         `No threads available in session ${session.id} (${session.name})`
       );
     }
-    const effectiveThreadId = typeof threadId === "number" ? threadId : threads[0].id;
-    const thread = threads.find(
-      (t) => t.id === effectiveThreadId
-    );
+    const effectiveThreadId =
+      typeof threadId === 'number' ? threadId : threads[0].id;
+    const thread = threads.find(t => t.id === effectiveThreadId);
     if (!thread) {
       throw new Error(
         `Thread with id ${effectiveThreadId} not found in session ${session.id} (${session.name})`
       );
     }
-    const stackTraceResponse = await session.customRequest("stackTrace", {
-      threadId: thread.id
+    const stackTraceResponse = await session.customRequest('stackTrace', {
+      threadId: thread.id,
     });
-    if (!stackTraceResponse.stackFrames || stackTraceResponse.stackFrames.length === 0) {
+    if (
+      !stackTraceResponse.stackFrames ||
+      stackTraceResponse.stackFrames.length === 0
+    ) {
       throw new Error(
         `No stack frames available for thread ${thread.id} in session ${session.id} (${session.name})`
       );
     }
     const topFrame = stackTraceResponse.stackFrames[0];
-    const scopesResponse = await session.customRequest("scopes", {
-      frameId: topFrame.id
+    const scopesResponse = await session.customRequest('scopes', {
+      frameId: topFrame.id,
     });
     if (!scopesResponse.scopes || scopesResponse.scopes.length === 0) {
       throw new Error(
@@ -114,14 +125,14 @@ var DAPHelpers = class {
     return {
       thread,
       frame: topFrame,
-      scopes: scopesResponse.scopes
+      scopes: scopesResponse.scopes,
     };
   }
   static async getVariablesFromReference(session, variablesReference) {
     let variablesResponse;
     try {
-      variablesResponse = await session.customRequest("variables", {
-        variablesReference
+      variablesResponse = await session.customRequest('variables', {
+        variablesReference,
       });
     } catch {
       return [];
@@ -129,11 +140,11 @@ var DAPHelpers = class {
     if (!variablesResponse?.variables) {
       return [];
     }
-    return variablesResponse.variables.map((v) => ({
+    return variablesResponse.variables.map(v => ({
       name: v.evaluateName || v.name,
       value: v.value,
       type: v.type,
-      isExpandable: v.variablesReference > 0
+      isExpandable: v.variablesReference > 0,
     }));
   }
   static async findVariableInScopes(session, scopes, variableName) {
@@ -142,7 +153,7 @@ var DAPHelpers = class {
         session,
         scope.variablesReference
       );
-      const foundVariable = variables.find((v) => v.name === variableName);
+      const foundVariable = variables.find(v => v.name === variableName);
       if (foundVariable) {
         return { variable: foundVariable, scopeName: scope.name };
       }
@@ -154,7 +165,9 @@ var DAPHelpers = class {
     return new import_vscode.LanguageModelToolResult([textPart]);
   }
   static createErrorResult(message) {
-    const textPart = new import_vscode.LanguageModelTextPart(`Error: ${message}`);
+    const textPart = new import_vscode.LanguageModelTextPart(
+      `Error: ${message}`
+    );
     return new import_vscode.LanguageModelToolResult([textPart]);
   }
 };
@@ -166,7 +179,7 @@ var EvaluateExpressionTool = class {
     try {
       let session;
       if (sessionId) {
-        session = activeSessions.find((s) => s.id === sessionId);
+        session = activeSessions.find(s => s.id === sessionId);
       }
       if (!session) {
         session = vscode2.debug.activeDebugSession || activeSessions[0];
@@ -174,12 +187,12 @@ var EvaluateExpressionTool = class {
       if (!session) {
         return new import_vscode2.LanguageModelToolResult([
           new import_vscode2.LanguageModelTextPart(
-            "Error: No active debug session found to evaluate expression."
-          )
+            'Error: No active debug session found to evaluate expression.'
+          ),
         ]);
       }
       const debugContext = await DAPHelpers.getDebugContext(session, threadId);
-      const evalArgs = { expression, context: "watch" };
+      const evalArgs = { expression, context: 'watch' };
       if (debugContext?.frame?.id !== void 0) {
         evalArgs.frameId = debugContext.frame.id;
       }
@@ -188,13 +201,14 @@ var EvaluateExpressionTool = class {
       );
       let evalResponse;
       try {
-        evalResponse = await session.customRequest("evaluate", evalArgs);
+        evalResponse = await session.customRequest('evaluate', evalArgs);
       } catch (err) {
-        const message = err instanceof Error ? err.message : JSON.stringify(err);
+        const message =
+          err instanceof Error ? err.message : JSON.stringify(err);
         return new import_vscode2.LanguageModelToolResult([
           new import_vscode2.LanguageModelTextPart(
             `Error evaluating expression '${expression}': ${message}`
-          )
+          ),
         ]);
       }
       const resultJson = {
@@ -202,28 +216,28 @@ var EvaluateExpressionTool = class {
         result: evalResponse?.result,
         type: evalResponse?.type,
         presentationHint: evalResponse?.presentationHint,
-        variablesReference: evalResponse?.variablesReference
+        variablesReference: evalResponse?.variablesReference,
       };
       return new import_vscode2.LanguageModelToolResult([
-        new import_vscode2.LanguageModelTextPart(JSON.stringify(resultJson))
+        new import_vscode2.LanguageModelTextPart(JSON.stringify(resultJson)),
       ]);
     } catch (error) {
       return new import_vscode2.LanguageModelToolResult([
         new import_vscode2.LanguageModelTextPart(
           `Unexpected error evaluating expression: ${error instanceof Error ? error.message : String(error)}`
-        )
+        ),
       ]);
     }
   }
   prepareInvocation(options) {
     return {
-      invocationMessage: `Evaluating expression '${options.input.expression}' in debug session`
+      invocationMessage: `Evaluating expression '${options.input.expression}' in debug session`,
     };
   }
 };
 
 // src/expandVariableTool.ts
-var vscode3 = __toESM(require("vscode"));
+var vscode3 = __toESM(require('vscode'));
 var ExpandVariableTool = class {
   /**
    * Expand a variable and get its children as structured data.
@@ -233,12 +247,12 @@ var ExpandVariableTool = class {
   async expandVariable(variableName) {
     const activeSession = vscode3.debug.activeDebugSession;
     if (!activeSession) {
-      throw new Error("No active debug session found");
+      throw new Error('No active debug session found');
     }
     const debugContext = await DAPHelpers.getDebugContext(activeSession);
     if (!debugContext) {
       throw new Error(
-        "Unable to get debug context (threads, frames, or scopes)"
+        'Unable to get debug context (threads, frames, or scopes)'
       );
     }
     const foundVariable = await DAPHelpers.findVariableInScopes(
@@ -251,7 +265,7 @@ var ExpandVariableTool = class {
     }
     const expandedData = {
       variable: foundVariable.variable,
-      children: []
+      children: [],
     };
     if (foundVariable.variable.isExpandable) {
       const originalVariable = await this.getOriginalVariable(
@@ -275,7 +289,8 @@ var ExpandVariableTool = class {
       const result = JSON.stringify(expandedData, null, 2);
       return DAPHelpers.createSuccessResult(result);
     } catch (_error) {
-      const errorMessage = _error instanceof Error ? _error.message : "Unknown error occurred";
+      const errorMessage =
+        _error instanceof Error ? _error.message : 'Unknown error occurred';
       return DAPHelpers.createErrorResult(
         `Failed to expand variable: ${errorMessage}`
       );
@@ -285,15 +300,15 @@ var ExpandVariableTool = class {
     for (const scope of scopes) {
       let variablesResponse;
       try {
-        variablesResponse = await session.customRequest("variables", {
-          variablesReference: scope.variablesReference
+        variablesResponse = await session.customRequest('variables', {
+          variablesReference: scope.variablesReference,
         });
       } catch {
         continue;
       }
       if (variablesResponse?.variables) {
         const foundVariable = variablesResponse.variables.find(
-          (v) => (v.evaluateName || v.name) === variableName
+          v => (v.evaluateName || v.name) === variableName
         );
         if (foundVariable) {
           return foundVariable;
@@ -304,13 +319,13 @@ var ExpandVariableTool = class {
   }
   prepareInvocation(options) {
     return {
-      invocationMessage: `Expanding variable '${options.input.variableName}'`
+      invocationMessage: `Expanding variable '${options.input.variableName}'`,
     };
   }
 };
 
 // src/getVariablesTool.ts
-var vscode4 = __toESM(require("vscode"));
+var vscode4 = __toESM(require('vscode'));
 var GetVariablesTool = class {
   /**
    * Get all variables from the active debug session as structured data.
@@ -319,18 +334,18 @@ var GetVariablesTool = class {
   async getVariables() {
     const activeSession = vscode4.debug.activeDebugSession;
     if (!activeSession) {
-      throw new Error("No active debug session found");
+      throw new Error('No active debug session found');
     }
     const debugContext = await DAPHelpers.getDebugContext(activeSession);
     if (!debugContext) {
       throw new Error(
-        "Unable to get debug context (threads, frames, or scopes)"
+        'Unable to get debug context (threads, frames, or scopes)'
       );
     }
     const variablesData = {
-      type: "variables",
+      type: 'variables',
       sessionId: activeSession.id,
-      scopes: []
+      scopes: [],
     };
     for (const scope of debugContext.scopes) {
       const variables = await DAPHelpers.getVariablesFromReference(
@@ -342,7 +357,7 @@ var GetVariablesTool = class {
       }
     }
     if (variablesData.scopes.length === 0) {
-      throw new Error("No variables found in current scope");
+      throw new Error('No variables found in current scope');
     }
     return variablesData;
   }
@@ -352,7 +367,8 @@ var GetVariablesTool = class {
       const serialized = JSON.stringify(variablesData, null, 2);
       return DAPHelpers.createSuccessResult(serialized);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error occurred';
       return DAPHelpers.createErrorResult(
         `Failed to get variables: ${errorMessage}`
       );
@@ -360,23 +376,24 @@ var GetVariablesTool = class {
   }
   prepareInvocation(_options) {
     return {
-      invocationMessage: "Getting all variables from debug session"
+      invocationMessage: 'Getting all variables from debug session',
     };
   }
 };
 
 // src/resumeDebugSessionTool.ts
-var import_vscode3 = require("vscode");
+var import_vscode3 = require('vscode');
 
 // src/session.ts
-var vscode6 = __toESM(require("vscode"));
+var path = __toESM(require('node:path'));
+var vscode6 = __toESM(require('vscode'));
 
 // src/events.ts
-var vscode5 = __toESM(require("vscode"));
+var vscode5 = __toESM(require('vscode'));
 var breakpointEventEmitter = new vscode5.EventEmitter();
 var onBreakpointHit = breakpointEventEmitter.event;
-vscode5.debug.registerDebugAdapterTrackerFactory("*", {
-  createDebugAdapterTracker: (session) => {
+vscode5.debug.registerDebugAdapterTrackerFactory('*', {
+  createDebugAdapterTracker: session => {
     class DebugAdapterTrackerImpl {
       onWillStartSession() {
         outputChannel.appendLine(`Debug session starting: ${session.name}`);
@@ -387,31 +404,31 @@ vscode5.debug.registerDebugAdapterTrackerFactory("*", {
         );
       }
       async onDidSendMessage(message) {
-        if (message.type !== "event") {
+        if (message.type !== 'event') {
           return;
         }
         const event = message;
-        if (event.event !== "stopped") {
+        if (event.event !== 'stopped') {
           return;
         }
         const body = event.body;
         const validReasons = [
-          "breakpoint",
-          "step",
-          "pause",
-          "exception",
-          "assertion",
-          "entry"
+          'breakpoint',
+          'step',
+          'pause',
+          'exception',
+          'assertion',
+          'entry',
         ];
         if (!validReasons.includes(body.reason)) {
           return;
         }
         try {
           let exceptionDetails;
-          if (body.reason === "exception" && body.description) {
+          if (body.reason === 'exception' && body.description) {
             exceptionDetails = {
-              description: body.description || "Unknown exception",
-              details: body.text || "No additional details available"
+              description: body.description || 'Unknown exception',
+              details: body.text || 'No additional details available',
             };
           }
           const retries = 3;
@@ -420,7 +437,7 @@ vscode5.debug.registerDebugAdapterTrackerFactory("*", {
           for (let attempt = 0; attempt < retries; attempt++) {
             try {
               if (attempt > 0) {
-                await new Promise((r) => setTimeout(r, 50 * attempt));
+                await new Promise(r => setTimeout(r, 50 * attempt));
               }
               callStackData = await DAPHelpers.getDebugContext(
                 session,
@@ -451,7 +468,7 @@ vscode5.debug.registerDebugAdapterTrackerFactory("*", {
             frameId: callStackData.frame.id,
             filePath: callStackData.frame.source?.path,
             line: callStackData.frame.line,
-            exceptionInfo: exceptionDetails
+            exceptionInfo: exceptionDetails,
           };
           outputChannel.appendLine(
             `Firing breakpoint event: ${JSON.stringify(eventData)}`
@@ -465,7 +482,7 @@ vscode5.debug.registerDebugAdapterTrackerFactory("*", {
           const errorEvent = {
             session,
             threadId: body?.threadId ?? 0,
-            reason: "error"
+            reason: 'error',
           };
           breakpointEventEmitter.fire(errorEvent);
         }
@@ -490,148 +507,168 @@ vscode5.debug.registerDebugAdapterTrackerFactory("*", {
       }
     }
     return new DebugAdapterTrackerImpl();
-  }
+  },
 });
-var waitForBreakpointHit = async (params) => {
+var waitForBreakpointHit = async params => {
   const { sessionName, timeout = 3e4 } = params;
-  const breakpointHitPromise = new Promise(
-    (resolve, reject) => {
-      let terminateListener;
-      let timeoutHandle;
-      const listener = onBreakpointHit((event) => {
+  const breakpointHitPromise = new Promise((resolve2, reject) => {
+    let terminateListener;
+    let timeoutHandle;
+    const listener = onBreakpointHit(event => {
+      outputChannel.appendLine(
+        `Breakpoint hit detected for waitForBreakpointHit for session ${event.session.name} with id ${event.session.id}`
+      );
+      const currentSessions = activeSessions;
+      if (currentSessions.length === 0) {
+        throw new Error(
+          `No active debug sessions found while waiting for breakpoint hit.`
+        );
+      }
+      let targetSession = currentSessions.find(
+        s => s.name.endsWith(sessionName) && s.parentSession
+        //||
+        // (s.configuration &&
+        //   (s.configuration as DebugConfiguration).sessionName ===
+        //     sessionName)
+      );
+      if (!targetSession) {
+        targetSession = currentSessions[currentSessions.length - 1];
         outputChannel.appendLine(
-          `Breakpoint hit detected for waitForBreakpointHit for session ${event.session.name} with id ${event.session.id}`
+          `Using most recent session for matching: ${targetSession.name} (${targetSession.id})`
         );
-        const currentSessions = activeSessions;
-        if (currentSessions.length === 0) {
-          throw new Error(
-            `No active debug sessions found while waiting for breakpoint hit.`
-          );
-        }
-        let targetSession = currentSessions.find(
-          (s) => s.name.endsWith(sessionName) && s.parentSession
-          //||
-          // (s.configuration &&
-          //   (s.configuration as DebugConfiguration).sessionName ===
-          //     sessionName)
-        );
-        if (!targetSession) {
-          targetSession = currentSessions[currentSessions.length - 1];
-          outputChannel.appendLine(
-            `Using most recent session for matching: ${targetSession.name} (${targetSession.id})`
-          );
-        }
-        const eventMatchesTarget = (
-          // event.sessionName === targetSession.id ||
-          event.session.name === targetSession.name || event.session.name.startsWith(targetSession.name) || targetSession.name.startsWith(event.session.name)
-        );
-        if (eventMatchesTarget) {
-          listener.dispose();
-          terminateListener?.dispose();
-          if (timeoutHandle) {
-            clearTimeout(timeoutHandle);
-            timeoutHandle = void 0;
-          }
-          resolve(event);
-          outputChannel.appendLine(
-            `Breakpoint hit detected for waitForBreakpointHit: ${JSON.stringify(event)}`
-          );
-        }
-      });
-      terminateListener = onSessionTerminate((endEvent) => {
-        outputChannel.appendLine(
-          `Session termination detected for waitForBreakpointHit: ${JSON.stringify(endEvent)}`
-        );
+      }
+      const eventMatchesTarget =
+        // event.sessionName === targetSession.id ||
+        event.session.name === targetSession.name ||
+        event.session.name.startsWith(targetSession.name) ||
+        targetSession.name.startsWith(event.session.name);
+      if (eventMatchesTarget) {
         listener.dispose();
         terminateListener?.dispose();
         if (timeoutHandle) {
           clearTimeout(timeoutHandle);
           timeoutHandle = void 0;
         }
-        resolve({
-          session: endEvent.session,
-          threadId: 0,
-          reason: "terminated"
-        });
-      });
-      timeoutHandle = setTimeout(() => {
-        listener.dispose();
-        terminateListener?.dispose();
+        resolve2(event);
+        outputChannel.appendLine(
+          `Breakpoint hit detected for waitForBreakpointHit: ${JSON.stringify(event)}`
+        );
+      }
+    });
+    terminateListener = onSessionTerminate(endEvent => {
+      outputChannel.appendLine(
+        `Session termination detected for waitForBreakpointHit: ${JSON.stringify(endEvent)}`
+      );
+      listener.dispose();
+      terminateListener?.dispose();
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
         timeoutHandle = void 0;
-        try {
-          let targetSessions = activeSessions.filter(
-            (s) => s.name.endsWith(sessionName)
-          );
-          if (targetSessions.length === 0 && activeSessions.length > 0) {
-            targetSessions = [activeSessions[activeSessions.length - 1]];
-          }
-          for (const s of targetSessions) {
-            void vscode5.debug.stopDebugging(s);
-            outputChannel.appendLine(
-              `Timeout reached; stopping debug session ${s.name} (${s.id}).`
-            );
-          }
-        } catch (e) {
+      }
+      resolve2({
+        session: endEvent.session,
+        threadId: 0,
+        reason: 'terminated',
+      });
+    });
+    timeoutHandle = setTimeout(() => {
+      listener.dispose();
+      terminateListener?.dispose();
+      timeoutHandle = void 0;
+      try {
+        let targetSessions = activeSessions.filter(s =>
+          s.name.endsWith(sessionName)
+        );
+        if (targetSessions.length === 0 && activeSessions.length > 0) {
+          targetSessions = [activeSessions[activeSessions.length - 1]];
+        }
+        for (const s of targetSessions) {
+          void vscode5.debug.stopDebugging(s);
           outputChannel.appendLine(
-            `Timeout cleanup error stopping sessions: ${e instanceof Error ? e.message : String(e)}`
+            `Timeout reached; stopping debug session ${s.name} (${s.id}).`
           );
         }
-        reject(
-          new Error(
-            `Timed out waiting for breakpoint or termination (${timeout}ms).`
-          )
+      } catch (e) {
+        outputChannel.appendLine(
+          `Timeout cleanup error stopping sessions: ${e instanceof Error ? e.message : String(e)}`
         );
-      }, timeout);
-    }
-  );
+      }
+      reject(
+        new Error(
+          `Timed out waiting for breakpoint or termination (${timeout}ms).`
+        )
+      );
+    }, timeout);
+  });
   return await breakpointHitPromise;
 };
 
 // src/session.ts
-var startDebuggingAndWaitForStop = async (params) => {
+var normalizeFsPath = value =>
+  path.normalize(value).replace(/\\/g, '/').replace(/\/+$/, '');
+var startDebuggingAndWaitForStop = async params => {
   const {
     sessionName,
     workspaceFolder,
     nameOrConfiguration,
     timeoutSeconds = 60,
-    breakpointConfig
+    breakpointConfig,
   } = params;
+  const extensionRoot = vscode6.extensions.getExtension(
+    'dkattan.copilot-breakpoint-debugger'
+  )?.extensionPath;
+  const resolvedWorkspaceFolder = path.isAbsolute(workspaceFolder)
+    ? workspaceFolder
+    : extensionRoot
+      ? path.resolve(extensionRoot, workspaceFolder)
+      : path.resolve(workspaceFolder);
+  const normalizedRequestedFolder = normalizeFsPath(resolvedWorkspaceFolder);
   const workspaceFolders = vscode6.workspace.workspaceFolders;
   if (!workspaceFolders || workspaceFolders.length === 0) {
-    throw new Error("No workspace folders are currently open.");
+    throw new Error('No workspace folders are currently open.');
   }
   outputChannel.appendLine(
-    `Available workspace folders: ${workspaceFolders.map((f) => `${f.name} -> ${f.uri.fsPath}`).join(", ")}`
+    `Available workspace folders: ${workspaceFolders.map(f => `${f.name} -> ${f.uri.fsPath}`).join(', ')}`
   );
-  outputChannel.appendLine(`Looking for workspace folder: ${workspaceFolder}`);
-  let folder = workspaceFolders.find((f) => f.uri?.fsPath === workspaceFolder);
-  if (!folder) {
-    const childOfRequested = workspaceFolders.find(
-      (f) => f.uri.fsPath.startsWith(`${workspaceFolder}/`) || f.uri.fsPath.startsWith(`${workspaceFolder}\\`)
+  outputChannel.appendLine(
+    `Looking for workspace folder (resolved): ${resolvedWorkspaceFolder}`
+  );
+  const normalizedFolders = workspaceFolders.map(f => ({
+    folder: f,
+    normalized: normalizeFsPath(f.uri.fsPath),
+  }));
+  let folderEntry = normalizedFolders.find(
+    f => f.normalized === normalizedRequestedFolder
+  );
+  if (!folderEntry) {
+    const childOfRequested = normalizedFolders.find(f =>
+      f.normalized.startsWith(`${normalizedRequestedFolder}/`)
     );
     if (childOfRequested) {
-      folder = childOfRequested;
+      folderEntry = childOfRequested;
       outputChannel.appendLine(
-        `Requested parent folder '${workspaceFolder}' not open; using child workspace folder '${folder.uri.fsPath}'.`
+        `Requested parent folder '${resolvedWorkspaceFolder}' not open; using child workspace folder '${folderEntry.folder.uri.fsPath}'.`
       );
     }
   }
-  if (!folder) {
-    const parentOfRequested = workspaceFolders.find(
-      (f) => workspaceFolder.startsWith(`${f.uri.fsPath}/`) || workspaceFolder.startsWith(`${f.uri.fsPath}\\`)
+  if (!folderEntry) {
+    const parentOfRequested = normalizedFolders.find(f =>
+      normalizedRequestedFolder.startsWith(`${f.normalized}/`)
     );
     if (parentOfRequested) {
-      folder = parentOfRequested;
+      folderEntry = parentOfRequested;
       outputChannel.appendLine(
-        `Requested subfolder '${workspaceFolder}' not open; using parent workspace folder '${folder.uri.fsPath}'.`
+        `Requested subfolder '${resolvedWorkspaceFolder}' not open; using parent workspace folder '${folderEntry.folder.uri.fsPath}'.`
       );
     }
   }
+  const folder = folderEntry?.folder;
   if (!folder) {
     throw new Error(
-      `Workspace folder '${workspaceFolder}' not found. Available folders: ${workspaceFolders.map((f) => f.uri.fsPath).join(", ")}`
+      `Workspace folder '${workspaceFolder}' not found. Available folders: ${workspaceFolders.map(f => f.uri.fsPath).join(', ')}`
     );
   }
+  const folderFsPath = folder.uri.fsPath;
   const originalBreakpoints = [...vscode6.debug.breakpoints];
   if (originalBreakpoints.length) {
     outputChannel.appendLine(
@@ -642,7 +679,9 @@ var startDebuggingAndWaitForStop = async (params) => {
   const seen = /* @__PURE__ */ new Set();
   const validated = [];
   for (const bp of breakpointConfig.breakpoints) {
-    const absolutePath = bp.path.startsWith("/") ? bp.path : `${workspaceFolder}/${bp.path}`;
+    const absolutePath = path.isAbsolute(bp.path)
+      ? bp.path
+      : path.join(folderFsPath, bp.path);
     try {
       const doc = await vscode6.workspace.openTextDocument(
         vscode6.Uri.file(absolutePath)
@@ -682,33 +721,31 @@ var startDebuggingAndWaitForStop = async (params) => {
     outputChannel.appendLine(
       `Added ${validated.length} validated breakpoint(s).`
     );
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise(resolve2 => setTimeout(resolve2, 500));
   } else {
-    outputChannel.appendLine("No valid breakpoints to add after validation.");
+    outputChannel.appendLine('No valid breakpoints to add after validation.');
   }
-  const launchConfig = vscode6.workspace.getConfiguration("launch", folder.uri);
-  const allConfigs = launchConfig.get(
-    "configurations"
-  ) || [];
-  const found = allConfigs.find((c) => c.name === nameOrConfiguration);
+  const launchConfig = vscode6.workspace.getConfiguration('launch', folder.uri);
+  const allConfigs = launchConfig.get('configurations') || [];
+  const found = allConfigs.find(c => c.name === nameOrConfiguration);
   if (!found) {
     throw new Error(
       `Launch configuration '${nameOrConfiguration}' not found in ${folder.uri.fsPath}. Add it to .vscode/launch.json.`
     );
   }
   const resolvedConfig = { ...found };
-  if (!("stopOnEntry" in resolvedConfig)) {
+  if (!('stopOnEntry' in resolvedConfig)) {
     resolvedConfig.stopOnEntry = true;
   } else {
     resolvedConfig.stopOnEntry = true;
   }
-  const effectiveSessionName = sessionName || resolvedConfig.name || "";
+  const effectiveSessionName = sessionName || resolvedConfig.name || '';
   outputChannel.appendLine(
     `Starting debugger with configuration '${resolvedConfig.name}' (stopOnEntry forced to true). Waiting for first stop event.`
   );
   const stopPromise = waitForBreakpointHit({
     sessionName: effectiveSessionName,
-    timeout: timeoutSeconds * 1e3
+    timeout: timeoutSeconds * 1e3,
   });
   const success = await vscode6.debug.startDebugging(folder, resolvedConfig);
   if (!success) {
@@ -723,20 +760,21 @@ var startDebuggingAndWaitForStop = async (params) => {
     const elapsed = Date.now() - t0;
     remainingMs = Math.max(0, remainingMs - elapsed);
     try {
-      const isEntry = stopInfo.reason === "entry";
-      const entryLineZeroBased = stopInfo.line !== void 0 ? stopInfo.line - 1 : -1;
-      validated.some((bp) => bp.location.range.start.line === entryLineZeroBased);
+      const isEntry = stopInfo.reason === 'entry';
+      const entryLineZeroBased =
+        stopInfo.line !== void 0 ? stopInfo.line - 1 : -1;
+      validated.some(bp => bp.location.range.start.line === entryLineZeroBased);
       if (isEntry) {
         outputChannel.appendLine(
-          "Entry stop at non-breakpoint location; continuing to reach first user breakpoint."
+          'Entry stop at non-breakpoint location; continuing to reach first user breakpoint.'
         );
         try {
-          await stopInfo.session.customRequest("continue", {
-            threadId: stopInfo.threadId
+          await stopInfo.session.customRequest('continue', {
+            threadId: stopInfo.threadId,
           });
           stopInfo = await waitForBreakpointHit({
             sessionName: effectiveSessionName,
-            timeout: remainingMs
+            timeout: remainingMs,
           });
         } catch (contErr) {
           outputChannel.appendLine(
@@ -753,9 +791,9 @@ var startDebuggingAndWaitForStop = async (params) => {
       throw new Error(`Failed to start debug session '${sessionName}'.`);
     }
     outputChannel.appendLine(
-      `Active sessions after start: ${activeSessions.map((s) => `${s.name}:${s.id}`).join(", ")}`
+      `Active sessions after start: ${activeSessions.map(s => `${s.name}:${s.id}`).join(', ')}`
     );
-    if (stopInfo.reason === "terminated") {
+    if (stopInfo.reason === 'terminated') {
       throw new Error(
         `Debug session '${effectiveSessionName}' terminated before hitting a breakpoint.`
       );
@@ -779,14 +817,14 @@ var startDebuggingAndWaitForStop = async (params) => {
         `Restored ${originalBreakpoints.length} original breakpoint(s).`
       );
     } else {
-      outputChannel.appendLine("No original breakpoints to restore.");
+      outputChannel.appendLine('No original breakpoints to restore.');
     }
   }
 };
-var stopDebugSession = async (params) => {
+var stopDebugSession = async params => {
   const { sessionName } = params;
   const matchingSessions = activeSessions.filter(
-    (session) => session.name === sessionName
+    session => session.name === sessionName
   );
   if (matchingSessions.length === 0) {
     throw new Error(`No debug session(s) found with name '${sessionName}'.`);
@@ -795,21 +833,21 @@ var stopDebugSession = async (params) => {
     await vscode6.debug.stopDebugging(session);
   }
 };
-var resumeDebugSession = async (params) => {
+var resumeDebugSession = async params => {
   const { sessionId, breakpointConfig } = params;
-  let session = activeSessions.find((s) => s.id === sessionId);
+  let session = activeSessions.find(s => s.id === sessionId);
   if (!session) {
-    session = activeSessions.find((s) => s.name.includes(sessionId));
+    session = activeSessions.find(s => s.name.includes(sessionId));
   }
   if (!session) {
     return {
       content: [
         {
-          type: "text",
-          text: `No debug session found with ID '${sessionId}'.`
-        }
+          type: 'text',
+          text: `No debug session found with ID '${sessionId}'.`,
+        },
       ],
-      isError: true
+      isError: true,
     };
   }
   if (breakpointConfig) {
@@ -819,17 +857,23 @@ var resumeDebugSession = async (params) => {
         vscode6.debug.removeBreakpoints(allBreakpoints);
       }
     }
-    if (breakpointConfig.breakpoints && breakpointConfig.breakpoints.length > 0) {
-      const workspaceFolder = session.workspaceFolder?.uri.fsPath || vscode6.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (
+      breakpointConfig.breakpoints &&
+      breakpointConfig.breakpoints.length > 0
+    ) {
+      const workspaceFolder =
+        session.workspaceFolder?.uri.fsPath ||
+        vscode6.workspace.workspaceFolders?.[0]?.uri.fsPath;
       if (!workspaceFolder) {
         throw new Error(
-          "Cannot determine workspace folder for breakpoint paths"
+          'Cannot determine workspace folder for breakpoint paths'
         );
       }
-      const newBreakpoints = breakpointConfig.breakpoints.map((bp) => {
-        const uri = vscode6.Uri.file(
-          bp.path.startsWith("/") ? bp.path : `${workspaceFolder}/${bp.path}`
-        );
+      const newBreakpoints = breakpointConfig.breakpoints.map(bp => {
+        const absolutePath = path.isAbsolute(bp.path)
+          ? bp.path
+          : path.join(workspaceFolder, bp.path);
+        const uri = vscode6.Uri.file(absolutePath);
         const location = new vscode6.Position(bp.line - 1, 0);
         return new vscode6.SourceBreakpoint(
           new vscode6.Location(uri, location),
@@ -847,11 +891,11 @@ var resumeDebugSession = async (params) => {
     `Resuming debug session '${session.name}' (ID: ${sessionId})`
   );
   const stopPromise = waitForBreakpointHit({
-    sessionName: session.name
+    sessionName: session.name,
   });
-  await session.customRequest("continue", { threadId: 0 });
+  await session.customRequest('continue', { threadId: 0 });
   const stopInfo = await stopPromise;
-  if (stopInfo.reason === "terminated") {
+  if (stopInfo.reason === 'terminated') {
     throw new Error(
       `Debug session '${session.name}' terminated before hitting a breakpoint.`
     );
@@ -866,29 +910,31 @@ var ResumeDebugSessionTool = class {
     try {
       const stopInfo = await resumeDebugSession({
         sessionId,
-        breakpointConfig
+        breakpointConfig,
       });
       return new import_vscode3.LanguageModelToolResult([
-        new import_vscode3.LanguageModelTextPart(JSON.stringify(stopInfo, null, 2))
+        new import_vscode3.LanguageModelTextPart(
+          JSON.stringify(stopInfo, null, 2)
+        ),
       ]);
     } catch (error) {
       return new import_vscode3.LanguageModelToolResult([
         new import_vscode3.LanguageModelTextPart(
           `Error resuming debug session: ${error instanceof Error ? error.message : String(error)}`
-        )
+        ),
       ]);
     }
   }
   prepareInvocation(options) {
     return {
-      invocationMessage: `Resuming debug session '${options.input.sessionId}'${options.input.waitForStop ? " and waiting for breakpoint" : ""}`
+      invocationMessage: `Resuming debug session '${options.input.sessionId}'${options.input.waitForStop ? ' and waiting for breakpoint' : ''}`,
     };
   }
 };
 
 // src/startDebuggerTool.ts
-var vscode7 = __toESM(require("vscode"));
-var import_vscode4 = require("vscode");
+var vscode7 = __toESM(require('vscode'));
+var import_vscode4 = require('vscode');
 var StartDebuggerTool = class {
   async invoke(options) {
     const {
@@ -896,15 +942,16 @@ var StartDebuggerTool = class {
       variableFilter,
       timeoutSeconds,
       configurationName,
-      breakpointConfig
+      breakpointConfig,
     } = options.input;
-    const config = vscode7.workspace.getConfiguration("copilot-debugger");
-    const effectiveConfigName = configurationName || config.get("defaultLaunchConfiguration");
+    const config = vscode7.workspace.getConfiguration('copilot-debugger');
+    const effectiveConfigName =
+      configurationName || config.get('defaultLaunchConfiguration');
     if (!effectiveConfigName) {
       return new import_vscode4.LanguageModelToolResult([
         new import_vscode4.LanguageModelTextPart(
           'Error: No launch configuration specified. Set "copilot-debugger.defaultLaunchConfiguration" in settings or provide configurationName parameter.'
-        )
+        ),
       ]);
     }
     const stopInfo = await startDebuggingAndWaitForStop({
@@ -913,36 +960,38 @@ var StartDebuggerTool = class {
       variableFilter,
       timeoutSeconds,
       breakpointConfig,
-      sessionName: ""
+      sessionName: '',
       // Empty string means match any session
     });
     return new import_vscode4.LanguageModelToolResult([
-      new import_vscode4.LanguageModelTextPart(JSON.stringify(stopInfo, null, 2))
+      new import_vscode4.LanguageModelTextPart(
+        JSON.stringify(stopInfo, null, 2)
+      ),
     ]);
   }
 };
 
 // src/stopDebugSessionTool.ts
-var import_vscode5 = require("vscode");
+var import_vscode5 = require('vscode');
 var StopDebugSessionTool = class {
   async invoke(options) {
     const { sessionName } = options.input;
     try {
       const raw = await stopDebugSession({ sessionName });
       return new import_vscode5.LanguageModelToolResult([
-        new import_vscode5.LanguageModelTextPart(JSON.stringify(raw))
+        new import_vscode5.LanguageModelTextPart(JSON.stringify(raw)),
       ]);
     } catch (error) {
       return new import_vscode5.LanguageModelToolResult([
         new import_vscode5.LanguageModelTextPart(
           `Error stopping debug session: ${error instanceof Error ? error.message : String(error)}`
-        )
+        ),
       ]);
     }
   }
   prepareInvocation(options) {
     return {
-      invocationMessage: `Stopping debug session(s) named '${options.input.sessionName}'`
+      invocationMessage: `Stopping debug session(s) named '${options.input.sessionName}'`,
     };
   }
 };
@@ -954,24 +1003,27 @@ function activate(context) {
 function registerTools(context) {
   context.subscriptions.push(
     vscode8.lm.registerTool(
-      "start_debugger_with_breakpoints",
+      'start_debugger_with_breakpoints',
       new StartDebuggerTool()
     ),
     vscode8.lm.registerTool(
-      "resume_debug_session",
+      'resume_debug_session',
       new ResumeDebugSessionTool()
     ),
-    vscode8.lm.registerTool("get_variables", new GetVariablesTool()),
-    vscode8.lm.registerTool("expand_variable", new ExpandVariableTool()),
-    vscode8.lm.registerTool("evaluate_expression", new EvaluateExpressionTool()),
-    vscode8.lm.registerTool("stop_debug_session", new StopDebugSessionTool())
+    vscode8.lm.registerTool('get_variables', new GetVariablesTool()),
+    vscode8.lm.registerTool('expand_variable', new ExpandVariableTool()),
+    vscode8.lm.registerTool(
+      'evaluate_expression',
+      new EvaluateExpressionTool()
+    ),
+    vscode8.lm.registerTool('stop_debug_session', new StopDebugSessionTool())
   );
 }
-function deactivate() {
-}
+function deactivate() {}
 // Annotate the CommonJS export names for ESM import in node:
-0 && (module.exports = {
-  activate,
-  deactivate
-});
+0 &&
+  (module.exports = {
+    activate,
+    deactivate,
+  });
 //# sourceMappingURL=extension.js.map

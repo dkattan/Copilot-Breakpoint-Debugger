@@ -1,6 +1,7 @@
 import type { StartDebuggerInvocationOptions } from '../../testTypes';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { activeSessions } from '../../common';
 import { StartDebuggerTool } from '../../startDebuggerTool';
 
 export /** Resolve extension root path. */
@@ -91,5 +92,19 @@ export function assertStartDebuggerOutput(textOutput: string): void {
     )
   ) {
     throw new Error('Missing line number or script reference in debug info');
+  }
+}
+
+/** Stop any debug sessions left running after a test. */
+export async function stopAllDebugSessions(): Promise<void> {
+  const sessions = [...activeSessions];
+  for (const session of sessions) {
+    try {
+      await vscode.debug.stopDebugging(session);
+    } catch (error) {
+      console.warn(
+        `Failed to stop debug session ${session.name}: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
   }
 }

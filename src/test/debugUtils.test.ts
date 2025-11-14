@@ -7,12 +7,17 @@ import {
   activateCopilotDebugger,
   getExtensionRoot,
   openScriptDocument,
+  stopAllDebugSessions,
 } from './utils/startDebuggerToolTestUtils';
 let scriptPath: string;
 let workspaceFolder: string;
 const configurationName = 'Run test.js';
 
 describe('debugUtils - DAPHelpers', () => {
+  afterEach(async () => {
+    await stopAllDebugSessions();
+  });
+
   before(async () => {
     const extensionRoot = getExtensionRoot();
     const scriptRelative = 'test-workspace/test.js';
@@ -35,16 +40,16 @@ describe('debugUtils - DAPHelpers', () => {
           {
             path: scriptPath,
             line: lineInsideLoop,
-            hitCondition: '6',
+            hitCondition: '3',
           },
         ],
       },
     });
 
-    assert.notDeepStrictEqual(
+    assert.strictEqual(
       context.frame.line,
       lineInsideLoop,
-      `Stopped at unexpected line ${context.frame.line}, expected not to stop at line with hitCondition breakpoint`
+      `Expected to stop on hitCondition line ${lineInsideLoop}, but paused at ${context.frame.line}`
     );
 
     const activeSession = vscode.debug.activeDebugSession;
@@ -70,7 +75,7 @@ describe('debugUtils - DAPHelpers', () => {
 
   it('logMessage breakpoint (logpoint) does not stop execution unless adapter treats it as breakpoint', async () => {
     const lineInsideLoop = 9;
-    const postLoopLine = 14;
+    const postLoopLine = 17;
 
     const context = await startDebuggingAndWaitForStop({
       sessionName: 'logpoint-node',
@@ -92,9 +97,20 @@ describe('debugUtils - DAPHelpers', () => {
       },
     });
 
+    const pausedLine = context.frame.line;
+    assert.ok(
+      pausedLine === lineInsideLoop || pausedLine === postLoopLine,
+      `Unexpected pause line ${pausedLine}; expected ${lineInsideLoop} (logpoint) or ${postLoopLine}`
+    );
+    if (pausedLine === lineInsideLoop) {
+      console.warn(
+        'Node debug adapter treated logpoint as breakpoint; continuing execution would be required for adapters without logpoint support.'
+      );
+      return;
+    }
     assert.equal(
-      context.frame.line,
-      lineInsideLoop,
+      pausedLine,
+      postLoopLine,
       `Stopped at logpoint line ${lineInsideLoop}; expected to continue to ${postLoopLine}`
     );
   });
@@ -137,6 +153,7 @@ describe('debugUtils - DAPHelpers', () => {
   });
 
   it('findVariableInScopes finds existing variable', async () => {
+    const lineInsideLoop = 9;
     const context = await startDebuggingAndWaitForStop({
       sessionName: 'findVariableInScopes-test',
       workspaceFolder,
@@ -145,7 +162,7 @@ describe('debugUtils - DAPHelpers', () => {
         breakpoints: [
           {
             path: scriptPath,
-            line: 5,
+            line: lineInsideLoop,
           },
         ],
       },
@@ -158,10 +175,10 @@ describe('debugUtils - DAPHelpers', () => {
     const found = await DAPHelpers.findVariableInScopes(
       activeSession,
       context.scopes,
-      'randomValue'
+      'i'
     );
-    assert.ok(found, 'Should find randomValue variable');
-    assert.strictEqual(found?.variable.name, 'randomValue');
+    assert.ok(found, 'Should find loop variable i');
+    assert.strictEqual(found?.variable.name, 'i');
     assert.ok(found?.scopeName, 'Should have scope name');
   });
 

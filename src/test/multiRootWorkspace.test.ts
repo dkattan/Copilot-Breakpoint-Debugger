@@ -7,6 +7,7 @@ import {
   activateCopilotDebugger,
   getExtensionRoot,
   openScriptDocument,
+  stopAllDebugSessions,
 } from './utils/startDebuggerToolTestUtils';
 
 /**
@@ -49,6 +50,10 @@ function assertVariablesPresent(
 }
 
 describe('multi-Root Workspace Integration', () => {
+  afterEach(async () => {
+    await stopAllDebugSessions();
+  });
+
   before(function () {
     // Log test host information to understand which process we're in
     console.log('=== Multi-root Workspace Test Host Info ===');
@@ -122,6 +127,7 @@ describe('multi-Root Workspace Integration', () => {
     );
     // Use workspace-b folder specifically
     const workspaceFolder = 'test-workspace/b';
+    const lineInsideLoop = 9;
 
     await openScriptDocument(scriptUri);
     await activateCopilotDebugger();
@@ -136,7 +142,7 @@ describe('multi-Root Workspace Integration', () => {
         breakpoints: [
           {
             path: scriptUri.fsPath,
-            line: 1,
+            line: lineInsideLoop,
           },
         ],
       },
@@ -145,8 +151,8 @@ describe('multi-Root Workspace Integration', () => {
     // Assert we stopped at the expected line
     assert.strictEqual(
       context.frame.line,
-      1,
-      `Expected to stop at line 1, but stopped at line ${context.frame.line}`
+      lineInsideLoop,
+      `Expected to stop at line ${lineInsideLoop}, but stopped at line ${context.frame.line}`
     );
 
     // Assert the file path contains the expected file
@@ -165,7 +171,7 @@ describe('multi-Root Workspace Integration', () => {
     );
 
     // Verify that we got the expected variables
-    assertVariablesPresent(allVariables, ['randomValue']);
+    assertVariablesPresent(allVariables, ['i']);
   });
 
   it('workspace B with conditional breakpoint (Node.js)', async function () {
@@ -181,7 +187,7 @@ describe('multi-Root Workspace Integration', () => {
     await openScriptDocument(scriptUri);
     await activateCopilotDebugger();
 
-    const configurationName = 'Run b/test.js';
+    const configurationName = 'Run test.js';
     const condition = 'i >= 3';
     const lineInsideLoop = 9;
 

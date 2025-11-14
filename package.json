@@ -67,6 +67,7 @@
               "items": {
                 "type": "string"
               },
+              "minItems": 1,
               "description": "List of variable name regex fragments to filter variables (joined with |)."
             },
             "timeout_seconds": {
@@ -118,6 +119,7 @@
             }
           },
           "required": [
+            "variableFilter",
             "breakpointConfig"
           ]
         }

@@ -11,7 +11,7 @@ import { startDebuggingAndWaitForStop } from './session';
 // returning call stack and (optionally) filtered variables.
 export interface StartDebuggerToolParameters {
   workspaceFolder?: string; // Optional explicit folder path; defaults to first workspace folder
-  variableFilter?: string[]; // Optional variable name filters (regex fragments joined by |)
+  variableFilter: string[]; // Required variable name filters (regex fragments joined by |)
   timeoutSeconds?: number; // Optional timeout for waiting for breakpoint (defaults handled downstream)
   configurationName?: string; // Optional launch configuration name (overrides setting)
   breakpointConfig: {
@@ -24,6 +24,14 @@ export interface StartDebuggerToolParameters {
       logMessage?: string; // Optional log message (logpoint)
     }>;
   };
+}
+
+function wrapPriorityBlock(
+  priority: 'high' | 'medium' | 'low',
+  heading: string,
+  payload: string
+) {
+  return `[[priority:${priority}]]\n# ${heading}\n${payload}\n[[/priority]]`;
 }
 
 export class StartDebuggerTool
@@ -39,6 +47,14 @@ export class StartDebuggerTool
       configurationName,
       breakpointConfig,
     } = options.input;
+
+    if (!variableFilter || variableFilter.length === 0) {
+      return new LanguageModelToolResult([
+        new LanguageModelTextPart(
+          'Error: Provide at least one variableFilter entry (regex fragment) to limit the returned variables.'
+        ),
+      ]);
+    }
 
     if (!breakpointConfig?.breakpoints?.length) {
       return new LanguageModelToolResult([
@@ -86,9 +102,32 @@ export class StartDebuggerTool
       sessionName: '', // Empty string means match any session
     });
 
-    // Convert stopInfo into LanguageModelToolResult parts
-    return new LanguageModelToolResult([
-      new LanguageModelTextPart(JSON.stringify(stopInfo, null, 2)),
-    ]);
+    const summary = {
+      session: stopInfo.thread?.name ?? effectiveConfigName,
+      file: stopInfo.frame?.source?.path,
+      line: stopInfo.frame?.line,
+      reason: stopInfo.frame?.name,
+    };
+
+    const priorityBlocks = [
+      wrapPriorityBlock('high', 'Breakpoint Summary', JSON.stringify(summary)),
+      wrapPriorityBlock(
+        'medium',
+        'Thread & Frame',
+        JSON.stringify({
+          thread: stopInfo.thread,
+          frame: stopInfo.frame,
+        })
+      ),
+      wrapPriorityBlock(
+        'low',
+        'Scopes Snapshot',
+        JSON.stringify(stopInfo.scopes ?? [])
+      ),
+    ];
+
+    const response = priorityBlocks.join('\n');
+
+    return new LanguageModelToolResult([new LanguageModelTextPart(response)]);
   }
 }

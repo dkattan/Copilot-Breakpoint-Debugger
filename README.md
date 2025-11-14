@@ -45,24 +45,47 @@ npm run compile
 
 `copilot-debugger.defaultLaunchConfiguration` – The name of a `launch.json` configuration OR an inline JSON object (e.g. `{"type":"node","request":"launch","program":"${workspaceFolder}/index.js"}`).
 
+> **Important:** `start_debugger_with_breakpoints` requires at least one breakpoint **and** a non-empty `variableFilter`. Tight filters keep the response concise so Copilot doesn’t exhaust the LLM context window.
+
 ## 🧪 Example Copilot Prompts
 
 ```text
-Start the debugger and stop at the first breakpoint; only show variables matching ^PWD$.
+Start the debugger with a breakpoint at src/app.ts line 42; only show variables matching ^(user|session)$.
 ```
 
-````text
-Resume the last debug session, add a breakpoint at src/server.ts line 42, and wait for it to hit.
+```text
+Resume the last debug session, add a breakpoint at src/server.ts line 42 and filter ^order_, then wait for it to hit.
+```
 
 ```text
 Evaluate the expression user.profile[0].email in the currently paused session.
-````
+```
 
 ```text
 Stop every debug session named "Web API".
 ```
 
-````
+### Prompt Priorities & Output Size
+
+Tool responses now include lightweight priority markers so Copilot (or any planner) can drop verbose sections first:
+
+```
+[[priority:high]]
+# Breakpoint Summary
+{"session":"Run tests","file":"/src/app.ts","line":27}
+[[/priority]]
+
+[[priority:low]]
+# Scopes Snapshot
+[{"scopeName":"Locals","variables":[...]}, ...]
+[[/priority]]
+```
+
+- `priority:high` → concise metadata Copilot should always keep.
+- `priority:medium` → thread/frame context.
+- `priority:low` → potentially large variable dumps (safe to drop if the window is tight).
+
+Combined with mandatory variable filters and minified JSON, typical tool output now scales to a few thousand characters instead of tens of thousands.
 
 ## 🐞 Debug Info Returned
 
@@ -125,7 +148,7 @@ npm test
 
 # Run tests in CI mode (skips PowerShell-only tests)
 CI=true npm test
-````
+```
 
 #### Test Execution Notes
 

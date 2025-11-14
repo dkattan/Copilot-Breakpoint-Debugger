@@ -67,25 +67,13 @@ Stop every debug session named "Web API".
 
 ### Prompt Priorities & Output Size
 
-Tool responses now include lightweight priority markers so Copilot (or any planner) can drop verbose sections first:
+Tool responses are now rendered with `@vscode/prompt-tsx`, the same priority-aware prompt builder used in Microsoft’s chat samples. Each tool result includes a structured `LanguageModelPromptTsxPart`, so Copilot (or any prompt-tsx–aware planner) can automatically drop low-priority sections when the context window is tight. The payload also contains a short text summary as a convenient fallback for clients that don’t yet understand prompt-tsx content.
 
-```
-[[priority:high]]
-# Breakpoint Summary
-{"session":"Run tests","file":"/src/app.ts","line":27}
-[[/priority]]
+- High priority → breakpoint summary (session/file/line).
+- Medium priority → thread + frame metadata.
+- Low priority → filtered scope snapshots (potentially large, so they’re pruned first).
 
-[[priority:low]]
-# Scopes Snapshot
-[{"scopeName":"Locals","variables":[...]}, ...]
-[[/priority]]
-```
-
-- `priority:high` → concise metadata Copilot should always keep.
-- `priority:medium` → thread/frame context.
-- `priority:low` → potentially large variable dumps (safe to drop if the window is tight).
-
-Combined with mandatory variable filters and minified JSON, typical tool output now scales to a few thousand characters instead of tens of thousands.
+Because variable filters are mandatory and the prompt is minified before returning, typical tool output is now only a few thousand characters instead of tens of thousands.
 
 ## 🐞 Debug Info Returned
 

@@ -2,7 +2,7 @@ import type { BreakpointHitInfo } from './common';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { activeSessions, outputChannel } from './common';
-import { DAPHelpers, type Variable } from './debugUtils';
+import { DAPHelpers, type DebugContext, type VariableInfo } from './debugUtils';
 import { waitForBreakpointHit } from './events';
 
 const normalizeFsPath = (value: string) =>
@@ -13,7 +13,7 @@ const normalizeFsPath = (value: string) =>
  */
 export interface ScopeVariables {
   scopeName: string;
-  variables: Variable[];
+  variables: VariableInfo[];
   error?: string;
 }
 
@@ -120,11 +120,12 @@ export const startDebuggingAndWaitForStop = async (params: {
       logMessage?: string;
     }>;
   };
-}) => {
+}): Promise<DebugContext & { scopeVariables: ScopeVariables[] }> => {
   const {
     sessionName,
     workspaceFolder,
     nameOrConfiguration,
+    variableFilter,
     timeoutSeconds = 60,
     breakpointConfig,
   } = params;
@@ -353,7 +354,33 @@ export const startDebuggingAndWaitForStop = async (params: {
       stopInfo.session,
       stopInfo.threadId
     );
-    return debugContext;
+
+    const filterRegex =
+      variableFilter && variableFilter.length
+        ? new RegExp(variableFilter.join('|'), 'i')
+        : undefined;
+    const scopeVariables: ScopeVariables[] = [];
+    for (const scope of debugContext.scopes ?? []) {
+      const variables = await DAPHelpers.getVariablesFromReference(
+        stopInfo.session,
+        scope.variablesReference
+      );
+      const filtered = filterRegex
+        ? variables.filter(variable => filterRegex.test(variable.name))
+        : variables;
+      if (!filtered.length) {
+        continue;
+      }
+      scopeVariables.push({
+        scopeName: scope.name,
+        variables: filtered,
+      });
+    }
+
+    return {
+      ...debugContext,
+      scopeVariables,
+    };
   } finally {
     // Restore original breakpoints, removing any added ones first
     const current = vscode.debug.breakpoints;

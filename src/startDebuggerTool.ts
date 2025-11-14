@@ -2,8 +2,14 @@ import type {
   LanguageModelTool,
   LanguageModelToolInvocationOptions,
 } from 'vscode';
+import { renderElementJSON } from '@vscode/prompt-tsx';
 import * as vscode from 'vscode';
-import { LanguageModelTextPart, LanguageModelToolResult } from 'vscode';
+import {
+  LanguageModelPromptTsxPart,
+  LanguageModelTextPart,
+  LanguageModelToolResult,
+} from 'vscode';
+import { StartDebuggerPrompt } from './prompts/startDebuggerPrompt';
 import { startDebuggingAndWaitForStop } from './session';
 
 // Parameters for starting a debug session. The tool starts a debugger using the
@@ -26,13 +32,7 @@ export interface StartDebuggerToolParameters {
   };
 }
 
-function wrapPriorityBlock(
-  priority: 'high' | 'medium' | 'low',
-  heading: string,
-  payload: string
-) {
-  return `[[priority:${priority}]]\n# ${heading}\n${payload}\n[[/priority]]`;
-}
+const MAX_VARIABLES_PER_SCOPE = 50;
 
 export class StartDebuggerTool
   implements LanguageModelTool<StartDebuggerToolParameters>
@@ -109,25 +109,40 @@ export class StartDebuggerTool
       reason: stopInfo.frame?.name,
     };
 
-    const priorityBlocks = [
-      wrapPriorityBlock('high', 'Breakpoint Summary', JSON.stringify(summary)),
-      wrapPriorityBlock(
-        'medium',
-        'Thread & Frame',
-        JSON.stringify({
-          thread: stopInfo.thread,
-          frame: stopInfo.frame,
-        })
-      ),
-      wrapPriorityBlock(
-        'low',
-        'Scopes Snapshot',
-        JSON.stringify(stopInfo.scopes ?? [])
-      ),
-    ];
+    const promptJson = await renderElementJSON(
+      StartDebuggerPrompt,
+      {
+        summary,
+        thread: stopInfo.thread
+          ? { id: stopInfo.thread.id, name: stopInfo.thread.name }
+          : undefined,
+        frame: stopInfo.frame
+          ? {
+              id: stopInfo.frame.id,
+              name: stopInfo.frame.name,
+              source: stopInfo.frame.source,
+              line: stopInfo.frame.line,
+              column: stopInfo.frame.column,
+            }
+          : undefined,
+        scopes: (stopInfo.scopeVariables ?? []).map(scope => ({
+          scopeName: scope.scopeName,
+          variables: scope.variables
+            .slice(0, MAX_VARIABLES_PER_SCOPE)
+            .map(variable => ({
+              name: variable.name,
+              value: variable.value,
+            })),
+        })),
+      },
+      options.tokenizationOptions
+    );
 
-    const response = priorityBlocks.join('\n');
+    const fallback = `Breakpoint hit in ${summary.file ?? 'unknown file'}:${summary.line ?? '?'}`;
 
-    return new LanguageModelToolResult([new LanguageModelTextPart(response)]);
+    return new LanguageModelToolResult([
+      new LanguageModelPromptTsxPart(promptJson),
+      new LanguageModelTextPart(fallback),
+    ]);
   }
 }

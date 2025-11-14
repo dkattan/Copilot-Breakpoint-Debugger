@@ -2,7 +2,7 @@
   "publisher": "dkattan",
   "name": "copilot-breakpoint-debugger",
   "displayName": "Copilot Breakpoint Debugger",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Use GitHub Copilot to automate starting, inspecting and resuming VS Code debug sessions with conditional breakpoints, hit conditions, and logpoints.",
   "preview": true,
   "license": "MIT",

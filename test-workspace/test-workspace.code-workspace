@@ -1,21 +1,21 @@
 {
   "folders": [
     {
-      "name": "test-workspace",
-      "path": "test-workspace",
-    },
-    {
       "name": "workspace-a",
-      "path": "test-workspace/a",
+      "path": "a",
     },
     {
       "name": "workspace-b",
-      "path": "test-workspace/b",
+      "path": "b",
     },
   ],
   "settings": {
     "copilot-debugger.defaultLaunchConfiguration": "Run test.ps1",
     "powershell.cwd": "workspace-a",
+    "git.openRepositoryInParentFolders": "never",
+    "git.scanRepositories": [],
+    "git.autoRepositoryDetection": false,
+    "chat.extensionUnification.enabled": false,
   },
   "launch": {
     "version": "0.2.0",

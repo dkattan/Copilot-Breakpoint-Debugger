@@ -1,9 +1,10 @@
 import type { BreakpointHitInfo } from './common';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { activeSessions, outputChannel } from './common';
+import { activeSessions } from './common';
 import { DAPHelpers, type DebugContext, type VariableInfo } from './debugUtils';
 import { waitForBreakpointHit } from './events';
+import { logger } from './logger';
 
 const normalizeFsPath = (value: string) =>
   path.normalize(value).replace(/\\/g, '/').replace(/\/+$/, '');
@@ -144,10 +145,10 @@ export const startDebuggingAndWaitForStop = async (params: {
     throw new Error('No workspace folders are currently open.');
   }
 
-  outputChannel.appendLine(
+  logger.debug(
     `Available workspace folders: ${workspaceFolders.map(f => `${f.name} -> ${f.uri.fsPath}`).join(', ')}`
   );
-  outputChannel.appendLine(
+  logger.debug(
     `Looking for workspace folder (resolved): ${resolvedWorkspaceFolder}`
   );
 
@@ -169,7 +170,7 @@ export const startDebuggingAndWaitForStop = async (params: {
     );
     if (childOfRequested) {
       folderEntry = childOfRequested;
-      outputChannel.appendLine(
+      logger.info(
         `Requested parent folder '${resolvedWorkspaceFolder}' not open; using child workspace folder '${folderEntry.folder.uri.fsPath}'.`
       );
     }
@@ -181,7 +182,7 @@ export const startDebuggingAndWaitForStop = async (params: {
     );
     if (parentOfRequested) {
       folderEntry = parentOfRequested;
-      outputChannel.appendLine(
+      logger.info(
         `Requested subfolder '${resolvedWorkspaceFolder}' not open; using parent workspace folder '${folderEntry.folder.uri.fsPath}'.`
       );
     }
@@ -197,7 +198,7 @@ export const startDebuggingAndWaitForStop = async (params: {
   // Automatic backup & isolation of existing breakpoints (no extra params required)
   const originalBreakpoints = [...vscode.debug.breakpoints];
   if (originalBreakpoints.length) {
-    outputChannel.appendLine(
+    logger.debug(
       `Backing up and removing ${originalBreakpoints.length} existing breakpoint(s) for isolated debug session.`
     );
     vscode.debug.removeBreakpoints(originalBreakpoints);
@@ -215,14 +216,14 @@ export const startDebuggingAndWaitForStop = async (params: {
       );
       const lineCount = doc.lineCount;
       if (bp.line < 1 || bp.line > lineCount) {
-        outputChannel.appendLine(
+        logger.warn(
           `Skipping breakpoint ${absolutePath}:${bp.line} (out of range, file has ${lineCount} lines).`
         );
         continue;
       }
       const key = `${absolutePath}:${bp.line}`;
       if (seen.has(key)) {
-        outputChannel.appendLine(`Skipping duplicate breakpoint ${key}.`);
+        logger.debug(`Skipping duplicate breakpoint ${key}.`);
         continue;
       }
       seen.add(key);
@@ -238,7 +239,7 @@ export const startDebuggingAndWaitForStop = async (params: {
         )
       );
     } catch (e) {
-      outputChannel.appendLine(
+      logger.error(
         `Failed to open file for breakpoint path ${absolutePath}: ${
           e instanceof Error ? e.message : String(e)
         }`
@@ -247,12 +248,10 @@ export const startDebuggingAndWaitForStop = async (params: {
   }
   if (validated.length) {
     vscode.debug.addBreakpoints(validated);
-    outputChannel.appendLine(
-      `Added ${validated.length} validated breakpoint(s).`
-    );
+    logger.info(`Added ${validated.length} validated breakpoint(s).`);
     await new Promise(resolve => setTimeout(resolve, 500));
   } else {
-    outputChannel.appendLine('No valid breakpoints to add after validation.');
+    logger.warn('No valid breakpoints to add after validation.');
   }
 
   // Resolve launch configuration: always inject stopOnEntry=true to ensure early pause, but never synthesize a generic config.
@@ -276,7 +275,7 @@ export const startDebuggingAndWaitForStop = async (params: {
   }
 
   const effectiveSessionName = sessionName || resolvedConfig.name || '';
-  outputChannel.appendLine(
+  logger.info(
     `Starting debugger with configuration '${resolvedConfig.name}' (stopOnEntry forced to true). Waiting for first stop event.`
   );
   // Set up listener BEFORE starting to avoid race with fast 'entry' events.
@@ -310,7 +309,7 @@ export const startDebuggingAndWaitForStop = async (params: {
         bp => bp.location.range.start.line === entryLineZeroBased
       );
       if (isEntry && !hitRequestedBreakpoint) {
-        outputChannel.appendLine(
+        logger.debug(
           'Entry stop at non-breakpoint location; continuing to reach first user breakpoint.'
         );
 
@@ -323,13 +322,13 @@ export const startDebuggingAndWaitForStop = async (params: {
             timeout: remainingMs,
           });
         } catch (contErr) {
-          outputChannel.appendLine(
+          logger.warn(
             `Failed to continue after entry: ${contErr instanceof Error ? contErr.message : String(contErr)}`
           );
         }
       }
     } catch (parseErr) {
-      outputChannel.appendLine(
+      logger.warn(
         `Failed to parse first stop JSON for entry evaluation: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`
       );
     }
@@ -338,7 +337,7 @@ export const startDebuggingAndWaitForStop = async (params: {
       throw new Error(`Failed to start debug session '${sessionName}'.`);
     }
 
-    outputChannel.appendLine(
+    logger.debug(
       `Active sessions after start: ${activeSessions
         .map(s => `${s.name}:${s.id}`)
         .join(', ')}`
@@ -386,17 +385,17 @@ export const startDebuggingAndWaitForStop = async (params: {
     const current = vscode.debug.breakpoints;
     if (current.length) {
       vscode.debug.removeBreakpoints(current);
-      outputChannel.appendLine(
+      logger.debug(
         `Removed ${current.length} session breakpoint(s) before restoring originals.`
       );
     }
     if (originalBreakpoints.length) {
       vscode.debug.addBreakpoints(originalBreakpoints);
-      outputChannel.appendLine(
+      logger.debug(
         `Restored ${originalBreakpoints.length} original breakpoint(s).`
       );
     } else {
-      outputChannel.appendLine('No original breakpoints to restore.');
+      logger.debug('No original breakpoints to restore.');
     }
   }
 };
@@ -512,9 +511,7 @@ export const resumeDebugSession = async (params: {
   }
 
   // Send the continue request to the debug adapter
-  outputChannel.appendLine(
-    `Resuming debug session '${session.name}' (ID: ${sessionId})`
-  );
+  logger.info(`Resuming debug session '${session.name}' (ID: ${sessionId})`);
   const stopPromise = waitForBreakpointHit({
     sessionName: session.name,
   });

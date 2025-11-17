@@ -8,6 +8,16 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - Initial release
 
+## [0.0.8] - 2025-11-17
+
+### Changed
+
+- Corrected `package.json` repository, homepage, and bugs URLs to point to `dkattan/Copilot-Breakpoint-Debugger` instead of legacy name.
+
+### Internal
+
+- Metadata-only update; no code or API changes.
+
 ## [0.0.7] - 2025-11-17
 
 ### Changed

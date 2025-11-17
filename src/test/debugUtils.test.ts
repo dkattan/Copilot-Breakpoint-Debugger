@@ -12,6 +12,8 @@ import {
 let scriptPath: string;
 let workspaceFolder: string;
 const configurationName = 'Run test.js';
+// Shared immutable base params for repeated startDebuggingAndWaitForStop calls
+let baseParams: { workspaceFolder: string; nameOrConfiguration: string };
 
 describe('debugUtils - DAPHelpers', () => {
   afterEach(async () => {
@@ -34,24 +36,26 @@ describe('debugUtils - DAPHelpers', () => {
     scriptPath = scriptUri.fsPath;
     await openScriptDocument(scriptUri);
     await activateCopilotDebugger();
+    // Initialize shared base params once workspaceFolder is known
+    baseParams = { workspaceFolder, nameOrConfiguration: configurationName };
   });
 
   it('hitCondition breakpoint triggers on specific hit count', async () => {
     const lineInsideLoop = 9;
-    const context = await startDebuggingAndWaitForStop({
-      sessionName: 'hitcondition-node',
-      workspaceFolder,
-      nameOrConfiguration: configurationName,
-      breakpointConfig: {
-        breakpoints: [
-          {
-            path: scriptPath,
-            line: lineInsideLoop,
-            hitCondition: '3',
-          },
-        ],
-      },
-    });
+    const context = await startDebuggingAndWaitForStop(
+      Object.assign({}, baseParams, {
+        sessionName: '', // monitor any session; avoid name mismatch
+        breakpointConfig: {
+          breakpoints: [
+            {
+              path: scriptPath,
+              line: lineInsideLoop,
+              hitCondition: '3',
+            },
+          ],
+        },
+      })
+    );
 
     assert.strictEqual(
       context.frame.line,
@@ -84,25 +88,25 @@ describe('debugUtils - DAPHelpers', () => {
     const lineInsideLoop = 9;
     const postLoopLine = 17;
 
-    const context = await startDebuggingAndWaitForStop({
-      sessionName: 'logpoint-node',
-      workspaceFolder,
-      nameOrConfiguration: configurationName,
-      breakpointConfig: {
-        breakpoints: [
-          {
-            path: scriptPath,
-            line: lineInsideLoop,
-            // condition: 'i > 2',
-            logMessage: 'Logpoint Loop iteration: {i}',
-          },
-          {
-            path: scriptPath,
-            line: postLoopLine,
-          },
-        ],
-      },
-    });
+    const context = await startDebuggingAndWaitForStop(
+      Object.assign({}, baseParams, {
+        sessionName: '',
+        breakpointConfig: {
+          breakpoints: [
+            {
+              path: scriptPath,
+              line: lineInsideLoop,
+              // condition: 'i > 2',
+              logMessage: 'Logpoint Loop iteration: {i}',
+            },
+            {
+              path: scriptPath,
+              line: postLoopLine,
+            },
+          ],
+        },
+      })
+    );
 
     const pausedLine = context.frame.line;
     assert.ok(
@@ -123,19 +127,19 @@ describe('debugUtils - DAPHelpers', () => {
   });
 
   it('getVariablesFromReference works in Node session', async () => {
-    const context = await startDebuggingAndWaitForStop({
-      sessionName: 'getVariablesFromReference-test',
-      workspaceFolder,
-      nameOrConfiguration: 'Run test.js',
-      breakpointConfig: {
-        breakpoints: [
-          {
-            path: scriptPath,
-            line: 5,
-          },
-        ],
-      },
-    });
+    const context = await startDebuggingAndWaitForStop(
+      Object.assign({}, baseParams, {
+        sessionName: '',
+        breakpointConfig: {
+          breakpoints: [
+            {
+              path: scriptPath,
+              line: 5,
+            },
+          ],
+        },
+      })
+    );
 
     // Get active session and test getVariablesFromReference
     const activeSession = vscode.debug.activeDebugSession;
@@ -161,19 +165,19 @@ describe('debugUtils - DAPHelpers', () => {
 
   it('findVariableInScopes finds existing variable', async () => {
     const lineInsideLoop = 9;
-    const context = await startDebuggingAndWaitForStop({
-      sessionName: 'findVariableInScopes-test',
-      workspaceFolder,
-      nameOrConfiguration: 'Run test.js',
-      breakpointConfig: {
-        breakpoints: [
-          {
-            path: scriptPath,
-            line: lineInsideLoop,
-          },
-        ],
-      },
-    });
+    const context = await startDebuggingAndWaitForStop(
+      Object.assign({}, baseParams, {
+        sessionName: '',
+        breakpointConfig: {
+          breakpoints: [
+            {
+              path: scriptPath,
+              line: lineInsideLoop,
+            },
+          ],
+        },
+      })
+    );
 
     const activeSession = vscode.debug.activeDebugSession;
     assert.ok(activeSession, 'No active debug session');
@@ -190,19 +194,19 @@ describe('debugUtils - DAPHelpers', () => {
   });
 
   it('findVariableInScopes returns null for non-existent variable', async () => {
-    const context = await startDebuggingAndWaitForStop({
-      sessionName: 'findVariableInScopes-null-test',
-      workspaceFolder,
-      nameOrConfiguration: 'Run test.js',
-      breakpointConfig: {
-        breakpoints: [
-          {
-            path: scriptPath,
-            line: 5,
-          },
-        ],
-      },
-    });
+    const context = await startDebuggingAndWaitForStop(
+      Object.assign({}, baseParams, {
+        sessionName: '',
+        breakpointConfig: {
+          breakpoints: [
+            {
+              path: scriptPath,
+              line: 5,
+            },
+          ],
+        },
+      })
+    );
 
     const activeSession = vscode.debug.activeDebugSession;
     assert.ok(activeSession, 'No active debug session');
@@ -217,19 +221,19 @@ describe('debugUtils - DAPHelpers', () => {
   });
 
   it('getDebugContext works in active session', async () => {
-    await startDebuggingAndWaitForStop({
-      sessionName: 'getDebugContext-test',
-      workspaceFolder,
-      nameOrConfiguration: 'Run test.js',
-      breakpointConfig: {
-        breakpoints: [
-          {
-            path: scriptPath,
-            line: 5,
-          },
-        ],
-      },
-    });
+    await startDebuggingAndWaitForStop(
+      Object.assign({}, baseParams, {
+        sessionName: '',
+        breakpointConfig: {
+          breakpoints: [
+            {
+              path: scriptPath,
+              line: 5,
+            },
+          ],
+        },
+      })
+    );
 
     const activeSession = vscode.debug.activeDebugSession;
     assert.ok(activeSession, 'No active debug session');

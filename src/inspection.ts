@@ -1,4 +1,5 @@
-import { activeSessions, outputChannel } from './common';
+import { activeSessions } from './common';
+import { logger } from './logger';
 
 interface Variable {
   name: string;
@@ -43,7 +44,7 @@ export const getStackFrameVariables = async (params: {
   const { sessionId, frameId, threadId, filter, retryIfEmpty } = params;
 
   // Import the output channel for logging
-  outputChannel.appendLine(
+  logger.debug(
     `Getting variables for session ${sessionId}, frame ${frameId}, thread ${threadId}`
   );
 
@@ -53,14 +54,12 @@ export const getStackFrameVariables = async (params: {
     throw new Error(`No debug session found with ID '${sessionId}'`);
   }
   // First, get the scopes for the stack frame
-  outputChannel.appendLine(`Requesting scopes for frameId ${frameId}`);
+  logger.debug(`Requesting scopes for frameId ${frameId}`);
   const scopes = await session.customRequest('scopes', { frameId });
-  outputChannel.appendLine(`Received scopes: ${JSON.stringify(scopes)}`);
+  logger.trace(`Received scopes: ${JSON.stringify(scopes)}`);
 
   if (!scopes || !scopes.scopes || !Array.isArray(scopes.scopes)) {
-    outputChannel.appendLine(
-      `Invalid scopes response: ${JSON.stringify(scopes)}`
-    );
+    logger.warn(`Invalid scopes response: ${JSON.stringify(scopes)}`);
     throw new Error(
       `Invalid scopes response from debug adapter. This may be a limitation of the ${session.type} debug adapter.`
     );
@@ -70,12 +69,12 @@ export const getStackFrameVariables = async (params: {
   const variablesByScope = await Promise.all(
     scopes.scopes.map(
       async (scope: { name: string; variablesReference: number }) => {
-        outputChannel.appendLine(
+        logger.trace(
           `Processing scope: ${scope.name}, variablesReference: ${scope.variablesReference}`
         );
 
         if (scope.variablesReference === 0) {
-          outputChannel.appendLine(
+          logger.debug(
             `Scope ${scope.name} has no variables (variablesReference is 0)`
           );
           return {
@@ -85,13 +84,13 @@ export const getStackFrameVariables = async (params: {
         }
 
         try {
-          outputChannel.appendLine(
+          logger.trace(
             `Requesting variables for scope ${scope.name} with reference ${scope.variablesReference}`
           );
           const response = await session.customRequest('variables', {
             variablesReference: scope.variablesReference,
           });
-          outputChannel.appendLine(
+          logger.trace(
             `Received variables response: ${JSON.stringify(response)}`
           );
 
@@ -100,7 +99,7 @@ export const getStackFrameVariables = async (params: {
             !response.variables ||
             !Array.isArray(response.variables)
           ) {
-            outputChannel.appendLine(
+            logger.warn(
               `Invalid variables response for scope ${scope.name}: ${JSON.stringify(response)}`
             );
             return {
@@ -117,7 +116,7 @@ export const getStackFrameVariables = async (params: {
             filteredVariables = response.variables.filter(
               (variable: { name: string }) => filterRegex.test(variable.name)
             );
-            outputChannel.appendLine(
+            logger.debug(
               `Applied filter '${filter}', filtered from ${response.variables.length} to ${filteredVariables.length} variables`
             );
           }
@@ -127,7 +126,7 @@ export const getStackFrameVariables = async (params: {
             variables: filteredVariables,
           };
         } catch (scopeError) {
-          outputChannel.appendLine(
+          logger.error(
             `Error getting variables for scope ${scope.name}: ${
               scopeError instanceof Error
                 ? scopeError.message
@@ -157,7 +156,7 @@ export const getStackFrameVariables = async (params: {
   );
 
   if (!hasVariables) {
-    outputChannel.appendLine(
+    logger.info(
       `No variables found in any scope. This may be a limitation of the ${session.type} debug adapter or the current debugging context.`
     );
   }
@@ -169,7 +168,7 @@ export const getStackFrameVariables = async (params: {
     0
   );
   if (retryIfEmpty && filter && totalVars === 0) {
-    outputChannel.appendLine(
+    logger.debug(
       'Retrying variable collection without filter because first attempt returned zero variables.'
     );
     return await getStackFrameVariables({

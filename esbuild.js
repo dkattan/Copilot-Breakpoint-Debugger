@@ -33,11 +33,11 @@ async function main() {
     format: 'cjs',
     minify: production,
     sourcemap: !production,
-    sourcesContent: false,
+    sourcesContent: true,
     platform: 'node',
     outfile: 'dist/extension.js',
     external: ['vscode'],
-    logLevel: 'silent',
+    logLevel: 'debug',
     plugins: [
       /* add to the end of plugins array */
       esbuildProblemMatcherPlugin,

@@ -6,8 +6,9 @@ import type {
 } from 'vscode';
 import * as vscode from 'vscode';
 import { LanguageModelTextPart, LanguageModelToolResult } from 'vscode';
-import { activeSessions, outputChannel } from './common';
+import { activeSessions } from './common';
 import { DAPHelpers } from './debugUtils';
+import { logger } from './logger';
 
 export interface EvaluateExpressionToolParameters {
   expression: string; // Expression to evaluate like in Debug Console
@@ -73,7 +74,7 @@ export class EvaluateExpressionTool
         evalArgs.frameId = debugContext.frame.id;
       }
 
-      outputChannel.appendLine(
+      logger.debug(
         `EvaluateExpressionTool: evaluating '${expression}' in session '${session.name}'.`
       );
       let evalResponse: EvaluateResponse;

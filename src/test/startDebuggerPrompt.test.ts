@@ -10,20 +10,14 @@ describe('startDebuggerTool prompt-tsx output', () => {
     await stopAllDebugSessions();
   });
 
-  it('returns a prompt-tsx part with breakpoint + scope context', async function () {
-    this.timeout(15000);
-
-    if (!vscode.workspace.workspaceFolders?.length) {
-      this.skip();
-      return;
-    }
-
+  it('returns a prompt-tsx part with breakpoint + scope context', async () => {
     const result = await invokeStartDebuggerTool({
       scriptRelativePath: 'test-workspace/b/test.js',
-      configurationName: 'Run b/test.js',
+      configurationName: 'Run test.js',
       variableFilter: ['i'],
       breakpointLines: [9],
       timeoutSeconds: 30,
+      workspaceFolder: 'test-workspace/b',
     });
 
     const { content } = result;

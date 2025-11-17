@@ -16,16 +16,14 @@ if (existsSync(userDataDir)) {
 }
 
 export default defineConfig({
-  files: ['src/test/**/*.test.ts'],
-
-  version: 'insiders', // Match the parent VS Code version
+  files: 'src/test/**/*.test.ts',
+  version: 'stable', // Match the parent VS Code version
   mocha: {
     ui: 'bdd',
     timeout: 30000,
     parallel: false,
     require: ['esbuild-register'],
   },
-
   // Allow extensions to load; we install required ones below via the 'extensions' field.
   // Run with a temporary profile for isolation between test runs.
   launchArgs: [

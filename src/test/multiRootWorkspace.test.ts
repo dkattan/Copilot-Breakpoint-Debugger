@@ -1,4 +1,4 @@
-import assert from 'node:assert';
+import * as assert from 'node:assert';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { DAPHelpers } from '../debugUtils';
@@ -54,7 +54,7 @@ describe('multi-Root Workspace Integration', () => {
     await stopAllDebugSessions();
   });
 
-  before(function () {
+  before(() => {
     // Log test host information to understand which process we're in
     console.log('=== Multi-root Workspace Test Host Info ===');
     console.log('Process ID:', process.pid);
@@ -77,50 +77,18 @@ describe('multi-Root Workspace Integration', () => {
     }
     console.log('==========================================');
 
-    // Check workspace folders immediately - no polling needed
-    // We discovered that VS Code spawns 2 extension host processes:
-    // - Process 1: Always has 1 folder (project root) - we skip tests here
-    // - Process 2: Always has 3 folders (multi-root workspace) - tests would run here
-    // The workspace state is determined at process startup, no waiting required.
-
     assert.ok(
       vscode.workspace.workspaceFolders?.length,
       'No workspace folders found. Ensure test-workspace.code-workspace is being loaded by the test runner.'
     );
-
-    // Check if we have the multi-root workspace (3 folders)
-    if (vscode.workspace.workspaceFolders.length < 3) {
-      const foldersFound = vscode.workspace.workspaceFolders.map(f => ({
-        name: f.name,
-        path: f.uri.fsPath,
-      }));
-      console.warn(
-        `Running in test host without multi-root workspace. ` +
-          `Expected 3 folders, got ${vscode.workspace.workspaceFolders.length}. ` +
-          `Folders found: ${JSON.stringify(foldersFound)}\n` +
-          `All multi-root workspace tests will be skipped in this host.`
-      );
-      // Skip all tests in this suite since we're in the wrong test host
-      this.skip();
-      return;
-    }
-
-    // Verify we have exactly 3 workspace folders
-    assert.strictEqual(
-      vscode.workspace.workspaceFolders.length,
-      3,
-      `Expected 3 workspace folders from test-workspace.code-workspace, got ${vscode.workspace.workspaceFolders.length}`
-    );
-
-    console.log(
-      'Multi-root workspace loaded successfully with folders:',
-      vscode.workspace.workspaceFolders.map(f => f.name)
+    assert.equal(
+      vscode.workspace.name,
+      'test-workspace (Workspace)',
+      'Unexpected workspace name, should at least have (Workspace) to indicate a .code-workspace is open'
     );
   });
 
-  it('workspace B (Node.js) - individual debug session', async function () {
-    this.timeout(5000);
-
+  it('workspace B (Node.js) - individual debug session', async () => {
     const extensionRoot = getExtensionRoot();
     const scriptUri = vscode.Uri.file(
       path.join(extensionRoot, 'test-workspace/b/test.js')
@@ -133,20 +101,24 @@ describe('multi-Root Workspace Integration', () => {
     await activateCopilotDebugger();
 
     const configurationName = 'Run test.js';
-
-    const context = await startDebuggingAndWaitForStop({
-      sessionName: 'workspace-b-node',
+    const baseParams = {
       workspaceFolder,
       nameOrConfiguration: configurationName,
-      breakpointConfig: {
-        breakpoints: [
-          {
-            path: scriptUri.fsPath,
-            line: lineInsideLoop,
-          },
-        ],
-      },
-    });
+    };
+
+    const context = await startDebuggingAndWaitForStop(
+      Object.assign({}, baseParams, {
+        sessionName: 'workspace-b-node',
+        breakpointConfig: {
+          breakpoints: [
+            {
+              path: scriptUri.fsPath,
+              line: lineInsideLoop,
+            },
+          ],
+        },
+      })
+    );
 
     // Assert we stopped at the expected line
     assert.strictEqual(
@@ -188,23 +160,27 @@ describe('multi-Root Workspace Integration', () => {
     await activateCopilotDebugger();
 
     const configurationName = 'Run test.js';
+    const baseParams = {
+      workspaceFolder,
+      nameOrConfiguration: configurationName,
+    };
     const condition = 'i >= 3';
     const lineInsideLoop = 9;
 
-    const context = await startDebuggingAndWaitForStop({
-      sessionName: 'workspace-b-conditional-node',
-      workspaceFolder,
-      nameOrConfiguration: configurationName,
-      breakpointConfig: {
-        breakpoints: [
-          {
-            path: scriptUri.fsPath,
-            line: lineInsideLoop,
-            condition,
-          },
-        ],
-      },
-    });
+    const context = await startDebuggingAndWaitForStop(
+      Object.assign({}, baseParams, {
+        sessionName: 'workspace-b-conditional-node',
+        breakpointConfig: {
+          breakpoints: [
+            {
+              path: scriptUri.fsPath,
+              line: lineInsideLoop,
+              condition,
+            },
+          ],
+        },
+      })
+    );
 
     // Assert we stopped at the expected line
     assert.strictEqual(

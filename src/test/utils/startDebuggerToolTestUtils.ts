@@ -40,7 +40,11 @@ export async function invokeStartDebuggerTool(
       'No workspace folders found. Ensure test-workspace.code-workspace is loaded.'
     );
   }
-  const workspaceFolder = vscode.workspace.workspaceFolders[0].uri.fsPath;
+  const workspaceFolder = opts.workspaceFolder?.trim()
+    ? path.isAbsolute(opts.workspaceFolder)
+      ? opts.workspaceFolder
+      : path.join(extensionRoot, opts.workspaceFolder)
+    : vscode.workspace.workspaceFolders[0].uri.fsPath;
 
   await openScriptDocument(scriptUri);
 

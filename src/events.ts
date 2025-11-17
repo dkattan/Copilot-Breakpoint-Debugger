@@ -1,8 +1,11 @@
-import type { BreakpointHitInfo } from './common';
-import type { DebugContext } from './debugUtils';
 import * as vscode from 'vscode';
-import { activeSessions, onSessionTerminate, outputChannel } from './common';
-import { DAPHelpers } from './debugUtils';
+import {
+  activeSessions,
+  type BreakpointHitInfo,
+  onSessionTerminate,
+} from './common';
+import { DAPHelpers, type DebugContext } from './debugUtils';
+import { logger } from './logger';
 
 // Debug Adapter Protocol message types
 interface DebugProtocolMessage {
@@ -37,14 +40,34 @@ vscode.debug.registerDebugAdapterTrackerFactory('*', {
   ): vscode.ProviderResult<vscode.DebugAdapterTracker> => {
     // Create a class that implements the DebugAdapterTracker interface
     class DebugAdapterTrackerImpl implements vscode.DebugAdapterTracker {
+      private readonly traceEnabled = vscode.workspace
+        .getConfiguration('copilotBreakpointDebugger')
+        .get<boolean>('enableTraceLogging', false);
+
+      private safeStringify(obj: unknown, max = 1000): string {
+        let str: string;
+        try {
+          str = JSON.stringify(obj);
+        } catch (e) {
+          str = `[unstringifiable: ${e instanceof Error ? e.message : String(e)}]`;
+        }
+        if (str.length > max) {
+          const truncated = str.slice(0, max);
+          return `${truncated}… (truncated ${str.length - max} chars)`;
+        }
+        return str;
+      }
+
       onWillStartSession?(): void {
-        outputChannel.appendLine(`Debug session starting: ${session.name}`);
+        logger.info(`Debug session starting: ${session.name}`);
       }
 
       onWillReceiveMessage?(message: DebugProtocolMessage): void {
-        // Optional: Log messages being received by the debug adapter
-        outputChannel.appendLine(
-          `Message received by debug adapter: ${JSON.stringify(message)}`
+        if (!this.traceEnabled) {
+          return;
+        }
+        logger.trace(
+          `Message received by debug adapter: ${this.safeStringify(message)}`
         );
       }
 
@@ -81,7 +104,9 @@ vscode.debug.registerDebugAdapterTrackerFactory('*', {
 
           // Some debug adapters may send 'stopped' before frames/threads fully available.
           // Retry a few times with incremental backoff.
-          const retries = 3;
+          const isEntry = body.reason === 'entry';
+          // Entry stops often occur before the thread is fully paused; allow a few more attempts
+          const retries = isEntry ? 5 : 3;
           let lastError: unknown;
           let callStackData: DebugContext | undefined;
           for (let attempt = 0; attempt < retries; attempt++) {
@@ -102,13 +127,25 @@ vscode.debug.registerDebugAdapterTrackerFactory('*', {
               break;
             } catch (err) {
               lastError = err;
-              outputChannel.appendLine(
+              logger.debug(
                 `getDebugContext attempt ${attempt + 1} failed for thread ${body.threadId}: ${err instanceof Error ? err.message : String(err)}`
               );
             }
           }
 
           if (!callStackData) {
+            // If this was an entry stop and the thread isn't paused yet, treat it as a transient pre-breakpoint state
+            if (
+              isEntry &&
+              lastError instanceof Error &&
+              (/not paused/i.test(lastError.message) ||
+                /Invalid thread id/i.test(lastError.message))
+            ) {
+              logger.debug(
+                `Ignoring early entry stop without call stack: ${lastError.message}`
+              );
+              return; // Do not emit error event; wait for a real breakpoint/step stop
+            }
             throw new Error(
               `Unable to retrieve call stack after ${retries} attempts for thread ${body.threadId}: ${lastError instanceof Error ? lastError.message : String(lastError)}`
             );
@@ -123,16 +160,12 @@ vscode.debug.registerDebugAdapterTrackerFactory('*', {
             line: callStackData.frame.line,
             exceptionInfo: exceptionDetails,
           };
-          outputChannel.appendLine(
-            `Firing breakpoint event: ${JSON.stringify(eventData)}`
-          );
+          logger.debug(`Firing breakpoint event: ${JSON.stringify(eventData)}`);
           breakpointEventEmitter.fire(eventData);
         } catch (err) {
           // Fail fast locally without relying on a global unhandledRejection handler.
           const msg = err instanceof Error ? err.message : String(err);
-          outputChannel.appendLine(
-            `[stopped-event-error] ${msg} (reason=${body.reason})`
-          );
+          logger.error(`[stopped-event-error] ${msg} (reason=${body.reason})`);
           // Emit an error reason event so waiting logic can fail early.
           const errorEvent: BreakpointHitInfo = {
             session,
@@ -144,27 +177,29 @@ vscode.debug.registerDebugAdapterTrackerFactory('*', {
       }
 
       onWillSendMessage(message: DebugProtocolMessage): void {
-        // Log all messages sent to the debug adapter
-        outputChannel.appendLine(
-          `Message sent to debug adapter: ${JSON.stringify(message)}`
+        if (!this.traceEnabled) {
+          return;
+        }
+        logger.trace(
+          `Message sent to debug adapter: ${this.safeStringify(message)}`
         );
       }
 
       onDidReceiveMessage(message: DebugProtocolMessage): void {
-        // Log all messages received from the debug adapter
-        outputChannel.appendLine(
-          `Message received from debug adapter: ${JSON.stringify(message)}`
+        if (!this.traceEnabled) {
+          return;
+        }
+        logger.trace(
+          `Message received from debug adapter: ${this.safeStringify(message)}`
         );
       }
 
       onError?(error: Error): void {
-        outputChannel.appendLine(`Debug adapter error: ${error.message}`);
+        logger.error(`Debug adapter error: ${error}`);
       }
 
       onExit?(code: number | undefined, signal: string | undefined): void {
-        outputChannel.appendLine(
-          `Debug adapter exited: code=${code}, signal=${signal}`
-        );
+        logger.info(`Debug adapter exited: code=${code}, signal=${signal}`);
       }
     }
 
@@ -194,7 +229,7 @@ export const waitForBreakpointHit = async (params: {
       // Use the breakpointEventEmitter which is already wired up to the debug adapter tracker
       const listener = onBreakpointHit(event => {
         // Check if this event is for one of our target sessions
-        outputChannel.appendLine(
+        logger.debug(
           `Breakpoint hit detected for waitForBreakpointHit for session ${event.session.name} with id ${event.session.id}`
         );
 
@@ -218,7 +253,7 @@ export const waitForBreakpointHit = async (params: {
         if (!targetSession) {
           // Use the last session in the array (most recently started)
           targetSession = currentSessions[currentSessions.length - 1];
-          outputChannel.appendLine(
+          logger.debug(
             `Using most recent session for matching: ${targetSession.name} (${targetSession.id})`
           );
         }
@@ -238,7 +273,7 @@ export const waitForBreakpointHit = async (params: {
             timeoutHandle = undefined;
           }
           resolve(event);
-          outputChannel.appendLine(
+          logger.info(
             `Breakpoint hit detected for waitForBreakpointHit: ${JSON.stringify(event)}`
           );
         }
@@ -246,7 +281,7 @@ export const waitForBreakpointHit = async (params: {
 
       // Optionally listen for session termination
       terminateListener = onSessionTerminate(endEvent => {
-        outputChannel.appendLine(
+        logger.info(
           `Session termination detected for waitForBreakpointHit: ${JSON.stringify(endEvent)}`
         );
         listener.dispose();
@@ -262,7 +297,7 @@ export const waitForBreakpointHit = async (params: {
         });
       });
 
-      // Set a timeout to prevent blocking indefinitely
+      // Set a timeout so we aren't waiting forever for a breakpoint or sessionTermination
       timeoutHandle = setTimeout(() => {
         listener.dispose();
         terminateListener?.dispose();
@@ -279,12 +314,12 @@ export const waitForBreakpointHit = async (params: {
           for (const s of targetSessions) {
             // Fire and forget; we don't await inside the timer callback
             void vscode.debug.stopDebugging(s);
-            outputChannel.appendLine(
+            logger.warn(
               `Timeout reached; stopping debug session ${s.name} (${s.id}).`
             );
           }
         } catch (e) {
-          outputChannel.appendLine(
+          logger.warn(
             `Timeout cleanup error stopping sessions: ${e instanceof Error ? e.message : String(e)}`
           );
         }

@@ -209,3 +209,60 @@ The test CLI (`@vscode/test-cli` via `npm test`) downloads a Stable build into `
 1. Install VS Code Stable and VS Code Insiders.
 1. Open the repo in **Insiders**.
 1. Run tests from a terminal: `npm test`.
+
+## Release & Versioning (LLM-Focused)
+
+This project is primarily consumed by language models, so release metadata emphasizes machine-readable consistency over human upgrade narratives.
+
+### Standard Release Flow
+
+1. Bump version in `package.json`.
+2. Adjust manifest schemas as needed (e.g., per-breakpoint `variableFilter`).
+3. Update `CHANGELOG.md` with a new section `[x.y.z] - YYYY-MM-DD`.
+4. Ensure markdown lint passes: blank lines around headings/lists; fenced code blocks include a language (e.g., `text`).
+5. Run: `npm run format && npm test` (tests must all pass).
+6. Commit: `git commit -m "chore(release): x.y.z <summary>"`.
+7. Tag: `git tag -a vx.y.z -m "Release vx.y.z: <summary>"`.
+8. Push: `git push origin main --follow-tags`.
+9. Publish release: `gh release create vx.y.z --title "vx.y.z" --notes-file RELEASE_NOTES_x.y.z.md`.
+
+### v0.0.6 Changes (Historical Reference)
+
+- Introduced exact per-breakpoint `variableFilter` (top-level filter removed).
+- Added optional per-breakpoint `action` (e.g., `stopDebugging`).
+- Added `logger.ts` for structured tool logging.
+- Cleaned CHANGELOG formatting (headings/lists/code fences compliance).
+- Release notes tailored for LLM consumption (no end-user upgrade guidance).
+
+### Variable Filtering Semantics
+
+- Previous behavior: top-level `variableFilter` aggregated regex fragments.
+- Current behavior: each breakpoint declares a required `variableFilter` array of exact (case-sensitive) names.
+- Matching is simple set membership; no regex evaluation.
+- Schema updated in `package.json` and tool logic updated in `src/startDebuggerTool.ts`.
+
+### Git Hooks & Quality Gates
+
+- Pre-commit hook runs formatting, linting, compilation, and test suite; commits abort on failure.
+- Keep changes small to maintain rapid iteration; documentation updates do not skip tests.
+
+### Guidance for Future Automated Updates
+
+- Prefer additive schema changes; avoid breaking tool contract unless strictly necessary.
+- When changing tool parameters: update manifest schema, implementation, tests, and reflect in CHANGELOG.
+- Remove human-centric prose not needed for model reasoning to keep prompt context lean.
+
+### Release Notes Files
+
+- Temporary `RELEASE_NOTES_x.y.z.md` may be created for `gh release create`; not required to commit unless historically valuable.
+
+### Checklist (Copy/Paste)
+
+```text
+1. Update version & schemas
+2. Update CHANGELOG
+3. Format & test (must pass)
+4. Commit & tag
+5. gh release create
+6. Verify release (gh release view)
+```

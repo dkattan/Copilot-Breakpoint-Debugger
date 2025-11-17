@@ -18,14 +18,13 @@ export interface BreakpointDefinition {
   path: string;
   line: number;
   variableFilter: string[]; // Required per-breakpoint variable names (exact matches, no regex)
-  action?: 'break' | 'stopDebugging'; // Optional directive (default 'break')
-  condition?: string;
-  hitCondition?: string;
-  logMessage?: string;
+  action?: 'break' | 'stopDebugging' | 'capture'; // 'capture' returns data then continues
+  condition?: string; // Expression evaluated at breakpoint; stop only if true
+  hitCount?: number; // Exact numeric hit count (3 means pause on 3rd hit)
+  logMessage?: string; // Logpoint style message with {var} interpolation
 }
 
 export interface BreakpointConfiguration {
-  disableExisting?: boolean;
   breakpoints: BreakpointDefinition[];
 }
 
@@ -128,8 +127,12 @@ export class StartDebuggerTool
       }
       const activeFilters: string[] = stopInfo.hitBreakpoint.variableFilter;
       const action =
-        (stopInfo.hitBreakpoint as { action?: 'break' | 'stopDebugging' })
-          .action ?? 'break';
+        (
+          stopInfo.hitBreakpoint as {
+            action?: 'break' | 'stopDebugging' | 'capture';
+          }
+        ).action ?? 'break';
+      const capturedLogs = stopInfo.capturedLogMessages ?? [];
       // Exact-name filtering (case-sensitive) per requirement
       const filterSet = new Set(activeFilters);
       const flattened: Array<{
@@ -164,10 +167,13 @@ export class StartDebuggerTool
         ? summary.file.split(/[/\\]/).pop()
         : 'unknown';
       const header = `Breakpoint ${fileName}:${summary.line} action=${action}`;
-      const body = flattened.length
+      const bodyVars = flattened.length
         ? `Vars: ${variableStr}`
         : `Vars: <none> (filters: ${activeFilters.join(', ')})`;
-      const textOutput = `${header}\n${body}`;
+      const bodyLogs = capturedLogs.length
+        ? `Logs: ${capturedLogs.map(l => (l.length > 120 ? `${l.slice(0, 120)}…` : l)).join(' | ')}`
+        : '';
+      const textOutput = `${header}\n${bodyVars}${bodyLogs ? `\n${bodyLogs}` : ''}`;
 
       logger.info(`[StartDebuggerTool] textOutput ${textOutput}`);
       return new LanguageModelToolResult([

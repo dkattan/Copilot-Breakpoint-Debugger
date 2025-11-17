@@ -2,8 +2,8 @@
   "publisher": "dkattan",
   "name": "copilot-breakpoint-debugger",
   "displayName": "Copilot Breakpoint Debugger",
-  "version": "0.0.9",
-  "description": "Use GitHub Copilot to automate starting, inspecting and resuming VS Code debug sessions with conditional breakpoints, hit conditions, and logpoints.",
+  "version": "0.0.11",
+  "description": "Use GitHub Copilot to automate starting, inspecting and resuming VS Code debug sessions with conditional breakpoints, exact numeric hit counts (hitCount), logpoints, and capture actions that interpolate variables inside log messages.",
   "preview": true,
   "license": "MIT",
   "homepage": "https://github.com/dkattan/Copilot-Breakpoint-Debugger#readme",
@@ -53,8 +53,8 @@
         "displayName": "Start Debugger",
         "toolReferenceName": "startDebugger",
         "canBeReferencedInPrompt": true,
-        "userDescription": "Start a debugging session and wait for first breakpoint with optional variable filtering and custom breakpoints.",
-        "modelDescription": "Start a debug session using the configured default launch configuration and wait until a breakpoint is hit, returning call stack and variables (optionally filtered).",
+        "userDescription": "Start a debug session, set breakpoints, and wait until a breakpoint is hit. Supports actions: break (pause & return), capture (collect variables & interpolated log messages then resume automatically), stopDebugging (terminate after hit). Exact numeric hitCount pauses on that occurrence.",
+        "modelDescription": "Start a debug session using the configured default launch configuration. Each breakpoint can specify an action: break (pause), capture (gather variables & interpolate {var} placeholders in logMessage then continue), or stopDebugging (terminate immediately after hit). Supports conditional expressions and exact numeric hitCount only.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -69,10 +69,6 @@
             "breakpointConfig": {
               "type": "object",
               "properties": {
-                "disableExisting": {
-                  "type": "boolean",
-                  "description": "If true, disables all existing breakpoints before adding new ones."
-                },
                 "breakpoints": {
                   "type": "array",
                   "minItems": 1,
@@ -93,19 +89,24 @@
                           "type": "string"
                         },
                         "minItems": 1,
-                        "description": "List of exact variable names to include when reporting variables for this breakpoint. Case-sensitive."
+                        "description": "List of exact variable names to include when reporting variables for this breakpoint or for interpolation in capture action. Case-sensitive."
+                      },
+                      "action": {
+                        "type": "string",
+                        "enum": ["break", "capture", "stopDebugging"],
+                        "description": "Breakpoint action: break pauses and returns; capture collects variables & interpolated log messages then resumes; stopDebugging terminates session after hit. Default is break."
                       },
                       "condition": {
                         "type": "string",
                         "description": "Optional conditional expression (e.g., 'x > 5'). Breakpoint only triggers when condition evaluates to true."
                       },
-                      "hitCondition": {
-                        "type": "string",
-                        "description": "Optional hit count condition (e.g., '>10', '==5', '%3'). Breakpoint triggers based on hit count."
+                      "hitCount": {
+                        "type": "integer",
+                        "description": "Exact numeric hit count (3 means pause on 3rd hit)."
                       },
                       "logMessage": {
                         "type": "string",
-                        "description": "Optional log message for logpoint. Uses curly braces for variable interpolation (e.g., 'Value is {x}')."
+                        "description": "Optional log message for logpoint or capture action. Uses curly braces for variable interpolation (e.g., 'Value is {x}'). If action=capture, interpolated messages are returned as capturedLogMessages."
                       }
                     },
                     "required": [
@@ -114,7 +115,7 @@
                       "variableFilter"
                     ]
                   },
-                  "description": "Optional list of breakpoints to add before starting session."
+                  "description": "Breakpoints to add before starting session."
                 }
               }
             }
@@ -128,9 +129,10 @@
         "name": "resume_debug_session",
         "displayName": "Resume Debug Session",
         "toolReferenceName": "resumeDebugSession",
+        "when": "debugState == 'running'",
         "canBeReferencedInPrompt": true,
-        "userDescription": "Resume a paused debug session optionally waiting for the next breakpoint and applying new breakpoint configuration.",
-        "modelDescription": "Resume execution of the specified debug session. Optionally wait for next stop and set/clear breakpoints before continuing.",
+        "userDescription": "Resume a paused debug session optionally waiting for the next breakpoint. Supports actions (break, capture, stopDebugging) and numeric hitCount shorthand when adding new breakpoints during resume.",
+        "modelDescription": "Resume execution of the specified debug session. Optionally wait for next stop and set/clear breakpoints before continuing. Each new breakpoint may specify action (break | capture | stopDebugging), conditional expressions, exact numeric hitCount, and logMessage interpolation for capture.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -145,45 +147,44 @@
             "breakpointConfig": {
               "type": "object",
               "properties": {
-                "disableExisting": {
-                  "type": "boolean"
-                },
                 "breakpoints": {
                   "type": "array",
                   "items": {
                     "type": "object",
                     "properties": {
-                      "path": {
-                        "type": "string"
+                      "path": {"type": "string"},
+                      "line": {"type": "integer"},
+                      "variableFilter": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "minItems": 1,
+                        "description": "Variable names to include in reporting or interpolation for capture action."
                       },
-                      "line": {
-                        "type": "integer"
+                      "action": {
+                        "type": "string",
+                        "enum": ["break", "capture", "stopDebugging"],
+                        "description": "Breakpoint action applied during resume. Default break."
                       },
                       "condition": {
                         "type": "string",
-                        "description": "Optional conditional expression (e.g., 'x > 5'). Breakpoint only triggers when condition evaluates to true."
+                        "description": "Optional conditional expression (e.g., 'x > 5')."
                       },
-                      "hitCondition": {
-                        "type": "string",
-                        "description": "Optional hit count condition (e.g., '>10', '==5', '%3'). Breakpoint triggers based on hit count."
+                      "hitCount": {
+                        "type": "integer",
+                        "description": "Exact numeric hit count (pause on that occurrence)."
                       },
                       "logMessage": {
                         "type": "string",
-                        "description": "Optional log message for logpoint. Uses curly braces for variable interpolation (e.g., 'Value is {x}')."
+                        "description": "Optional log message with {var} interpolation. Returned as capturedLogMessages if action=capture."
                       }
                     },
-                    "required": [
-                      "path",
-                      "line"
-                    ]
+                    "required": ["path", "line"]
                   }
                 }
               }
             }
           },
-          "required": [
-            "sessionId"
-          ]
+          "required": ["sessionId"]
         }
       },
       {

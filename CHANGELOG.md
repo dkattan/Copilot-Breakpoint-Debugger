@@ -8,6 +8,38 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - Initial release
 
+## [0.0.11] - 2025-11-17
+
+### Changed
+
+- Removed public `hitCondition` string property; only support exact numeric `hitCount` in breakpoint schemas.
+- Updated documentation (`agents.md`, test workspace README) to reflect simplified hit count semantics.
+- Manifest and code updated to drop pattern-based hit conditions (e.g., ">10", "%3").
+
+### Breaking
+
+- Any previous usage of `hitCondition` (string patterns) must migrate to `hitCount` integer. Only exact counts are supported now.
+
+### Internal
+
+- Refactored session and start debugger tool interfaces to remove legacy alias logic.
+
+## [0.0.10] - 2025-11-17
+
+### Added
+
+- `capture` breakpoint action to collect variables and interpolated log messages then automatically resume execution.
+- `hitCount` numeric shorthand alongside legacy `hitCondition` string (now removed in 0.0.11).
+- Conditional availability of `resume_debug_session` via `when: debugState == 'running'`.
+
+### Changed
+
+- Enhanced manifest descriptions for breakpoint actions and variable interpolation.
+
+### Internal
+
+- Added ESLint fixes for string concatenation in concise output rendering.
+
 ## [0.0.9] - 2025-11-17
 
 ### Changed

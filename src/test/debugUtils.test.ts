@@ -40,7 +40,7 @@ describe('debugUtils - DAPHelpers', () => {
     baseParams = { workspaceFolder, nameOrConfiguration: configurationName };
   });
 
-  it('hitCondition breakpoint triggers on specific hit count', async () => {
+  it('hitCount breakpoint triggers on specific hit count', async () => {
     const lineInsideLoop = 9;
     const context = await startDebuggingAndWaitForStop(
       Object.assign({}, baseParams, {
@@ -50,7 +50,7 @@ describe('debugUtils - DAPHelpers', () => {
             {
               path: scriptPath,
               line: lineInsideLoop,
-              hitCondition: '3',
+              hitCount: 3,
               variableFilter: ['i'],
             },
           ],
@@ -61,7 +61,7 @@ describe('debugUtils - DAPHelpers', () => {
     assert.strictEqual(
       context.frame.line,
       lineInsideLoop,
-      `Expected to stop on hitCondition line ${lineInsideLoop}, but paused at ${context.frame.line}`
+      `Expected to stop on hitCount line ${lineInsideLoop}, but paused at ${context.frame.line}`
     );
 
     const activeSession = vscode.debug.activeDebugSession;
@@ -81,7 +81,7 @@ describe('debugUtils - DAPHelpers', () => {
     assert.strictEqual(
       iValue,
       2,
-      `Expected i to be 2 when hitCondition breakpoint is hit the 3rd time, but got ${iValue}`
+      `Expected i to be 2 when hitCount breakpoint is hit the 3rd time, but got ${iValue}`
     );
   });
 
@@ -276,8 +276,6 @@ describe('debugUtils - DAPHelpers', () => {
       targetLine,
       'Did not stop at expected line'
     );
-    // wait briefly for termination to propagate
-    await new Promise(r => setTimeout(r, 200));
     const active = vscode.debug.activeDebugSession;
     assert.strictEqual(
       active,

@@ -66,9 +66,7 @@ All breakpoint-related tools (`start_debugger` and `resume_debug_session`) suppo
 - **Conditional Breakpoints**: Set `condition` to specify an expression that must evaluate to true for the breakpoint to trigger
   - Example: `condition: "$i -ge 3"` (PowerShell) or `condition: "x > 5"` (JavaScript)
   - The breakpoint will only pause execution when the condition is met
-- **Hit Count Breakpoints**: Set `hitCondition` to control breakpoint triggering based on hit count
-  - Example: `hitCondition: "3"` (trigger on 3rd hit), `hitCondition: ">10"` (trigger after 10 hits), `hitCondition: "%3"` (trigger every 3rd hit)
-  - Useful for debugging issues that only occur after multiple iterations
+- **Hit Count Breakpoints**: Set `hitCount` (integer) to pause exactly on that occurrence (e.g., `hitCount: 3` pauses on the 3rd hit). Useful for issues that appear only after several iterations.
 - **Logpoints**: Set `logMessage` to log a message without stopping execution
   - Example: `logMessage: "Loop iteration: {$i}"` (PowerShell) or `logMessage: "Value is {x}"` (JavaScript)
   - Use curly braces for variable interpolation

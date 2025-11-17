@@ -12,7 +12,6 @@ export interface ResumeDebugSessionToolParameters {
   sessionId: string; // ID of the debug session to resume
   waitForStop?: boolean; // Wait for next breakpoint after resume
   breakpointConfig?: {
-    disableExisting?: boolean;
     breakpoints?: Array<{ path: string; line: number }>;
   };
 }

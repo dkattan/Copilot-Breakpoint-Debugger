@@ -68,12 +68,12 @@ condition: $i -ge 3
 condition: i >= 3
 ```
 
-### 3. Hit Condition Breakpoints
+### 3. Hit Count Breakpoints
 
-Trigger only on the 3rd hit:
+Trigger only on the 3rd hit (exact numeric count):
 
 ```
-hitCondition: 3
+hitCount: 3
 ```
 
 ### 4. Logpoints

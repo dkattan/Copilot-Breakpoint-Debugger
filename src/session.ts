@@ -121,16 +121,23 @@ export const startDebuggingAndWaitForStop = async (params: {
       path: string;
       line: number;
       condition?: string;
-      hitCondition?: string;
+      hitCount?: number; // numeric hit count (exact)
       logMessage?: string;
       variableFilter: string[]; // retain per-breakpoint filter for upstream use
-      action?: 'break' | 'stopDebugging';
+      action?: 'break' | 'stopDebugging' | 'capture'; // 'capture' collects data + log messages then continues
     }>;
   };
 }): Promise<
   DebugContext & {
     scopeVariables: ScopeVariables[];
-    hitBreakpoint?: { path: string; line: number; variableFilter: string[] };
+    hitBreakpoint?: {
+      path: string;
+      line: number;
+      variableFilter: string[];
+      action?: 'break' | 'stopDebugging' | 'capture';
+      logMessage?: string;
+    };
+    capturedLogMessages?: string[];
   }
 > => {
   const {
@@ -215,7 +222,11 @@ export const startDebuggingAndWaitForStop = async (params: {
   }
 
   const seen = new Set<string>();
-  const validated: vscode.SourceBreakpoint[] = [];
+  // Keep association between original request and created SourceBreakpoint
+  const validated: Array<{
+    bp: (typeof breakpointConfig.breakpoints)[number];
+    sb: vscode.SourceBreakpoint;
+  }> = [];
   for (const bp of breakpointConfig.breakpoints) {
     const absolutePath = path.isAbsolute(bp.path)
       ? bp.path
@@ -239,15 +250,15 @@ export const startDebuggingAndWaitForStop = async (params: {
       seen.add(key);
       const uri = vscode.Uri.file(absolutePath);
       const location = new vscode.Position(bp.line - 1, 0);
-      validated.push(
-        new vscode.SourceBreakpoint(
-          new vscode.Location(uri, location),
-          true,
-          bp.condition,
-          bp.hitCondition,
-          bp.logMessage
-        )
+      const effectiveHitCondition = bp.hitCount !== undefined ? String(bp.hitCount) : undefined;
+      const sourceBp = new vscode.SourceBreakpoint(
+        new vscode.Location(uri, location),
+        true,
+        bp.condition,
+        effectiveHitCondition,
+        bp.logMessage
       );
+      validated.push({ bp, sb: sourceBp });
     } catch (e) {
       logger.error(
         `Failed to open file for breakpoint path ${absolutePath}: ${
@@ -257,7 +268,7 @@ export const startDebuggingAndWaitForStop = async (params: {
     }
   }
   if (validated.length) {
-    vscode.debug.addBreakpoints(validated);
+    vscode.debug.addBreakpoints(validated.map(v => v.sb));
     logger.info(`Added ${validated.length} validated breakpoint(s).`);
     await new Promise(resolve => setTimeout(resolve, 500));
   } else {
@@ -318,7 +329,7 @@ export const startDebuggingAndWaitForStop = async (params: {
     // Decide whether to continue immediately (entry not at user breakpoint)
     const entryLineZeroBased = entryStop.line ? entryStop.line - 1 : -1;
     const hitRequestedBreakpoint = validated.some(
-      bp => bp.location.range.start.line === entryLineZeroBased
+      v => v.sb.location.range.start.line === entryLineZeroBased
     );
     if (!hitRequestedBreakpoint) {
       logger.debug(
@@ -363,14 +374,15 @@ export const startDebuggingAndWaitForStop = async (params: {
           path: string;
           line: number;
           variableFilter: string[];
-          action?: 'break' | 'stopDebugging';
+          action?: 'break' | 'stopDebugging' | 'capture';
+          logMessage?: string;
         }
       | undefined;
     const framePath = debugContext.frame?.source?.path;
     const frameLine = debugContext.frame?.line;
     if (framePath && typeof frameLine === 'number') {
       const normalizedFramePath = normalizeFsPath(framePath);
-      for (const bp of breakpointConfig.breakpoints) {
+      for (const { bp } of validated) {
         const absPath = path.isAbsolute(bp.path)
           ? bp.path
           : path.join(folderFsPath, bp.path);
@@ -383,8 +395,30 @@ export const startDebuggingAndWaitForStop = async (params: {
             line: bp.line,
             variableFilter: bp.variableFilter,
             action: bp.action,
+            logMessage: bp.logMessage,
           };
           break;
+        }
+      }
+    }
+    // Build variable lookup for interpolation (for capture action log message expansion)
+    const variableLookup = new Map<string, string>();
+    for (const scope of scopeVariables) {
+      for (const v of scope.variables) {
+        variableLookup.set(v.name, v.value);
+      }
+    }
+    let capturedLogMessages: string[] | undefined;
+    if (hitBreakpoint?.action === 'capture') {
+      const interpolate = (msg: string) =>
+        msg.replace(/\{([^{}]+)\}/g, (_m, name) => {
+          const raw = variableLookup.get(name);
+          return raw !== undefined ? raw : `{${name}}`;
+        });
+      capturedLogMessages = [];
+      for (const { bp } of validated) {
+        if (bp.logMessage) {
+          capturedLogMessages.push(interpolate(bp.logMessage));
         }
       }
     }
@@ -397,16 +431,50 @@ export const startDebuggingAndWaitForStop = async (params: {
       }
       const waitTime = Date.now() - now;
       logger.info(`All debug sessions terminated after ${waitTime}ms.`);
+    } else if (hitBreakpoint?.action === 'capture') {
+      try {
+        logger.debug(
+          `Continuing debug session ${finalStop.session.id} after capture action.`
+        );
+        await finalStop.session.customRequest('continue', {
+          threadId: finalStop.threadId,
+        });
+      } catch (continueErr) {
+        logger.warn(
+          `Failed to continue after capture action: ${continueErr instanceof Error ? continueErr.message : String(continueErr)}`
+        );
+      }
     }
-    return { ...debugContext, scopeVariables, hitBreakpoint };
+    return {
+      ...debugContext,
+      scopeVariables,
+      hitBreakpoint,
+      capturedLogMessages,
+    };
   } finally {
     // Restore original breakpoints, removing any added ones first
     const current = vscode.debug.breakpoints;
     if (current.length) {
-      vscode.debug.removeBreakpoints(current);
-      logger.debug(
-        `Removed ${current.length} session breakpoint(s) before restoring originals.`
+      // Remove only the breakpoints we added (avoid touching restored originals twice)
+      const currentSource = current.filter(
+        bp => bp instanceof vscode.SourceBreakpoint
+      ) as vscode.SourceBreakpoint[];
+      const addedKeys = new Set(
+        validated.map(
+          v => `${v.sb.location.uri.fsPath}:${v.sb.location.range.start.line}`
+        )
       );
+      const toRemove = currentSource.filter(sb =>
+        addedKeys.has(
+          `${sb.location.uri.fsPath}:${sb.location.range.start.line}`
+        )
+      );
+      if (toRemove.length) {
+        vscode.debug.removeBreakpoints(toRemove);
+        logger.debug(
+          `Removed ${toRemove.length} session breakpoint(s) before restoring originals.`
+        );
+      }
     }
     if (originalBreakpoints.length) {
       vscode.debug.addBreakpoints(originalBreakpoints);
@@ -456,7 +524,7 @@ export const resumeDebugSession = async (params: {
       path: string;
       line: number;
       condition?: string;
-      hitCondition?: string;
+      hitCount?: number;
       logMessage?: string;
     }>;
   };
@@ -507,11 +575,12 @@ export const resumeDebugSession = async (params: {
           : path.join(workspaceFolder, bp.path);
         const uri = vscode.Uri.file(absolutePath);
         const location = new vscode.Position(bp.line - 1, 0); // VSCode uses 0-based line numbers
+        const hitCond = bp.hitCount !== undefined ? String(bp.hitCount) : undefined;
         return new vscode.SourceBreakpoint(
           new vscode.Location(uri, location),
           true, // enabled
           bp.condition,
-          bp.hitCondition,
+          hitCond,
           bp.logMessage
         );
       });

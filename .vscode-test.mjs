@@ -16,25 +16,29 @@ if (existsSync(userDataDir)) {
 }
 
 export default defineConfig({
-  files: 'src/test/**/*.test.ts',
-  version: 'stable', // Match the parent VS Code version
+  files: ['src/test/**/*.test.ts'],
+
+  version: 'insiders', // Match the parent VS Code version
   mocha: {
     ui: 'bdd',
     timeout: 30000,
     parallel: false,
     require: ['esbuild-register'],
   },
+
   // Allow extensions to load; we install required ones below via the 'extensions' field.
   // Run with a temporary profile for isolation between test runs.
   launchArgs: [
-    resolve(__dirname, 'test-workspace.code-workspace'),
-    '--profile-temp',
+    resolve(__dirname, 'test-workspace', 'test-workspace.code-workspace'),
+    // '--profile-temp',
+    '--disable-extensions',
   ],
   // Request automatic installation of required marketplace extensions for tests.
   // @vscode/test-cli will ensure these are present before running.
-  extensions: ['ms-vscode.powershell'],
+  // extensions: ['ms-vscode.powershell'],
   coverage: {
     reporter: ['text', 'html', 'lcov'],
     exclude: ['src/test/**', '**/node_modules/**'],
   },
+  timeout: 30000,
 });

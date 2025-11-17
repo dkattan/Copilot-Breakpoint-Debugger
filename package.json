@@ -2,7 +2,7 @@
   "publisher": "dkattan",
   "name": "copilot-breakpoint-debugger",
   "displayName": "Copilot Breakpoint Debugger",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Use GitHub Copilot to automate starting, inspecting and resuming VS Code debug sessions with conditional breakpoints, hit conditions, and logpoints.",
   "preview": true,
   "license": "MIT",
@@ -62,14 +62,6 @@
               "type": "string",
               "description": "Absolute path of workspace folder (defaults to first workspace)."
             },
-            "variableFilter": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "minItems": 1,
-              "description": "List of variable name regex fragments to filter variables (joined with |)."
-            },
             "timeout_seconds": {
               "type": "integer",
               "description": "Seconds to wait for initial breakpoint (default 60)."
@@ -95,6 +87,14 @@
                         "type": "integer",
                         "description": "1-based line number for the breakpoint."
                       },
+                      "variableFilter": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "description": "List of exact variable names to include when reporting variables for this breakpoint. Case-sensitive."
+                      },
                       "condition": {
                         "type": "string",
                         "description": "Optional conditional expression (e.g., 'x > 5'). Breakpoint only triggers when condition evaluates to true."
@@ -110,7 +110,8 @@
                     },
                     "required": [
                       "path",
-                      "line"
+                      "line",
+                      "variableFilter"
                     ]
                   },
                   "description": "Optional list of breakpoints to add before starting session."
@@ -119,7 +120,6 @@
             }
           },
           "required": [
-            "variableFilter",
             "breakpointConfig"
           ]
         }

@@ -99,7 +99,6 @@ export const listDebugSessions = () => {
  * @param params.sessionName - Name to assign to the debug session.
  * @param params.workspaceFolder - Absolute path to the workspace folder where the debug session will run.
  * @param params.nameOrConfiguration - Either a string name of a launch configuration or a DebugConfiguration object.
- * @param params.variableFilter - Optional array of variable name patterns to filter which variables are returned.
  * @param params.timeoutSeconds - Optional timeout in seconds to wait for a breakpoint hit (default: 60).
  * @param params.breakpointConfig - Optional configuration for managing breakpoints during the debug session.
  * @param params.breakpointConfig.disableExisting - If true, removes all existing breakpoints before starting the session.
@@ -109,7 +108,6 @@ export const startDebuggingAndWaitForStop = async (params: {
   sessionName: string;
   workspaceFolder: string;
   nameOrConfiguration: string;
-  variableFilter?: string[];
   timeoutSeconds?: number;
   breakpointConfig: {
     disableExisting?: boolean;
@@ -119,14 +117,20 @@ export const startDebuggingAndWaitForStop = async (params: {
       condition?: string;
       hitCondition?: string;
       logMessage?: string;
+      variableFilter: string[]; // retain per-breakpoint filter for upstream use
+      action?: 'break' | 'stopDebugging';
     }>;
   };
-}): Promise<DebugContext & { scopeVariables: ScopeVariables[] }> => {
+}): Promise<
+  DebugContext & {
+    scopeVariables: ScopeVariables[];
+    hitBreakpoint?: { path: string; line: number; variableFilter: string[] };
+  }
+> => {
   const {
     sessionName,
     workspaceFolder,
     nameOrConfiguration,
-    variableFilter,
     timeoutSeconds = 60,
     breakpointConfig,
   } = params;
@@ -354,32 +358,57 @@ export const startDebuggingAndWaitForStop = async (params: {
       stopInfo.threadId
     );
 
-    const filterRegex =
-      variableFilter && variableFilter.length
-        ? new RegExp(variableFilter.join('|'), 'i')
-        : undefined;
     const scopeVariables: ScopeVariables[] = [];
     for (const scope of debugContext.scopes ?? []) {
       const variables = await DAPHelpers.getVariablesFromReference(
         stopInfo.session,
         scope.variablesReference
       );
-      const filtered = filterRegex
-        ? variables.filter(variable => filterRegex.test(variable.name))
-        : variables;
-      if (!filtered.length) {
-        continue;
-      }
-      scopeVariables.push({
-        scopeName: scope.name,
-        variables: filtered,
-      });
+      scopeVariables.push({ scopeName: scope.name, variables });
     }
 
-    return {
-      ...debugContext,
-      scopeVariables,
-    };
+    // Determine which breakpoint was actually hit (exact file + line match)
+    let hitBreakpoint:
+      | {
+          path: string;
+          line: number;
+          variableFilter: string[];
+          action?: 'break' | 'stopDebugging';
+        }
+      | undefined;
+    const framePath = debugContext.frame?.source?.path;
+    const frameLine = debugContext.frame?.line;
+    if (framePath && typeof frameLine === 'number') {
+      const normalizedFramePath = normalizeFsPath(framePath);
+      for (const bp of breakpointConfig.breakpoints) {
+        const absPath = path.isAbsolute(bp.path)
+          ? bp.path
+          : path.join(folderFsPath, bp.path);
+        if (
+          normalizeFsPath(absPath) === normalizedFramePath &&
+          bp.line === frameLine
+        ) {
+          hitBreakpoint = {
+            path: absPath,
+            line: bp.line,
+            variableFilter: bp.variableFilter,
+            action: bp.action,
+          };
+          break;
+        }
+      }
+    }
+    // Execute action if requested (stopDebugging terminates after data capture)
+    if (hitBreakpoint?.action === 'stopDebugging') {
+      try {
+        await vscode.debug.stopDebugging(stopInfo.session);
+      } catch (e) {
+        logger.warn(
+          `Failed to stop session after breakpoint action stopDebugging: ${e instanceof Error ? e.message : String(e)}`
+        );
+      }
+    }
+    return { ...debugContext, scopeVariables, hitBreakpoint };
   } finally {
     // Restore original breakpoints, removing any added ones first
     const current = vscode.debug.breakpoints;

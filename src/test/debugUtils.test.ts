@@ -51,6 +51,7 @@ describe('debugUtils - DAPHelpers', () => {
               path: scriptPath,
               line: lineInsideLoop,
               hitCondition: '3',
+              variableFilter: ['i'],
             },
           ],
         },
@@ -98,10 +99,12 @@ describe('debugUtils - DAPHelpers', () => {
               line: lineInsideLoop,
               // condition: 'i > 2',
               logMessage: 'Logpoint Loop iteration: {i}',
+              variableFilter: ['i'],
             },
             {
               path: scriptPath,
               line: postLoopLine,
+              variableFilter: ['i'],
             },
           ],
         },
@@ -135,6 +138,7 @@ describe('debugUtils - DAPHelpers', () => {
             {
               path: scriptPath,
               line: 5,
+              variableFilter: ['i'],
             },
           ],
         },
@@ -173,6 +177,7 @@ describe('debugUtils - DAPHelpers', () => {
             {
               path: scriptPath,
               line: lineInsideLoop,
+              variableFilter: ['i'],
             },
           ],
         },
@@ -202,6 +207,7 @@ describe('debugUtils - DAPHelpers', () => {
             {
               path: scriptPath,
               line: 5,
+              variableFilter: ['i'],
             },
           ],
         },
@@ -229,6 +235,7 @@ describe('debugUtils - DAPHelpers', () => {
             {
               path: scriptPath,
               line: 5,
+              variableFilter: ['i'],
             },
           ],
         },
@@ -245,5 +252,37 @@ describe('debugUtils - DAPHelpers', () => {
     assert.ok(debugContext?.scopes, 'Should have scopes');
     assert.ok(Array.isArray(debugContext?.scopes), 'Scopes should be array');
     assert.ok(debugContext.scopes.length > 0, 'Should have at least one scope');
+  });
+
+  it('stopDebugging action terminates session after breakpoint hit', async () => {
+    const targetLine = 9;
+    const context = await startDebuggingAndWaitForStop(
+      Object.assign({}, baseParams, {
+        sessionName: '',
+        breakpointConfig: {
+          breakpoints: [
+            {
+              path: scriptPath,
+              line: targetLine,
+              variableFilter: ['i'],
+              action: 'stopDebugging' as const,
+            },
+          ],
+        },
+      })
+    );
+    assert.strictEqual(
+      context.frame.line,
+      targetLine,
+      'Did not stop at expected line'
+    );
+    // wait briefly for termination to propagate
+    await new Promise(r => setTimeout(r, 200));
+    const active = vscode.debug.activeDebugSession;
+    assert.strictEqual(
+      active,
+      undefined,
+      'Debug session should be terminated after action=stopDebugging'
+    );
   });
 });

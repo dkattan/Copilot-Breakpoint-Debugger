@@ -114,6 +114,7 @@ describe('multi-Root Workspace Integration', () => {
             {
               path: scriptUri.fsPath,
               line: lineInsideLoop,
+              variableFilter: ['i'],
             },
           ],
         },
@@ -176,6 +177,7 @@ describe('multi-Root Workspace Integration', () => {
               path: scriptUri.fsPath,
               line: lineInsideLoop,
               condition,
+              variableFilter: ['i'],
             },
           ],
         },

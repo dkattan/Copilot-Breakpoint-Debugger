@@ -5,12 +5,12 @@ import {
   stopAllDebugSessions,
 } from './utils/startDebuggerToolTestUtils';
 
-describe('startDebuggerTool prompt-tsx output', () => {
+describe('startDebuggerTool concise text output', () => {
   afterEach(async () => {
     await stopAllDebugSessions();
   });
 
-  it('returns a prompt-tsx part with breakpoint + scope context', async () => {
+  it('returns concise text part with breakpoint + filtered variables', async () => {
     const result = await invokeStartDebuggerTool({
       scriptRelativePath: 'test-workspace/b/test.js',
       configurationName: 'Run test.js',
@@ -24,25 +24,13 @@ describe('startDebuggerTool prompt-tsx output', () => {
     assert.ok(content.length === 1, 'tool should return a single prompt part');
     const promptPart = content[0];
     assert.ok(
-      promptPart instanceof vscode.LanguageModelPromptTsxPart,
-      'expected LanguageModelPromptTsxPart'
+      promptPart instanceof vscode.LanguageModelTextPart,
+      'expected LanguageModelTextPart for concise output'
     );
-
-    const promptJson = promptPart.value as { node?: unknown };
-    assert.ok(
-      promptJson && typeof promptJson === 'object',
-      'prompt JSON missing'
-    );
-    assert.ok('node' in promptJson, 'prompt JSON missing root node');
-
-    const serialized = JSON.stringify(promptJson);
-    assert.match(serialized, /Breakpoint Summary/, 'summary chunk missing');
-    assert.match(serialized, /Scope/, 'scope chunk missing');
-
-    console.log('[prompt-tsx] serialized length:', serialized.length);
-    console.log(
-      '[prompt-tsx] preview:',
-      serialized.slice(0, Math.min(400, serialized.length))
-    );
+    const textValue = promptPart.value as string;
+    assert.match(textValue, /^Breakpoint .*:\d+/m, 'Missing breakpoint header');
+    assert.match(textValue, /Vars:/, 'Missing Vars: section');
+    assert.match(textValue, /i=/, 'Filtered variable i missing');
+    console.log('[concise-output] preview:', textValue);
   });
 });

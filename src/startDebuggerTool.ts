@@ -2,37 +2,41 @@ import type {
   LanguageModelTool,
   LanguageModelToolInvocationOptions,
 } from 'vscode';
-import { renderElementJSON } from '@vscode/prompt-tsx';
+// Removed prompt-tsx rendering for concise text output
 import * as vscode from 'vscode';
-import {
-  LanguageModelPromptTsxPart,
-  LanguageModelTextPart,
-  LanguageModelToolResult,
-} from 'vscode';
-import { StartDebuggerPrompt } from './prompts/startDebuggerPrompt';
+import { LanguageModelTextPart, LanguageModelToolResult } from 'vscode';
+import { logger } from './logger';
+// Legacy prompt component retained elsewhere; not used here.
 import { startDebuggingAndWaitForStop } from './session';
 
 // Parameters for starting a debug session. The tool starts a debugger using the
 // configured default launch configuration and waits for the first breakpoint hit,
 // returning call stack and (optionally) filtered variables.
-export interface StartDebuggerToolParameters {
-  workspaceFolder?: string; // Optional explicit folder path; defaults to first workspace folder
-  variableFilter: string[]; // Required variable name filters (regex fragments joined by |)
-  timeoutSeconds?: number; // Optional timeout for waiting for breakpoint (defaults handled downstream)
-  configurationName?: string; // Optional launch configuration name (overrides setting)
-  breakpointConfig: {
-    disableExisting?: boolean;
-    breakpoints: Array<{
-      path: string;
-      line: number;
-      condition?: string; // Optional conditional expression (e.g., "x > 5")
-      hitCondition?: string; // Optional hit count condition (e.g., ">10", "==5", "%3")
-      logMessage?: string; // Optional log message (logpoint)
-    }>;
-  };
+// Individual breakpoint definition now includes a required variableFilter so
+// each breakpoint can specify its own variable name patterns (regex fragments).
+export interface BreakpointDefinition {
+  path: string;
+  line: number;
+  variableFilter: string[]; // Required per-breakpoint variable filters
+  action?: 'break' | 'stopDebugging'; // Optional directive (default 'break')
+  condition?: string;
+  hitCondition?: string;
+  logMessage?: string;
 }
 
-const MAX_VARIABLES_PER_SCOPE = 50;
+export interface BreakpointConfiguration {
+  disableExisting?: boolean;
+  breakpoints: BreakpointDefinition[];
+}
+
+export interface StartDebuggerToolParameters {
+  workspaceFolder?: string;
+  timeoutSeconds?: number;
+  configurationName?: string;
+  breakpointConfig: BreakpointConfiguration;
+}
+
+// Removed scope variable limiting; concise output filters directly.
 
 export class StartDebuggerTool
   implements LanguageModelTool<StartDebuggerToolParameters>
@@ -42,104 +46,142 @@ export class StartDebuggerTool
   ): Promise<LanguageModelToolResult> {
     const {
       workspaceFolder,
-      variableFilter,
       timeoutSeconds,
       configurationName,
       breakpointConfig,
     } = options.input;
+    try {
+      if (!breakpointConfig) {
+        throw new TypeError('breakpointConfig is required.');
+      }
+      if (!breakpointConfig.breakpoints) {
+        throw new TypeError('breakpointConfig.breakpoints is required.');
+      }
+      if (breakpointConfig.breakpoints.length === 0) {
+        throw new TypeError(
+          'Provide at least one breakpoint (path + line) before starting the debugger.'
+        );
+      }
 
-    if (!variableFilter || variableFilter.length === 0) {
-      return new LanguageModelToolResult([
-        new LanguageModelTextPart(
-          'Error: Provide at least one variableFilter entry (regex fragment) to limit the returned variables.'
-        ),
-      ]);
-    }
+      // Validate and aggregate per-breakpoint filters
+      const aggregatedFilters: string[] = [];
+      for (const bp of breakpointConfig.breakpoints) {
+        if (bp.variableFilter === undefined) {
+          throw new TypeError(
+            `Breakpoint at ${bp.path}:${bp.line} missing required variableFilter entries.`
+          );
+        }
+        if (bp.variableFilter.length === 0) {
+          throw new TypeError(
+            `Breakpoint at ${bp.path}:${bp.line} has empty variableFilter array.`
+          );
+        }
+        for (const fragment of bp.variableFilter) {
+          aggregatedFilters.push(fragment);
+        }
+      }
 
-    if (!breakpointConfig?.breakpoints?.length) {
-      return new LanguageModelToolResult([
-        new LanguageModelTextPart(
-          'Error: Provide at least one breakpoint (path + line) before starting the debugger.'
-        ),
-      ]);
-    }
+      if (typeof workspaceFolder !== 'string') {
+        throw new TypeError('workspaceFolder is required.');
+      }
+      if (workspaceFolder.trim().length === 0) {
+        throw new TypeError('workspaceFolder must not be empty.');
+      }
+      const resolvedWorkspaceFolder = workspaceFolder.trim();
 
-    const resolvedWorkspaceFolder =
-      workspaceFolder?.trim() ||
-      vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (!resolvedWorkspaceFolder) {
-      return new LanguageModelToolResult([
-        new LanguageModelTextPart(
-          'Error: No workspace folder available. Open a folder in VS Code or pass workspaceFolder explicitly.'
-        ),
-      ]);
-    }
+      // Get the configuration name from parameter or settings
+      const config = vscode.workspace.getConfiguration('copilot-debugger');
+      const configValue = config.get<string>('defaultLaunchConfiguration');
+      if (!configurationName && !configValue) {
+        throw new TypeError(
+          'No launch configuration specified. Set "copilot-debugger.defaultLaunchConfiguration" or provide configurationName.'
+        );
+      }
+      let effectiveConfigName: string;
+      if (configurationName) {
+        effectiveConfigName = configurationName;
+      } else {
+        effectiveConfigName = configValue as string;
+      }
 
-    // Get the configuration name from parameter or settings
-    const config = vscode.workspace.getConfiguration('copilot-debugger');
-    const effectiveConfigName =
-      configurationName || config.get<string>('defaultLaunchConfiguration');
+      // Note: We skip pre-validation of launch configuration existence because:
+      // 1. In multi-root workspaces, getConfiguration() may not return all available configs
+      // 2. VS Code's startDebugging() will provide a clear error if the config doesn't exist
+      // 3. This avoids false negatives where configs exist but aren't detected via API
 
-    if (!effectiveConfigName) {
-      return new LanguageModelToolResult([
-        new LanguageModelTextPart(
-          'Error: No launch configuration specified. Set "copilot-debugger.defaultLaunchConfiguration" in settings or provide configurationName parameter.'
-        ),
-      ]);
-    }
+      const stopInfo = await startDebuggingAndWaitForStop({
+        workspaceFolder: resolvedWorkspaceFolder,
+        nameOrConfiguration: effectiveConfigName,
+        timeoutSeconds,
+        breakpointConfig,
+        sessionName: '',
+      });
 
-    // Note: We skip pre-validation of launch configuration existence because:
-    // 1. In multi-root workspaces, getConfiguration() may not return all available configs
-    // 2. VS Code's startDebugging() will provide a clear error if the config doesn't exist
-    // 3. This avoids false negatives where configs exist but aren't detected via API
+      const summary = {
+        session: stopInfo.thread?.name ?? effectiveConfigName,
+        file: stopInfo.frame?.source?.path,
+        line: stopInfo.frame?.line,
+        reason: stopInfo.frame?.name,
+      };
 
-    const stopInfo = await startDebuggingAndWaitForStop({
-      workspaceFolder: resolvedWorkspaceFolder,
-      nameOrConfiguration: effectiveConfigName,
-      variableFilter,
-      timeoutSeconds,
-      breakpointConfig,
-      sessionName: '', // Empty string means match any session
-    });
-
-    const summary = {
-      session: stopInfo.thread?.name ?? effectiveConfigName,
-      file: stopInfo.frame?.source?.path,
-      line: stopInfo.frame?.line,
-      reason: stopInfo.frame?.name,
-    };
-
-    const promptJson = await renderElementJSON(
-      StartDebuggerPrompt,
-      {
-        summary,
-        thread: stopInfo.thread
-          ? { id: stopInfo.thread.id, name: stopInfo.thread.name }
-          : undefined,
-        frame: stopInfo.frame
-          ? {
-              id: stopInfo.frame.id,
-              name: stopInfo.frame.name,
-              source: stopInfo.frame.source,
-              line: stopInfo.frame.line,
-              column: stopInfo.frame.column,
-            }
-          : undefined,
-        scopes: (stopInfo.scopeVariables ?? []).map(scope => ({
-          scopeName: scope.scopeName,
-          variables: scope.variables
-            .slice(0, MAX_VARIABLES_PER_SCOPE)
-            .map(variable => ({
+      // Select filter strictly from the hit breakpoint; if absent, treat as configuration error.
+      if (!stopInfo.hitBreakpoint) {
+        throw new TypeError(
+          'Hit breakpoint not identifiable; cannot determine variable filters.'
+        );
+      }
+      const activeFilters: string[] = stopInfo.hitBreakpoint.variableFilter;
+      const action =
+        (stopInfo.hitBreakpoint as { action?: 'break' | 'stopDebugging' })
+          .action ?? 'break';
+      const regex = new RegExp(activeFilters.join('|'), 'i');
+      const flattened: Array<{
+        name: string;
+        value: string;
+        scope: string;
+        type?: string;
+      }> = [];
+      for (const scope of stopInfo.scopeVariables ?? []) {
+        for (const variable of scope.variables) {
+          if (regex.test(variable.name)) {
+            flattened.push({
               name: variable.name,
               value: variable.value,
-            })),
-        })),
-      },
-      options.tokenizationOptions
-    );
-
-    return new LanguageModelToolResult([
-      new LanguageModelPromptTsxPart(promptJson),
-    ]);
+              scope: scope.scopeName,
+              type: variable.type,
+            });
+          }
+        }
+      }
+      const truncate = (val: string) => {
+        const max = 120;
+        return val.length > max ? `${val.slice(0, max)}…(${val.length})` : val;
+      };
+      const variableStr = flattened
+        .map(v => {
+          const typePart = v.type ? `:${v.type}` : '';
+          return `${v.name}=${truncate(v.value)} (${v.scope}${typePart})`;
+        })
+        .join('; ');
+      const fileName = summary.file
+        ? summary.file.split(/[/\\]/).pop()
+        : 'unknown';
+      const header = `Breakpoint ${fileName}:${summary.line} action=${action}`;
+      const body = flattened.length
+        ? `Vars: ${variableStr}`
+        : `Vars: <none> (filters: ${activeFilters.join(', ')})`;
+      const textOutput = `${header}\n${body}`;
+      logger.info(
+        `[StartDebuggerTool] concise output variableCount=${flattened.length}`
+      );
+      return new LanguageModelToolResult([
+        new LanguageModelTextPart(textOutput),
+      ]);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return new LanguageModelToolResult([
+        new LanguageModelTextPart(`Error: ${message}`),
+      ]);
+    }
   }
 }

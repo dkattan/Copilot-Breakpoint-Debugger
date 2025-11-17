@@ -17,7 +17,7 @@ import { startDebuggingAndWaitForStop } from './session';
 export interface BreakpointDefinition {
   path: string;
   line: number;
-  variableFilter: string[]; // Required per-breakpoint variable filters
+  variableFilter: string[]; // Required per-breakpoint variable names (exact matches, no regex)
   action?: 'break' | 'stopDebugging'; // Optional directive (default 'break')
   condition?: string;
   hitCondition?: string;
@@ -63,8 +63,7 @@ export class StartDebuggerTool
         );
       }
 
-      // Validate and aggregate per-breakpoint filters
-      const aggregatedFilters: string[] = [];
+      // Validate per-breakpoint filters (now exact variable names, no regex semantics)
       for (const bp of breakpointConfig.breakpoints) {
         if (bp.variableFilter === undefined) {
           throw new TypeError(
@@ -75,9 +74,6 @@ export class StartDebuggerTool
           throw new TypeError(
             `Breakpoint at ${bp.path}:${bp.line} has empty variableFilter array.`
           );
-        }
-        for (const fragment of bp.variableFilter) {
-          aggregatedFilters.push(fragment);
         }
       }
 
@@ -134,7 +130,8 @@ export class StartDebuggerTool
       const action =
         (stopInfo.hitBreakpoint as { action?: 'break' | 'stopDebugging' })
           .action ?? 'break';
-      const regex = new RegExp(activeFilters.join('|'), 'i');
+      // Exact-name filtering (case-sensitive) per requirement
+      const filterSet = new Set(activeFilters);
       const flattened: Array<{
         name: string;
         value: string;
@@ -143,7 +140,7 @@ export class StartDebuggerTool
       }> = [];
       for (const scope of stopInfo.scopeVariables ?? []) {
         for (const variable of scope.variables) {
-          if (regex.test(variable.name)) {
+          if (filterSet.has(variable.name)) {
             flattened.push({
               name: variable.name,
               value: variable.value,
@@ -171,9 +168,8 @@ export class StartDebuggerTool
         ? `Vars: ${variableStr}`
         : `Vars: <none> (filters: ${activeFilters.join(', ')})`;
       const textOutput = `${header}\n${body}`;
-      logger.info(
-        `[StartDebuggerTool] concise output variableCount=${flattened.length}`
-      );
+
+      logger.info(`[StartDebuggerTool] textOutput ${textOutput}`);
       return new LanguageModelToolResult([
         new LanguageModelTextPart(textOutput),
       ]);

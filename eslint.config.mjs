@@ -128,5 +128,9 @@ export default antfu(
         },
       ],
     },
+  },
+  // Ignore large external vendor/source trees not meant for linting in this extension
+  {
+    ignores: ['external/**', 'coverage/**', 'out/**'],
   }
 );

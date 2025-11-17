@@ -195,7 +195,15 @@ vscode.debug.registerDebugAdapterTrackerFactory('*', {
       }
 
       onError?(error: Error): void {
-        logger.error(`Debug adapter error: ${error}`);
+        // VS Code's NetworkDebugAdapter fires _onError(new Error('connection closed')) on socket close (see
+        // workbench/contrib/debug/node/debugAdapter.ts line ~111). This is routine and can precede any stop lifecycle.
+        // We ignore ALL 'connection closed' errors to eliminate noise.
+        const msg = String(error);
+        if (/connection closed/i.test(msg)) {
+          logger.debug(`[adapter-close ignored] ${session.name}`);
+          return; // silently ignore benign close
+        }
+        logger.error(`Debug adapter error: ${msg}`);
       }
 
       onExit?(code: number | undefined, signal: string | undefined): void {
@@ -225,7 +233,8 @@ export const waitForBreakpointHit = async (params: {
     (resolve, reject) => {
       // Declare terminateListener early to avoid use-before-define
       let terminateListener: vscode.Disposable | undefined;
-      let timeoutHandle: NodeJS.Timeout | undefined;
+      // Use ReturnType<typeof setTimeout> for cross-environment compatibility (browser vs Node types)
+      let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
       // Use the breakpointEventEmitter which is already wired up to the debug adapter tracker
       const listener = onBreakpointHit(event => {
         // Check if this event is for one of our target sessions
@@ -273,7 +282,7 @@ export const waitForBreakpointHit = async (params: {
             timeoutHandle = undefined;
           }
           resolve(event);
-          logger.info(
+          logger.trace(
             `Breakpoint hit detected for waitForBreakpointHit: ${JSON.stringify(event)}`
           );
         }

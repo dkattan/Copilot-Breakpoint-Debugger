@@ -57,13 +57,13 @@ export async function invokeStartDebuggerTool(
   const breakpoints = breakpointLines.map((line: number) => ({
     path: scriptUri.fsPath,
     line,
+    variableFilter: opts.variableFilter ?? ['PWD', 'HOME'],
   }));
 
   const result = await tool.invoke({
     input: {
       workspaceFolder,
       timeoutSeconds: opts.timeoutSeconds ?? 60,
-      variableFilter: opts.variableFilter ?? ['PWD', 'HOME'],
       configurationName: opts.configurationName,
       breakpointConfig: { breakpoints },
     },

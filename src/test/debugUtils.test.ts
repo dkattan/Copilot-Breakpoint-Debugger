@@ -20,10 +20,17 @@ describe('debugUtils - DAPHelpers', () => {
 
   before(async () => {
     const extensionRoot = getExtensionRoot();
-    const scriptRelative = 'test-workspace/test.js';
+    const workspaceRelative = 'test-workspace/b';
+    const scriptRelative = `${workspaceRelative}/test.js`;
     const scriptUri = vscode.Uri.file(path.join(extensionRoot, scriptRelative));
     assert.ok(vscode.workspace.workspaceFolders?.length);
-    workspaceFolder = vscode.workspace.workspaceFolders[0].uri.fsPath;
+    workspaceFolder = vscode.workspace.workspaceFolders.find(
+      folder => folder.name === 'workspace-b'
+    )!.uri.fsPath!;
+    assert.ok(
+      workspaceFolder,
+      `Workspace folder 'b' not found in test workspace`
+    );
     scriptPath = scriptUri.fsPath;
     await openScriptDocument(scriptUri);
     await activateCopilotDebugger();

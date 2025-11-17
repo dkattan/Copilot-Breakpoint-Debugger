@@ -8,6 +8,16 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - Initial release
 
+## [0.0.7] - 2025-11-17
+
+### Changed
+
+- Updated extension icon (`images/icon.png`) for improved clarity and contrast across light and dark themes.
+
+### Internal
+
+- Version bump only; no functional code changes.
+
 ## [0.0.6] - 2025-11-17
 
 ### Added

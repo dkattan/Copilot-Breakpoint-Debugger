@@ -8,6 +8,20 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - Initial release
 
+## [0.0.9] - 2025-11-17
+
+### Changed
+
+- Improved icon transparency handling (updated `images/icon.png`) for cleaner rendering against varied backgrounds.
+
+### Documentation
+
+- Updated `agents.md` with latest development workflow notes (included in this release commit).
+
+### Internal
+
+- No functional code changes; asset + docs only.
+
 ## [0.0.8] - 2025-11-17
 
 ### Changed

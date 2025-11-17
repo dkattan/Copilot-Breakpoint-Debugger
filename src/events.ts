@@ -58,10 +58,6 @@ vscode.debug.registerDebugAdapterTrackerFactory('*', {
         return str;
       }
 
-      onWillStartSession?(): void {
-        logger.info(`Debug session starting: ${session.name}`);
-      }
-
       onWillReceiveMessage?(message: DebugProtocolMessage): void {
         if (!this.traceEnabled) {
           return;
@@ -215,132 +211,126 @@ vscode.debug.registerDebugAdapterTrackerFactory('*', {
   },
 });
 
+// Legacy waitForDebuggerStop removed in favor of session id and entry specific helpers.
+
 /**
- * Wait for a breakpoint to be hit in a debug session.
- *
- * @param params - Object containing sessionName to identify the debug session and optional timeout.
- * @param params.sessionName - Session name to identify the debug session.
- * @param params.timeout - Optional timeout in milliseconds (default: 30000).
+ * Wait for a debugger stop event (breakpoint/step/etc.) filtering by session id instead of name.
+ * This is useful after acquiring the concrete session id from an initial 'entry' stop.
  */
-export const waitForBreakpointHit = async (params: {
-  sessionName: string;
+export const waitForDebuggerStopBySessionId = async (params: {
+  sessionId: string;
   timeout?: number;
 }): Promise<BreakpointHitInfo> => {
-  const { sessionName, timeout = 30000 } = params; // Default timeout: 30 seconds
+  const { sessionId, timeout = 30000 } = params;
 
-  // Create a promise that resolves when a breakpoint is hit
-  const breakpointHitPromise = new Promise<BreakpointHitInfo>(
-    (resolve, reject) => {
-      // Declare terminateListener early to avoid use-before-define
-      let terminateListener: vscode.Disposable | undefined;
-      // Use ReturnType<typeof setTimeout> for cross-environment compatibility (browser vs Node types)
-      let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-      // Use the breakpointEventEmitter which is already wired up to the debug adapter tracker
-      const listener = onBreakpointHit(event => {
-        // Check if this event is for one of our target sessions
-        logger.debug(
-          `Breakpoint hit detected for waitForBreakpointHit for session ${event.session.name} with id ${event.session.id}`
-        );
-
-        // Get current active sessions (not captured at promise creation time)
-        const currentSessions = activeSessions;
-        if (currentSessions.length === 0) {
-          throw new Error(
-            `No active debug sessions found while waiting for breakpoint hit.`
-          );
-        }
-        // Try to find target session - supports multiple matching strategies
-        let targetSession = currentSessions.find(
-          s => s.name.endsWith(sessionName) && s.parentSession //||
-          // (s.configuration &&
-          //   (s.configuration as DebugConfiguration).sessionName ===
-          //     sessionName)
-        );
-
-        // If sessionName is empty and we have no specific target, match the most recent session
-        // This handles cases where session naming isn't available
-        if (!targetSession) {
-          // Use the last session in the array (most recently started)
-          targetSession = currentSessions[currentSessions.length - 1];
-          logger.debug(
-            `Using most recent session for matching: ${targetSession.name} (${targetSession.id})`
-          );
-        }
-
-        // Check if the event matches our target session by session ID or name
-        const eventMatchesTarget =
-          // event.sessionName === targetSession.id ||
-          event.session.name === targetSession.name ||
-          event.session.name.startsWith(targetSession.name) ||
-          targetSession.name.startsWith(event.session.name);
-
-        if (eventMatchesTarget) {
-          listener.dispose();
-          terminateListener?.dispose();
-          if (timeoutHandle) {
-            clearTimeout(timeoutHandle);
-            timeoutHandle = undefined;
-          }
-          resolve(event);
-          logger.trace(
-            `Breakpoint hit detected for waitForBreakpointHit: ${JSON.stringify(event)}`
-          );
-        }
-      });
-
-      // Optionally listen for session termination
-      terminateListener = onSessionTerminate(endEvent => {
-        logger.info(
-          `Session termination detected for waitForBreakpointHit: ${JSON.stringify(endEvent)}`
-        );
-        listener.dispose();
-        terminateListener?.dispose();
-        if (timeoutHandle) {
-          clearTimeout(timeoutHandle);
-          timeoutHandle = undefined;
-        }
-        resolve({
-          session: endEvent.session,
-          threadId: 0,
-          reason: 'terminated',
-        });
-      });
-
-      // Set a timeout so we aren't waiting forever for a breakpoint or sessionTermination
-      timeoutHandle = setTimeout(() => {
-        listener.dispose();
-        terminateListener?.dispose();
+  return await new Promise<BreakpointHitInfo>((resolve, reject) => {
+    let terminateListener: vscode.Disposable | undefined;
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    const listener = onBreakpointHit(event => {
+      if (event.session.id !== sessionId) {
+        return; // ignore other sessions
+      }
+      listener.dispose();
+      terminateListener?.dispose();
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
         timeoutHandle = undefined;
-        try {
-          // Attempt to stop the relevant debug session(s) before rejecting
-          let targetSessions = activeSessions.filter(s =>
-            s.name.endsWith(sessionName)
-          );
-          if (targetSessions.length === 0 && activeSessions.length > 0) {
-            // Last resort: use most recent session if no name match
-            targetSessions = [activeSessions[activeSessions.length - 1]];
-          }
-          for (const s of targetSessions) {
-            // Fire and forget; we don't await inside the timer callback
-            void vscode.debug.stopDebugging(s);
-            logger.warn(
-              `Timeout reached; stopping debug session ${s.name} (${s.id}).`
-            );
-          }
-        } catch (e) {
+      }
+      resolve(event);
+    });
+    terminateListener = onSessionTerminate(endEvent => {
+      if (endEvent.session.id !== sessionId) {
+        return; // ignore
+      }
+      listener.dispose();
+      terminateListener?.dispose();
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+        timeoutHandle = undefined;
+      }
+      resolve({
+        session: endEvent.session,
+        threadId: 0,
+        reason: 'terminated',
+      });
+    });
+    timeoutHandle = setTimeout(() => {
+      listener.dispose();
+      terminateListener?.dispose();
+      timeoutHandle = undefined;
+      try {
+        const target = activeSessions.find(s => s.id === sessionId);
+        if (target) {
+          void vscode.debug.stopDebugging(target);
           logger.warn(
-            `Timeout cleanup error stopping sessions: ${e instanceof Error ? e.message : String(e)}`
+            `Timeout waiting for debugger stop (by session id) for ${target.name} (${target.id}).`
           );
         }
-        reject(
-          new Error(
-            `Timed out waiting for breakpoint or termination (${timeout}ms).`
-          )
+      } catch (e) {
+        logger.warn(
+          `Timeout cleanup error (by session id): ${e instanceof Error ? e.message : String(e)}`
         );
-      }, timeout);
-    }
-  );
+      }
+      reject(
+        new Error(
+          `Timed out waiting for breakpoint or termination for session id ${sessionId} (${timeout}ms).`
+        )
+      );
+    }, timeout);
+  });
+};
 
-  // Wait for the breakpoint to be hit or timeout
-  return await breakpointHitPromise;
+/**
+ * Wait for the first 'entry' stopped event for any new debug session (one whose id was not present in excludeIds).
+ * This lets us capture the concrete session id immediately after launch without relying on the configured name.
+ */
+export const waitForEntryStop = async (params: {
+  excludeSessionIds?: string[];
+  timeout?: number;
+}): Promise<BreakpointHitInfo> => {
+  const { excludeSessionIds = [], timeout = 30000 } = params;
+  return await new Promise<BreakpointHitInfo>((resolve, reject) => {
+    let terminateListener: vscode.Disposable | undefined; // not strictly needed for entry but keep symmetry
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    const excludeSet = new Set(excludeSessionIds);
+    const listener = onBreakpointHit(event => {
+      if (event.reason !== 'entry') {
+        return; // only care about entry stops
+      }
+      // Ignore events for sessions that existed before launch (excludeSet)
+      if (excludeSet.has(event.session.id)) {
+        return;
+      }
+      listener.dispose();
+      terminateListener?.dispose();
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+        timeoutHandle = undefined;
+      }
+      resolve(event);
+    });
+    terminateListener = onSessionTerminate(endEvent => {
+      // If a new session terminates before entry stop, treat as termination
+      if (excludeSet.has(endEvent.session.id)) {
+        return; // old session termination unrelated to launch
+      }
+      listener.dispose();
+      terminateListener?.dispose();
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+        timeoutHandle = undefined;
+      }
+      resolve({
+        session: endEvent.session,
+        threadId: 0,
+        reason: 'terminated',
+      });
+    });
+    timeoutHandle = setTimeout(() => {
+      listener.dispose();
+      terminateListener?.dispose();
+      timeoutHandle = undefined;
+      reject(new Error(`Timed out waiting for entry stop (${timeout}ms).`));
+    }, timeout);
+  });
 };

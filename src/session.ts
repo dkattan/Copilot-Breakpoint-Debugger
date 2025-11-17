@@ -1,13 +1,21 @@
 import type { BreakpointHitInfo } from './common';
 import * as path from 'node:path';
+import * as process from 'node:process';
 import * as vscode from 'vscode';
 import { activeSessions } from './common';
 import { DAPHelpers, type DebugContext, type VariableInfo } from './debugUtils';
-import { waitForBreakpointHit } from './events';
+import { waitForDebuggerStopBySessionId, waitForEntryStop } from './events';
 import { logger } from './logger';
 
-const normalizeFsPath = (value: string) =>
-  path.normalize(value).replace(/\\/g, '/').replace(/\/+$/, '');
+const normalizeFsPath = (value: string) => {
+  // Normalize path, convert backslashes, strip trailing slashes.
+  // On Windows, make comparison case-insensitive by lowercasing drive letter + entire path.
+  const normalized = path
+    .normalize(value)
+    .replace(/\\/g, '/')
+    .replace(/\/+$/, '');
+  return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
+};
 
 /**
  * Variables grouped by scope
@@ -101,7 +109,6 @@ export const listDebugSessions = () => {
  * @param params.nameOrConfiguration - Either a string name of a launch configuration or a DebugConfiguration object.
  * @param params.timeoutSeconds - Optional timeout in seconds to wait for a breakpoint hit (default: 60).
  * @param params.breakpointConfig - Optional configuration for managing breakpoints during the debug session.
- * @param params.breakpointConfig.disableExisting - If true, removes all existing breakpoints before starting the session.
  * @param params.breakpointConfig.breakpoints - Array of breakpoint configurations to set before starting the session.
  */
 export const startDebuggingAndWaitForStop = async (params: {
@@ -110,7 +117,6 @@ export const startDebuggingAndWaitForStop = async (params: {
   nameOrConfiguration: string;
   timeoutSeconds?: number;
   breakpointConfig: {
-    disableExisting?: boolean;
     breakpoints: Array<{
       path: string;
       line: number;
@@ -282,91 +288,75 @@ export const startDebuggingAndWaitForStop = async (params: {
   logger.info(
     `Starting debugger with configuration '${resolvedConfig.name}' (stopOnEntry forced to true). Waiting for first stop event.`
   );
-  // Set up listener BEFORE starting to avoid race with fast 'entry' events.
-  const stopPromise = waitForBreakpointHit({
-    sessionName: effectiveSessionName,
+  // Prepare entry stop listener BEFORE starting debugger to capture session id.
+  const existingIds = activeSessions.map(s => s.id);
+  const entryStopPromise = waitForEntryStop({
+    excludeSessionIds: existingIds,
     timeout: timeoutSeconds * 1000,
   });
   const success = await vscode.debug.startDebugging(folder, resolvedConfig);
   if (!success) {
     throw new Error(`Failed to start debug session '${effectiveSessionName}'.`);
   }
+  const startT = Date.now();
   let remainingMs = timeoutSeconds * 1000;
-  const t0 = Date.now();
-
-  let stopInfo: BreakpointHitInfo | undefined;
+  let entryStop: BreakpointHitInfo | undefined;
+  let finalStop: BreakpointHitInfo | undefined;
   let debugContext:
     | Awaited<ReturnType<typeof DAPHelpers.getDebugContext>>
     | undefined;
   try {
-    stopInfo = await stopPromise;
-
-    const elapsed = Date.now() - t0;
-    remainingMs = Math.max(0, remainingMs - elapsed);
-    // Entry stop handling: only auto-continue if entry location is NOT a user breakpoint line.
-    try {
-      const isEntry = stopInfo.reason === 'entry';
-      // Convert to 0-based line number for comparison with VSCode positions
-      const entryLineZeroBased =
-        stopInfo.line !== undefined ? stopInfo.line - 1 : -1;
-      const hitRequestedBreakpoint = validated.some(
-        bp => bp.location.range.start.line === entryLineZeroBased
-      );
-      if (isEntry && !hitRequestedBreakpoint) {
-        logger.debug(
-          'Entry stop at non-breakpoint location; continuing to reach first user breakpoint.'
-        );
-
-        try {
-          await stopInfo.session.customRequest('continue', {
-            threadId: stopInfo.threadId,
-          });
-          stopInfo = await waitForBreakpointHit({
-            sessionName: effectiveSessionName,
-            timeout: remainingMs,
-          });
-        } catch (contErr) {
-          logger.warn(
-            `Failed to continue after entry: ${contErr instanceof Error ? contErr.message : String(contErr)}`
-          );
-        }
-      }
-    } catch (parseErr) {
-      logger.warn(
-        `Failed to parse first stop JSON for entry evaluation: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`
-      );
-    }
-
-    if (!success) {
-      throw new Error(`Failed to start debug session '${sessionName}'.`);
-    }
-
-    logger.debug(
-      `Active sessions after start: ${activeSessions
-        .map(s => `${s.name}:${s.id}`)
-        .join(', ')}`
-    );
-
-    // If the session terminated without hitting a breakpoint, return termination stopInfo
-    if (stopInfo.reason === 'terminated') {
+    entryStop = await entryStopPromise;
+    const afterEntry = Date.now();
+    remainingMs = Math.max(0, remainingMs - (afterEntry - startT));
+    if (entryStop.reason === 'terminated') {
       throw new Error(
-        `Debug session '${effectiveSessionName}' terminated before hitting a breakpoint.`
+        `Debug session '${effectiveSessionName}' terminated before hitting entry.`
+      );
+    }
+    const sessionId = entryStop.session.id;
+    // Decide whether to continue immediately (entry not at user breakpoint)
+    const entryLineZeroBased = entryStop.line ? entryStop.line - 1 : -1;
+    const hitRequestedBreakpoint = validated.some(
+      bp => bp.location.range.start.line === entryLineZeroBased
+    );
+    if (!hitRequestedBreakpoint) {
+      logger.debug(
+        `Entry stop for session ${sessionId} not at requested breakpoint; continuing to first user breakpoint.`
+      );
+      try {
+        await entryStop.session.customRequest('continue', {
+          threadId: entryStop.threadId,
+        });
+      } catch (e) {
+        logger.warn(
+          `Failed to continue after entry stop: ${e instanceof Error ? e.message : String(e)}`
+        );
+      }
+      finalStop = await waitForDebuggerStopBySessionId({
+        sessionId,
+        timeout: remainingMs,
+      });
+    } else {
+      finalStop = entryStop; // entry coincides with user breakpoint
+    }
+    if (finalStop.reason === 'terminated') {
+      throw new Error(
+        `Debug session '${effectiveSessionName}' terminated before hitting a user breakpoint.`
       );
     }
     debugContext = await DAPHelpers.getDebugContext(
-      stopInfo.session,
-      stopInfo.threadId
+      finalStop.session,
+      finalStop.threadId
     );
-
     const scopeVariables: ScopeVariables[] = [];
     for (const scope of debugContext.scopes ?? []) {
       const variables = await DAPHelpers.getVariablesFromReference(
-        stopInfo.session,
+        finalStop.session,
         scope.variablesReference
       );
       scopeVariables.push({ scopeName: scope.name, variables });
     }
-
     // Determine which breakpoint was actually hit (exact file + line match)
     let hitBreakpoint:
       | {
@@ -398,15 +388,15 @@ export const startDebuggingAndWaitForStop = async (params: {
         }
       }
     }
-    // Execute action if requested (stopDebugging terminates after data capture)
     if (hitBreakpoint?.action === 'stopDebugging') {
-      try {
-        await vscode.debug.stopDebugging(stopInfo.session);
-      } catch (e) {
-        logger.warn(
-          `Failed to stop session after breakpoint action stopDebugging: ${e instanceof Error ? e.message : String(e)}`
-        );
+      logger.info(`Terminating all debug sessions per breakpoint action.`);
+      await vscode.debug.stopDebugging();
+      const now = Date.now();
+      while (vscode.debug.activeDebugSession) {
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
+      const waitTime = Date.now() - now;
+      logger.info(`All debug sessions terminated after ${waitTime}ms.`);
     }
     return { ...debugContext, scopeVariables, hitBreakpoint };
   } finally {
@@ -457,13 +447,11 @@ export const stopDebugSession = async (params: { sessionName: string }) => {
  * @param params - Object containing the sessionId of the debug session to resume and optional waitForStop flag.
  * @param params.sessionId - ID of the debug session to resume.
  * @param params.breakpointConfig - Optional configuration for managing breakpoints when resuming.
- * @param params.breakpointConfig.disableExisting - If true, removes all existing breakpoints before resuming.
  * @param params.breakpointConfig.breakpoints - Array of breakpoint configurations to set before resuming.
  */
 export const resumeDebugSession = async (params: {
   sessionId: string;
   breakpointConfig?: {
-    disableExisting?: boolean;
     breakpoints?: Array<{
       path: string;
       line: number;
@@ -498,14 +486,6 @@ export const resumeDebugSession = async (params: {
 
   // Handle breakpoint configuration if provided
   if (breakpointConfig) {
-    // Disable existing breakpoints if requested
-    if (breakpointConfig.disableExisting) {
-      const allBreakpoints = vscode.debug.breakpoints;
-      if (allBreakpoints.length > 0) {
-        vscode.debug.removeBreakpoints(allBreakpoints);
-      }
-    }
-
     // Add new breakpoints if provided
     if (
       breakpointConfig.breakpoints &&
@@ -541,8 +521,8 @@ export const resumeDebugSession = async (params: {
 
   // Send the continue request to the debug adapter
   logger.info(`Resuming debug session '${session.name}' (ID: ${sessionId})`);
-  const stopPromise = waitForBreakpointHit({
-    sessionName: session.name,
+  const stopPromise = waitForDebuggerStopBySessionId({
+    sessionId: session.id,
   });
   await session.customRequest('continue', { threadId: 0 }); // 0 means all threads
   const stopInfo = await stopPromise;

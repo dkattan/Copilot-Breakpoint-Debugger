@@ -6,13 +6,13 @@
   "description": "Use GitHub Copilot to automate starting, inspecting and resuming VS Code debug sessions with conditional breakpoints, hit conditions, and logpoints.",
   "preview": true,
   "license": "MIT",
-  "homepage": "https://github.com/dkattan/vscode-copilot-debugger#readme",
+  "homepage": "https://github.com/dkattan/Copilot-Breakpoint-Debugger#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/dkattan/vscode-copilot-debugger"
+    "url": "https://github.com/dkattan/Copilot-Breakpoint-Debugger"
   },
   "bugs": {
-    "url": "https://github.com/dkattan/vscode-copilot-debugger/issues"
+    "url": "https://github.com/dkattan/Copilot-Breakpoint-Debugger/issues"
   },
   "keywords": [
     "copilot",

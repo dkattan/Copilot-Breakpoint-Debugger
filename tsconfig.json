@@ -6,7 +6,7 @@
     "jsxFragmentFactory": "vscppf",
     "lib": ["ES2022"],
     "rootDir": "src",
-    "module": "Node16",
+    "module": "commonjs",
     "types": ["node", "@vscode/prompt-tsx"],
     "strict": true,
     "noUnusedParameters": true,

@@ -250,7 +250,8 @@ export const startDebuggingAndWaitForStop = async (params: {
       seen.add(key);
       const uri = vscode.Uri.file(absolutePath);
       const location = new vscode.Position(bp.line - 1, 0);
-      const effectiveHitCondition = bp.hitCount !== undefined ? String(bp.hitCount) : undefined;
+      const effectiveHitCondition =
+        bp.hitCount !== undefined ? String(bp.hitCount) : undefined;
       const sourceBp = new vscode.SourceBreakpoint(
         new vscode.Location(uri, location),
         true,
@@ -575,7 +576,8 @@ export const resumeDebugSession = async (params: {
           : path.join(workspaceFolder, bp.path);
         const uri = vscode.Uri.file(absolutePath);
         const location = new vscode.Position(bp.line - 1, 0); // VSCode uses 0-based line numbers
-        const hitCond = bp.hitCount !== undefined ? String(bp.hitCount) : undefined;
+        const hitCond =
+          bp.hitCount !== undefined ? String(bp.hitCount) : undefined;
         return new vscode.SourceBreakpoint(
           new vscode.Location(uri, location),
           true, // enabled

@@ -93,7 +93,11 @@
                       },
                       "action": {
                         "type": "string",
-                        "enum": ["break", "capture", "stopDebugging"],
+                        "enum": [
+                          "break",
+                          "capture",
+                          "stopDebugging"
+                        ],
                         "description": "Breakpoint action: break pauses and returns; capture collects variables & interpolated log messages then resumes; stopDebugging terminates session after hit. Default is break."
                       },
                       "condition": {
@@ -152,17 +156,27 @@
                   "items": {
                     "type": "object",
                     "properties": {
-                      "path": {"type": "string"},
-                      "line": {"type": "integer"},
+                      "path": {
+                        "type": "string"
+                      },
+                      "line": {
+                        "type": "integer"
+                      },
                       "variableFilter": {
                         "type": "array",
-                        "items": {"type": "string"},
+                        "items": {
+                          "type": "string"
+                        },
                         "minItems": 1,
                         "description": "Variable names to include in reporting or interpolation for capture action."
                       },
                       "action": {
                         "type": "string",
-                        "enum": ["break", "capture", "stopDebugging"],
+                        "enum": [
+                          "break",
+                          "capture",
+                          "stopDebugging"
+                        ],
                         "description": "Breakpoint action applied during resume. Default break."
                       },
                       "condition": {
@@ -178,13 +192,18 @@
                         "description": "Optional log message with {var} interpolation. Returned as capturedLogMessages if action=capture."
                       }
                     },
-                    "required": ["path", "line"]
+                    "required": [
+                      "path",
+                      "line"
+                    ]
                   }
                 }
               }
             }
           },
-          "required": ["sessionId"]
+          "required": [
+            "sessionId"
+          ]
         }
       },
       {

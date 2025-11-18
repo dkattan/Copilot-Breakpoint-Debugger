@@ -217,7 +217,7 @@ This project is primarily consumed by language models, so release metadata empha
 ### Standard Release Flow
 
 1. Bump version in `package.json`.
-2. Adjust manifest schemas as needed (e.g., per-breakpoint `variableFilter`).
+2. Adjust manifest schemas as needed
 3. Update `CHANGELOG.md` with a new section `[x.y.z] - YYYY-MM-DD`.
 4. Ensure markdown lint passes: blank lines around headings/lists; fenced code blocks include a language (e.g., `text`).
 5. Run: `npm run format && npm test` (tests must all pass).

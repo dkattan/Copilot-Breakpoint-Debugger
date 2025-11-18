@@ -16,7 +16,6 @@ describe('startDebuggerTool concise text output', () => {
       configurationName: 'Run test.js',
       variableFilter: ['i'],
       breakpointLines: [9],
-      timeoutSeconds: 30,
       workspaceFolder: 'test-workspace/b',
     });
 

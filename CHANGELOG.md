@@ -8,102 +8,61 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - Initial release
 
+## [0.0.12] - 2025-11-18
+
+**Changed:** Renamed setting `copilot-debugger.startDebuggerTimeoutSeconds` ➜ `copilot-debugger.entryTimeoutSeconds` (clarifies it governs initial entry stop wait). Updated README and AGENTS.md with entry timeout guidance + single test invocation examples.
+
+**Added:** `tasks.json` introducing `sleep-build-delay` preLaunchTask; new timeout test (`src/test/timeout.test.ts`) validating entry stop timeout behavior.
+
+**Internal:** StartDebuggerTool now reads `entryTimeoutSeconds` and emits specific timeout error when entry stop not reached within configured window.
+
 ## [0.0.11] - 2025-11-17
 
-### Changed
+**Changed:** Removed public `hitCondition` string property; only support exact numeric `hitCount` in breakpoint schemas. Updated docs and manifest to drop pattern-based conditions.
 
-- Removed public `hitCondition` string property; only support exact numeric `hitCount` in breakpoint schemas.
-- Updated documentation (`agents.md`, test workspace README) to reflect simplified hit count semantics.
-- Manifest and code updated to drop pattern-based hit conditions (e.g., ">10", "%3").
+**Breaking:** Previous `hitCondition` usage must migrate to `hitCount` integer.
 
-### Breaking
-
-- Any previous usage of `hitCondition` (string patterns) must migrate to `hitCount` integer. Only exact counts are supported now.
-
-### Internal
-
-- Refactored session and start debugger tool interfaces to remove legacy alias logic.
+**Internal:** Refactored session and start debugger tool interfaces to remove legacy alias logic.
 
 ## [0.0.10] - 2025-11-17
 
-### Added
+**Added:** `capture` breakpoint action; numeric `hitCount` shorthand; conditional availability of resume tool.
 
-- `capture` breakpoint action to collect variables and interpolated log messages then automatically resume execution.
-- `hitCount` numeric shorthand alongside legacy `hitCondition` string (now removed in 0.0.11).
-- Conditional availability of `resume_debug_session` via `when: debugState == 'running'`.
+**Changed:** Enhanced manifest descriptions for breakpoint actions and interpolation.
 
-### Changed
-
-- Enhanced manifest descriptions for breakpoint actions and variable interpolation.
-
-### Internal
-
-- Added ESLint fixes for string concatenation in concise output rendering.
+**Internal:** ESLint fixes for string concatenation.
 
 ## [0.0.9] - 2025-11-17
 
-### Changed
+**Changed:** Improved icon transparency handling.
 
-- Improved icon transparency handling (updated `images/icon.png`) for cleaner rendering against varied backgrounds.
+**Documentation:** Updated AGENTS.md workflow notes.
 
-### Documentation
-
-- Updated `agents.md` with latest development workflow notes (included in this release commit).
-
-### Internal
-
-- No functional code changes; asset + docs only.
+**Internal:** Asset + docs only.
 
 ## [0.0.8] - 2025-11-17
 
-### Changed
+**Changed:** Corrected repository/homepage/bugs URLs.
 
-- Corrected `package.json` repository, homepage, and bugs URLs to point to `dkattan/Copilot-Breakpoint-Debugger` instead of legacy name.
-
-### Internal
-
-- Metadata-only update; no code or API changes.
+**Internal:** Metadata-only, no API changes.
 
 ## [0.0.7] - 2025-11-17
 
-### Changed
+**Changed:** Updated extension icon for clarity.
 
-- Updated extension icon (`images/icon.png`) for improved clarity and contrast across light and dark themes.
-
-### Internal
-
-- Version bump only; no functional code changes.
+**Internal:** Version bump only.
 
 ## [0.0.6] - 2025-11-17
 
-### Added
+**Added:** Per-breakpoint `variableFilter`; `logger.ts`; breakpoint `action`; ESLint improvements; Evaluate Expression refinements.
 
-- Per-breakpoint `variableFilter` supporting exact variable name inclusion (replaces previous regex fragment approach).
-- New `logger.ts` utility for structured logging within StartDebuggerTool and other tools.
-- Support for per-breakpoint `action` (e.g., `stopDebugging`) enabling automated termination after hit.
-- Enhanced ESLint configuration to ignore vendor/source trees for performance and signal clarity.
-- Evaluate Expression tool refinements in `evaluateExpressionTool.ts`.
+**Changed:** Manifest schema adjustments; exact name filtering; workspace settings file relocation; kept CommonJS module target.
 
-### Changed
+**Fixed:** Workspace path usage; improved session resilience.
 
-- Manifest (`package.json`) updated: removed obsolete top-level `variableFilter` parameter; added per-breakpoint schema with required exact name filtering.
-- StartDebuggerTool filtering logic now uses exact case-sensitive name matching instead of regex aggregation.
-- Moved workspace settings file `test-workspace.code-workspace` into `test-workspace/` directory (path normalization).
-- `tsconfig.json` retained CommonJS module to stabilize test harness behavior.
+**Internal:** Updated tests; refactors across core files.
 
-### Fixed
-
-- Corrected workspace path usage in `debugUtils.test.ts`.
-- Improved resilience of session handling and test utilities.
-
-### Internal
-
-- Updated tests for new breakpoint action and variable filtering semantics.
-- Minor refactors across `session.ts`, `events.ts`, and inspection utilities.
-
-### Diff Summary
-
-Files changed between `v0.0.5` and `v0.0.6`:
+**Diff Summary:** Between `v0.0.5` and `v0.0.6`:
 
 ```text
 .vscode-test.mjs

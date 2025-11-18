@@ -45,7 +45,18 @@ npm run compile
 
 `copilot-debugger.defaultLaunchConfiguration` – The name of a `launch.json` configuration OR an inline JSON object (e.g. `{"type":"node","request":"launch","program":"${workspaceFolder}/index.js"}`).
 
+`copilot-debugger.entryTimeoutSeconds` – How long (in seconds) to wait for the initial _entry_ stop after launching (before continuing to user breakpoints). Increase this for large projects with long cold builds or container start times (e.g. 180). If the entry stop is not observed within the window a timeout error is returned.
+
 > **Important:** `start_debugger_with_breakpoints` requires at least one breakpoint **and** a non-empty `variableFilter`. Tight filters keep the response concise so Copilot doesn’t exhaust the LLM context window.
+
+Example settings snippet:
+
+```jsonc
+{
+  "copilot-debugger.defaultLaunchConfiguration": "Run test.js",
+  "copilot-debugger.entryTimeoutSeconds": 120,
+}
+```
 
 ## 🧪 Example Copilot Prompts
 

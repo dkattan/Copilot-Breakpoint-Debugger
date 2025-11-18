@@ -2,7 +2,7 @@
   "publisher": "dkattan",
   "name": "copilot-breakpoint-debugger",
   "displayName": "Copilot Breakpoint Debugger",
-  "version": "0.0.11",
+  "version": "0.0.12",
   "description": "Use GitHub Copilot to automate starting, inspecting and resuming VS Code debug sessions with conditional breakpoints, exact numeric hit counts (hitCount), logpoints, and capture actions that interpolate variables inside log messages.",
   "preview": true,
   "license": "MIT",
@@ -44,6 +44,11 @@
           "type": "string",
           "default": "",
           "description": "Name of the default launch configuration to use when starting the debugger"
+        },
+        "copilot-debugger.entryTimeoutSeconds": {
+          "type": "integer",
+          "default": 60,
+          "description": "Timeout in seconds waiting for initial entry stop after launching (before first user breakpoint). Supports long startup/build times; must be > 0."
         }
       }
     },
@@ -61,10 +66,6 @@
             "workspaceFolder": {
               "type": "string",
               "description": "Absolute path of workspace folder (defaults to first workspace)."
-            },
-            "timeout_seconds": {
-              "type": "integer",
-              "description": "Seconds to wait for initial breakpoint (default 60)."
             },
             "breakpointConfig": {
               "type": "object",

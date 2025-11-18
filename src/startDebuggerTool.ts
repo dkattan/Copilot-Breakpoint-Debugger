@@ -30,7 +30,6 @@ export interface BreakpointConfiguration {
 
 export interface StartDebuggerToolParameters {
   workspaceFolder?: string;
-  timeoutSeconds?: number;
   configurationName?: string;
   breakpointConfig: BreakpointConfiguration;
 }
@@ -43,12 +42,8 @@ export class StartDebuggerTool
   async invoke(
     options: LanguageModelToolInvocationOptions<StartDebuggerToolParameters>
   ): Promise<LanguageModelToolResult> {
-    const {
-      workspaceFolder,
-      timeoutSeconds,
-      configurationName,
-      breakpointConfig,
-    } = options.input;
+    const { workspaceFolder, configurationName, breakpointConfig } =
+      options.input;
     try {
       if (!breakpointConfig) {
         throw new TypeError('breakpointConfig is required.');
@@ -87,6 +82,11 @@ export class StartDebuggerTool
       // Get the configuration name from parameter or settings
       const config = vscode.workspace.getConfiguration('copilot-debugger');
       const configValue = config.get<string>('defaultLaunchConfiguration');
+      const entryTimeoutSetting = config.get<number>('entryTimeoutSeconds');
+      const timeoutSeconds =
+        typeof entryTimeoutSetting === 'number' && entryTimeoutSetting > 0
+          ? entryTimeoutSetting
+          : 60;
       if (!configurationName && !configValue) {
         throw new TypeError(
           'No launch configuration specified. Set "copilot-debugger.defaultLaunchConfiguration" or provide configurationName.'

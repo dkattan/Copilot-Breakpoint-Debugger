@@ -44,16 +44,16 @@ vscode.debug.registerDebugAdapterTrackerFactory('*', {
         .getConfiguration('copilotBreakpointDebugger')
         .get<boolean>('enableTraceLogging', false);
 
-      private safeStringify(obj: unknown, max = 1000): string {
+      private safeStringify(obj: unknown, maxLength = 1000): string {
         let str: string;
         try {
           str = JSON.stringify(obj);
         } catch (e) {
           str = `[unstringifiable: ${e instanceof Error ? e.message : String(e)}]`;
         }
-        if (str.length > max) {
-          const truncated = str.slice(0, max);
-          return `${truncated}… (truncated ${str.length - max} chars)`;
+        if (str.length > maxLength) {
+          const truncated = str.slice(0, maxLength);
+          return `${truncated}… (truncated ${str.length - maxLength} chars)`;
         }
         return str;
       }

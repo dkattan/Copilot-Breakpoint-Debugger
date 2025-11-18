@@ -16,6 +16,7 @@
     "git.scanRepositories": [],
     "git.autoRepositoryDetection": false,
     "chat.extensionUnification.enabled": false,
+    "copilot-debugger.entryTimeoutSeconds": 60,
   },
   "launch": {
     "version": "0.2.0",
@@ -55,13 +56,16 @@
       {
         "name": "Debug Both (Compound)",
         "configurations": [
-          "Debug PowerShell (workspace a)",
+          "Run test.js with preLaunchTask",
           "Debug Node.js (workspace b)",
         ],
       },
     ],
   },
   "extensions": {
-    "recommendations": ["ms-vscode.powershell", "dkattan.copilot-debugger"],
+    "recommendations": [
+      "ms-vscode.powershell",
+      "dkattan.copilot-breakpoint-debugger",
+    ],
   },
 }

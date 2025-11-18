@@ -4,8 +4,8 @@ import * as vscode from 'vscode';
 import { activeSessions } from '../../common';
 import { StartDebuggerTool } from '../../startDebuggerTool';
 
-export /** Resolve extension root path. */
-function getExtensionRoot(): string {
+/** Resolve extension root path. */
+export function getExtensionRoot(): string {
   return (
     vscode.extensions.getExtension('dkattan.copilot-breakpoint-debugger')
       ?.extensionPath || path.resolve(__dirname, '../../..')
@@ -63,7 +63,6 @@ export async function invokeStartDebuggerTool(
   const result = await tool.invoke({
     input: {
       workspaceFolder,
-      timeoutSeconds: opts.timeoutSeconds ?? 60,
       configurationName: opts.configurationName,
       breakpointConfig: { breakpoints },
     },

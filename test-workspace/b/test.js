@@ -15,3 +15,9 @@ for (let i = 0; i < 5; i++) {
 }
 
 console.log('Completed loop');
+
+// Keep process alive long enough for timeout test if invoked via a separate launch config.
+// (Normal tests set breakpoints earlier; this section is only reached when no early breakpoints.)
+setTimeout(() => {
+  console.log('Exiting after idle wait.');
+}, 3000);

@@ -74,6 +74,20 @@ All breakpoint-related tools (`start_debugger` and `resume_debug_session`) suppo
 
 All three properties are optional and can be combined with basic breakpoints that only specify `path` and `line`.
 
+### Startup / Entry Timeout
+
+Large projects may take significant time (cold build, dependency install, container startup) before the debugger reaches the initial _entry_ stop. Configure `copilot-debugger.entryTimeoutSeconds` to control how long the Start Debugger tool waits for that entry stop before proceeding to user breakpoints. If the entry stop is not observed within the window, a timeout error is surfaced and the session is cleaned up.
+
+Example workspace setting:
+
+```jsonc
+{
+  "copilot-debugger.entryTimeoutSeconds": 180,
+}
+```
+
+You can simulate startup delay via a `preLaunchTask` (e.g. `sleep-build-delay`) in `launch.json`. The test suite uses this with `Run timeoutTest.js` to validate timeout behavior.
+
 ## Prerequisites
 
 This extension requires the **debug-tracker-vscode** extension to be installed for the `wait_for_breakpoint` tool to function:
@@ -178,7 +192,7 @@ The debug tracker extension provides API services for monitoring debug sessions 
 
 ## Workflow Guidance
 
-- **Always update CLAUDE.md when you complete a feature**
+- **Always update AGENTS.md when you complete a feature**
 
 ### Removing Deprecated or Legacy Files
 
@@ -209,6 +223,16 @@ The test CLI (`@vscode/test-cli` via `npm test`) downloads a Stable build into `
 1. Install VS Code Stable and VS Code Insiders.
 1. Open the repo in **Insiders**.
 1. Run tests from a terminal: `npm test`.
+
+### Running Individual / Filtered Tests
+
+Use the VS Code test harness so the extension host and activation events run correctly. You can filter tests via `--grep` passthrough or an environment variable.
+
+Run only tests whose names match a pattern (passthrough after `--`):
+
+```bash
+npm test -- --grep "timeout behavior"
+```
 
 ## Release & Versioning (LLM-Focused)
 

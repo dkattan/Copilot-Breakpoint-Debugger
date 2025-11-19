@@ -3,7 +3,8 @@ import type {
   LanguageModelToolInvocationOptions,
 } from 'vscode';
 // Removed prompt-tsx rendering for concise text output
-import * as vscode from 'vscode';
+// Note: vscode import retained earlier for validation; now removed to keep thin wrapper minimal.
+// import * as vscode from 'vscode';
 import { LanguageModelTextPart, LanguageModelToolResult } from 'vscode';
 import { logger } from './logger';
 // Legacy prompt component retained elsewhere; not used here.
@@ -29,8 +30,11 @@ export interface BreakpointConfiguration {
 }
 
 export interface StartDebuggerToolParameters {
-  workspaceFolder?: string;
-  configurationName?: string;
+  // Absolute path to an OPEN workspace folder. Must exactly match one of
+  // vscode.workspace.workspaceFolders[].uri.fsPath after normalization.
+  workspaceFolder: string;
+  configurationName?: string; // preferred field
+  launchConfigurationName?: string; // alias accepted for user convenience
   breakpointConfig: BreakpointConfiguration;
 }
 
@@ -42,78 +46,26 @@ export class StartDebuggerTool
   async invoke(
     options: LanguageModelToolInvocationOptions<StartDebuggerToolParameters>
   ): Promise<LanguageModelToolResult> {
-    const { workspaceFolder, configurationName, breakpointConfig } =
-      options.input;
+    const {
+      workspaceFolder,
+      configurationName,
+      launchConfigurationName,
+      breakpointConfig,
+    } = options.input;
     try {
-      if (!breakpointConfig) {
-        throw new TypeError('breakpointConfig is required.');
-      }
-      if (!breakpointConfig.breakpoints) {
-        throw new TypeError('breakpointConfig.breakpoints is required.');
-      }
-      if (breakpointConfig.breakpoints.length === 0) {
-        throw new TypeError(
-          'Provide at least one breakpoint (path + line) before starting the debugger.'
-        );
-      }
-
-      // Validate per-breakpoint filters (now exact variable names, no regex semantics)
-      for (const bp of breakpointConfig.breakpoints) {
-        if (bp.variableFilter === undefined) {
-          throw new TypeError(
-            `Breakpoint at ${bp.path}:${bp.line} missing required variableFilter entries.`
-          );
-        }
-        if (bp.variableFilter.length === 0) {
-          throw new TypeError(
-            `Breakpoint at ${bp.path}:${bp.line} has empty variableFilter array.`
-          );
-        }
-      }
-
-      if (typeof workspaceFolder !== 'string') {
-        throw new TypeError('workspaceFolder is required.');
-      }
-      if (workspaceFolder.trim().length === 0) {
-        throw new TypeError('workspaceFolder must not be empty.');
-      }
-      const resolvedWorkspaceFolder = workspaceFolder.trim();
-
-      // Get the configuration name from parameter or settings
-      const config = vscode.workspace.getConfiguration('copilot-debugger');
-      const configValue = config.get<string>('defaultLaunchConfiguration');
-      const entryTimeoutSetting = config.get<number>('entryTimeoutSeconds');
-      const timeoutSeconds =
-        typeof entryTimeoutSetting === 'number' && entryTimeoutSetting > 0
-          ? entryTimeoutSetting
-          : 60;
-      if (!configurationName && !configValue) {
-        throw new TypeError(
-          'No launch configuration specified. Set "copilot-debugger.defaultLaunchConfiguration" or provide configurationName.'
-        );
-      }
-      let effectiveConfigName: string;
-      if (configurationName) {
-        effectiveConfigName = configurationName;
-      } else {
-        effectiveConfigName = configValue as string;
-      }
-
-      // Note: We skip pre-validation of launch configuration existence because:
-      // 1. In multi-root workspaces, getConfiguration() may not return all available configs
-      // 2. VS Code's startDebugging() will provide a clear error if the config doesn't exist
-      // 3. This avoids false negatives where configs exist but aren't detected via API
-
+      // Intentionally leave the parameter validation to the underlying debugger start function.
       const stopInfo = await startDebuggingAndWaitForStop({
-        workspaceFolder: resolvedWorkspaceFolder,
-        nameOrConfiguration: effectiveConfigName,
-        timeoutSeconds,
+        workspaceFolder,
+        nameOrConfiguration: configurationName || launchConfigurationName,
         breakpointConfig,
         sessionName: '',
       });
 
       const summary = {
-        session: stopInfo.thread?.name ?? effectiveConfigName,
+        session:
+          stopInfo.thread?.name ??
+          stopInfo.frame?.source?.name ??
+          'debug-session',
         file: stopInfo.frame?.source?.path,
         line: stopInfo.frame?.line,
         reason: stopInfo.frame?.name,

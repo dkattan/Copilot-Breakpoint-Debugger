@@ -19,7 +19,7 @@ This is a VS Code extension that integrates with GitHub Copilot to provide debug
 
 - **Extension entry point**: `src/extension.ts` - Main activation logic and tool registration
 - **Language Model Tools**: Classes implementing VS Code's `LanguageModelTool` interface
-  - `StartDebuggerTool` - Starts debugging sessions with optional configuration
+  - `StartDebuggerTool` - Thin wrapper; delegates validation & launch resolution to `startDebuggingAndWaitForStop`
   - `WaitForBreakpointTool` - Waits for breakpoint hits using Debug Adapter Protocol monitoring
   - `GetVariablesTool` - Retrieves all variables from active debug sessions using DAP
   - `ExpandVariableTool` - Expands specific variables to show detailed contents and immediate children
@@ -32,7 +32,7 @@ This is a VS Code extension that integrates with GitHub Copilot to provide debug
 - Each tool class implements both `invoke()` and optional `prepareInvocation()` methods
 - Line numbers are converted from 1-based (user input) to 0-based (VS Code internal)
 - Async operations use `async/await` pattern with proper error handling
-- Tools validate workspace state before performing operations
+- Tools validate workspace state before performing operations. Post-refactor: core validation (workspaceFolder, breakpoint structure, auto-select or resolve launch configuration, timeout derivation) now lives centrally inside `startDebuggingAndWaitForStop` for consistency.
 
 ### File Structure
 
@@ -73,6 +73,25 @@ All breakpoint-related tools (`start_debugger` and `resume_debug_session`) suppo
   - Logpoints don't pause execution, making them useful for tracing without interrupting the program flow
 
 All three properties are optional and can be combined with basic breakpoints that only specify `path` and `line`.
+
+### Workspace Folder Semantics
+
+`start_debugger` requires a `workspaceFolder` parameter that must be an absolute path exactly matching one of the open workspace folder roots (`workspace.workspaceFolders[].uri.fsPath`).
+
+Simplifications implemented:
+
+- Removed prior fallback to the extension installation directory.
+- Removed parent/child heuristic; no automatic promotion of related folders.
+- Relative paths are rejected (fail fast) instead of being implicitly resolved.
+- If the supplied path does not match an open folder, an error lists all currently open folders for correction.
+
+Rationale: This strict model eliminates ambiguity, ensures deterministic breakpoint file resolution, and prevents accidental debugging of unintended projects. Breakpoints now always resolve relative to the explicitly chosen, open workspace folder only.
+
+If future multi-root heuristics are desired they must be reintroduced explicitly with clear logging; hidden fallbacks are intentionally avoided per **NO FALLBACK CODE** guideline.
+
+#### Launch Configuration Auto-Selection
+
+If neither a `configurationName` parameter nor the `copilot-debugger.defaultLaunchConfiguration` setting is provided, and exactly one launch configuration exists in the target workspace folder's `launch.json`, that configuration is auto-selected. An INFO log entry records the auto-selection. This never triggers when there are zero or multiple configurations; in those cases explicit selection or setting is required.
 
 ### Startup / Entry Timeout
 

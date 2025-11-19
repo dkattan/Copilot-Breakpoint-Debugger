@@ -69,6 +69,23 @@ export async function invokeStartDebuggerTool(
     toolInvocationToken: undefined,
   });
 
+  // Diagnostic logging of first output part (best-effort)
+  try {
+    if (result.content && result.content.length) {
+      const firstPart: unknown = result.content[0];
+      let rawValue: string;
+      // Use indexed access via casting to loose object type
+      const loose = firstPart as { [k: string]: unknown };
+      if (typeof loose.value === 'string') rawValue = loose.value;
+      else if (typeof loose.text === 'string') rawValue = loose.text;
+      else rawValue = JSON.stringify(firstPart);
+      // eslint-disable-next-line no-console
+      console.log('[invokeStartDebuggerTool] raw output:', rawValue);
+    }
+  } catch {
+    /* ignore */
+  }
+
   return result;
 }
 

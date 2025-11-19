@@ -113,9 +113,9 @@ export const listDebugSessions = () => {
  */
 export const startDebuggingAndWaitForStop = async (params: {
   sessionName: string;
-  workspaceFolder: string;
-  nameOrConfiguration: string;
-  timeoutSeconds?: number;
+  workspaceFolder: string; // absolute path to open workspace folder
+  nameOrConfiguration?: string; // may be omitted; auto-selection logic will attempt resolution
+  timeoutSeconds?: number; // optional override; falls back to workspace setting copilot-debugger.entryTimeoutSeconds
   breakpointConfig: {
     breakpoints: Array<{
       path: string;
@@ -144,17 +144,32 @@ export const startDebuggingAndWaitForStop = async (params: {
     sessionName,
     workspaceFolder,
     nameOrConfiguration,
-    timeoutSeconds = 60,
+    timeoutSeconds: timeoutOverride,
     breakpointConfig,
   } = params;
-  const extensionRoot = vscode.extensions.getExtension(
-    'dkattan.copilot-breakpoint-debugger'
-  )?.extensionPath;
-  const resolvedWorkspaceFolder = path.isAbsolute(workspaceFolder)
-    ? workspaceFolder
-    : extensionRoot
-      ? path.resolve(extensionRoot, workspaceFolder)
-      : path.resolve(workspaceFolder);
+
+  // Basic breakpoint configuration validation (moved from StartDebuggerTool)
+  if (!breakpointConfig || !Array.isArray(breakpointConfig.breakpoints)) {
+    throw new Error('breakpointConfig.breakpoints is required.');
+  }
+  if (breakpointConfig.breakpoints.length === 0) {
+    throw new Error(
+      'Provide at least one breakpoint (path + line) before starting the debugger.'
+    );
+  }
+  for (const bp of breakpointConfig.breakpoints) {
+    if (!Array.isArray(bp.variableFilter) || bp.variableFilter.length === 0) {
+      throw new Error(
+        `Breakpoint at ${bp.path}:${bp.line} missing required non-empty variableFilter array.`
+      );
+    }
+  }
+  if (!path.isAbsolute(workspaceFolder)) {
+    throw new Error(
+      `workspaceFolder must be an absolute path to an open workspace folder. Received '${workspaceFolder}'.`
+    );
+  }
+  const resolvedWorkspaceFolder = workspaceFolder.trim();
   const normalizedRequestedFolder = normalizeFsPath(resolvedWorkspaceFolder);
   // Ensure that workspace folders exist and are accessible.
   const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -173,42 +188,15 @@ export const startDebuggingAndWaitForStop = async (params: {
     folder: f,
     normalized: normalizeFsPath(f.uri.fsPath),
   }));
-  // Try exact match first (supporting relative -> absolute resolution)
-  let folderEntry = normalizedFolders.find(
+  const folderEntry = normalizedFolders.find(
     f => f.normalized === normalizedRequestedFolder
   );
-
-  // If no exact match, we might have been given a parent folder (repo root) while only a child (e.g. test-workspace) is opened,
-  // OR we might have been given a child while only the parent is opened. Support both directions.
-  if (!folderEntry) {
-    // Case 1: Requested path is parent of an opened workspace folder
-    const childOfRequested = normalizedFolders.find(f =>
-      f.normalized.startsWith(`${normalizedRequestedFolder}/`)
-    );
-    if (childOfRequested) {
-      folderEntry = childOfRequested;
-      logger.info(
-        `Requested parent folder '${resolvedWorkspaceFolder}' not open; using child workspace folder '${folderEntry.folder.uri.fsPath}'.`
-      );
-    }
-  }
-  if (!folderEntry) {
-    // Case 2: Requested path is a subfolder of an opened workspace folder
-    const parentOfRequested = normalizedFolders.find(f =>
-      normalizedRequestedFolder.startsWith(`${f.normalized}/`)
-    );
-    if (parentOfRequested) {
-      folderEntry = parentOfRequested;
-      logger.info(
-        `Requested subfolder '${resolvedWorkspaceFolder}' not open; using parent workspace folder '${folderEntry.folder.uri.fsPath}'.`
-      );
-    }
-  }
-
   const folder = folderEntry?.folder;
   if (!folder) {
     throw new Error(
-      `Workspace folder '${workspaceFolder}' not found. Available folders: ${workspaceFolders.map(f => f.uri.fsPath).join(', ')}`
+      `Workspace folder '${workspaceFolder}' is not currently open. Open folders: ${workspaceFolders
+        .map(f => f.uri.fsPath)
+        .join(', ')}`
     );
   }
   const folderFsPath = folder.uri.fsPath;
@@ -277,15 +265,46 @@ export const startDebuggingAndWaitForStop = async (params: {
   }
 
   // Resolve launch configuration: always inject stopOnEntry=true to ensure early pause, but never synthesize a generic config.
+  // Determine effective timeout
+  const settings = vscode.workspace.getConfiguration(
+    'copilot-debugger',
+    folder.uri
+  );
+  const settingTimeout = settings.get<number>('entryTimeoutSeconds');
+  const effectiveTimeoutSeconds =
+    typeof timeoutOverride === 'number' && timeoutOverride > 0
+      ? timeoutOverride
+      : typeof settingTimeout === 'number' && settingTimeout > 0
+        ? settingTimeout
+        : 60;
+
+  // Resolve launch configuration name: provided -> setting -> single config auto-select
+  let effectiveLaunchName = nameOrConfiguration;
+  if (!effectiveLaunchName) {
+    const settingDefault = settings.get<string>('defaultLaunchConfiguration');
+    effectiveLaunchName = settingDefault;
+  }
   const launchConfig = vscode.workspace.getConfiguration('launch', folder.uri);
   const allConfigs =
     (launchConfig.get<unknown>(
       'configurations'
     ) as vscode.DebugConfiguration[]) || [];
-  const found = allConfigs.find(c => c.name === nameOrConfiguration);
+  if (!effectiveLaunchName) {
+    if (allConfigs.length === 1 && allConfigs[0].name) {
+      effectiveLaunchName = allConfigs[0].name;
+      logger.info(
+        `[startDebuggingAndWaitForStop] Auto-selected sole launch configuration '${effectiveLaunchName}'.`
+      );
+    } else {
+      throw new Error(
+        'No launch configuration specified. Provide nameOrConfiguration, set copilot-debugger.defaultLaunchConfiguration, or define exactly one configuration.'
+      );
+    }
+  }
+  const found = allConfigs.find(c => c.name === effectiveLaunchName);
   if (!found) {
     throw new Error(
-      `Launch configuration '${nameOrConfiguration}' not found in ${folder.uri.fsPath}. Add it to .vscode/launch.json.`
+      `Launch configuration '${effectiveLaunchName}' not found in ${folder.uri.fsPath}. Add it to .vscode/launch.json.`
     );
   }
   const resolvedConfig = { ...found };
@@ -304,14 +323,14 @@ export const startDebuggingAndWaitForStop = async (params: {
   const existingIds = activeSessions.map(s => s.id);
   const entryStopPromise = waitForEntryStop({
     excludeSessionIds: existingIds,
-    timeout: timeoutSeconds * 1000,
+    timeout: effectiveTimeoutSeconds * 1000,
   });
   const success = await vscode.debug.startDebugging(folder, resolvedConfig);
   if (!success) {
     throw new Error(`Failed to start debug session '${effectiveSessionName}'.`);
   }
   const startT = Date.now();
-  let remainingMs = timeoutSeconds * 1000;
+  let remainingMs = effectiveTimeoutSeconds * 1000;
   let entryStop: BreakpointHitInfo | undefined;
   let finalStop: BreakpointHitInfo | undefined;
   let debugContext:

@@ -90,11 +90,8 @@ describe('multi-Root Workspace Integration', () => {
 
   it('workspace B (Node.js) - individual debug session', async () => {
     const extensionRoot = getExtensionRoot();
-    const scriptUri = vscode.Uri.file(
-      path.join(extensionRoot, 'test-workspace/b/test.js')
-    );
-    // Use workspace-b folder specifically
-    const workspaceFolder = 'test-workspace/b';
+    const workspaceFolder = path.join(extensionRoot, 'test-workspace', 'b');
+    const scriptUri = vscode.Uri.file(path.join(workspaceFolder, 'test.js'));
     const lineInsideLoop = 9;
 
     await openScriptDocument(scriptUri);
@@ -151,11 +148,8 @@ describe('multi-Root Workspace Integration', () => {
     this.timeout(5000);
 
     const extensionRoot = getExtensionRoot();
-    const scriptUri = vscode.Uri.file(
-      path.join(extensionRoot, 'test-workspace/b/test.js')
-    );
-    // Use workspace-b folder specifically
-    const workspaceFolder = 'test-workspace/b';
+    const workspaceFolder = path.join(extensionRoot, 'test-workspace', 'b');
+    const scriptUri = vscode.Uri.file(path.join(workspaceFolder, 'test.js'));
 
     await openScriptDocument(scriptUri);
     await activateCopilotDebugger();

@@ -2,7 +2,7 @@
   "publisher": "dkattan",
   "name": "copilot-breakpoint-debugger",
   "displayName": "Copilot Breakpoint Debugger",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "description": "Use GitHub Copilot to automate starting, inspecting and resuming VS Code debug sessions with conditional breakpoints, exact numeric hit counts (hitCount), logpoints, and capture actions that interpolate variables inside log messages.",
   "preview": true,
   "license": "MIT",
@@ -59,13 +59,21 @@
         "toolReferenceName": "startDebugger",
         "canBeReferencedInPrompt": true,
         "userDescription": "Start a debug session, set breakpoints, and wait until a breakpoint is hit. Supports actions: break (pause & return), capture (collect variables & interpolated log messages then resume automatically), stopDebugging (terminate after hit). Exact numeric hitCount pauses on that occurrence.",
-        "modelDescription": "Start a debug session using the configured default launch configuration. Each breakpoint can specify an action: break (pause), capture (gather variables & interpolate {var} placeholders in logMessage then continue), or stopDebugging (terminate immediately after hit). Supports conditional expressions and exact numeric hitCount only.",
+        "modelDescription": "Start a debug session using the configured default launch configuration or an explicitly provided configurationName. Auto-selects sole launch config when none specified and no default setting is present. Each breakpoint can specify an action: break (pause), capture (gather variables & interpolate {var} placeholders in logMessage then continue), or stopDebugging (terminate immediately after hit). Supports conditional expressions and exact numeric hitCount only.",
         "inputSchema": {
           "type": "object",
           "properties": {
             "workspaceFolder": {
               "type": "string",
-              "description": "Absolute path of workspace folder (defaults to first workspace)."
+              "description": "Absolute path of an OPEN workspace folder (required)."
+            },
+            "configurationName": {
+              "type": "string",
+              "description": "Name of launch configuration to start. If omitted uses copilot-debugger.defaultLaunchConfiguration or auto-selects sole configuration if exactly one exists."
+            },
+            "launchConfigurationName": {
+              "type": "string",
+              "description": "Alias of configurationName. Same behavior."
             },
             "breakpointConfig": {
               "type": "object",
@@ -126,6 +134,7 @@
             }
           },
           "required": [
+            "workspaceFolder",
             "breakpointConfig"
           ]
         }

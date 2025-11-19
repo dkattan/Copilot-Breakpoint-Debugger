@@ -8,6 +8,18 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - Initial release
 
+## [0.0.14] - 2025-11-19
+
+**Changed:** Enforced strict `workspaceFolder` semantics (must be absolute path to an open folder; removed all extension root / parent heuristics). StartDebuggerTool is now a thin wrapper delegating all validation to `startDebuggingAndWaitForStop`.
+
+**Added:** Auto-selection of a sole launch configuration when no `configurationName` is provided and no `copilot-debugger.defaultLaunchConfiguration` is set. New test `autoSelectLaunchConfig.test.ts` verifies this behavior.
+
+**Removed:** Legacy fallback resolution for non-open folders and extension installation directory scanning.
+
+**Internal:** Centralized launch config resolution, breakpoint validation, timeout derivation, and breakpoint action handling inside `session.ts`. Updated `AGENTS.md` to reflect refactor and stricter model. Documentation now consistently refers to `workspaceFolder` as required.
+
+**Note:** Version bump only in CHANGELOG (package.json unchanged) per request to document behavior; functional changes already present in codebase prior to entry.
+
 ## [0.0.13] - 2025-11-18
 
 **Documentation:** Renamed `agents.md` to `AGENTS.md` (case normalization for consistency with other capitalized reference files). No functional code changes.

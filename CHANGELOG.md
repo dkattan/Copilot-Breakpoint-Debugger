@@ -8,6 +8,16 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - Initial release
 
+## [0.0.15] - 2025-11-20
+
+**Purpose:** Patch release to establish an immutable post–force-tag artifact after moving `v0.0.14` to commit `75294db`. Ensures CI publish runs against a stable tag without retroactive modification.
+
+**Changed:** Version bump only (`package.json` 0.0.15). No functional code changes compared to commit `75294db` previously referenced by updated `v0.0.14`.
+
+**Clarification:** `v0.0.14` tag was force-updated; consumers may have pulled the earlier commit. Use `v0.0.15` for guaranteed alignment with current codebase.
+
+**Internal:** Release notes annotate rationale; no source diffs beyond version field.
+
 ## [0.0.14] - 2025-11-19
 
 **Changed:** Enforced strict `workspaceFolder` semantics (must be absolute path to an open folder; removed all extension root / parent heuristics). StartDebuggerTool is now a thin wrapper delegating all validation to `startDebuggingAndWaitForStop`.

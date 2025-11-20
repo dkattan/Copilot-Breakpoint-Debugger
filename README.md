@@ -199,6 +199,41 @@ Manual publish – `npm run lint && npm test`, bump version (`npm version patch|
 
 Release flow – push tag & create a GitHub release to trigger publish workflow.
 
+### Automated Release Script
+
+You can automate steps 4–9 with the PowerShell helper `New-Release.ps1`:
+
+```powershell
+./New-Release.ps1 -Version 0.0.17 -ReleaseNotes "**Added:** Feature X`n**Fixed:** Issue Y"
+```
+
+Parameters:
+
+- `-Version` (System.Version) – New semantic version (e.g., 0.0.17 or 1.2.3.4). Tag generated as `v<Major>.<Minor>.<Build>[.<Revision>]`.
+- `-ReleaseNotes` (string) – Markdown body inserted into CHANGELOG and used for GitHub release notes.
+- `-Date` (optional) – Override date; defaults to current UTC.
+- `-SkipGitPush` – Create commit + tag locally but do not push.
+- `-DryRun` – Show planned changes without applying.
+
+Behavior:
+
+1. Prepends a new `## [Version] - Date` section after `## [Unreleased]` in `CHANGELOG.md`.
+2. Commits the CHANGELOG update.
+3. Creates annotated tag `vX.Y.Z(.R)`.
+4. Pushes commit and tag (unless `-SkipGitPush`).
+5. Creates GitHub release with the provided notes if `gh` CLI is available & authenticated.
+
+For multi-line notes, use a here-string:
+
+```powershell
+$notes = @'
+**Added:** Dashboard refresh
+**Changed:** Improved variable filtering docs
+**Fixed:** Race condition in session start
+'@
+./New-Release.ps1 -Version 0.0.18 -ReleaseNotes $notes
+```
+
 ## 🗒️ Changelog
 
 See [CHANGELOG.md](./CHANGELOG.md).

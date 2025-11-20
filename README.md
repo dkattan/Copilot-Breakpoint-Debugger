@@ -201,19 +201,20 @@ Release flow – push tag & create a GitHub release to trigger publish workflow.
 
 ### Automated Release Script
 
-You can automate steps 4–9 with the PowerShell helper `New-Release.ps1`:
+You can automate steps 4–9 with the PowerShell helper `New-Release.ps1` (auto-increments version):
 
 ```powershell
-./New-Release.ps1 -Version 0.0.17 -ReleaseNotes "**Added:** Feature X`n**Fixed:** Issue Y"
+./New-Release.ps1 -ReleaseNotes "**Added:** Feature X`n**Fixed:** Issue Y"
 ```
 
 Parameters:
 
-- `-Version` (System.Version) – New semantic version (e.g., 0.0.17 or 1.2.3.4). Tag generated as `v<Major>.<Minor>.<Build>[.<Revision>]`.
 - `-ReleaseNotes` (string) – Markdown body inserted into CHANGELOG and used for GitHub release notes.
 - `-Date` (optional) – Override date; defaults to current UTC.
 - `-SkipGitPush` – Create commit + tag locally but do not push.
 - `-DryRun` – Show planned changes without applying.
+
+Auto versioning: Script scans existing tags (`git tag --list 'v*'`), parses semantic versions, selects the highest, then increments the patch (Build) component. If no tags exist it starts at `0.0.1`.
 
 Behavior:
 
@@ -231,7 +232,7 @@ $notes = @'
 **Changed:** Improved variable filtering docs
 **Fixed:** Race condition in session start
 '@
-./New-Release.ps1 -Version 0.0.18 -ReleaseNotes $notes
+./New-Release.ps1 -ReleaseNotes $notes
 ```
 
 ## 🗒️ Changelog

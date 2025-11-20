@@ -303,7 +303,7 @@
     "lint": "eslint",
     "test": "npx vscode-test",
     "test:coverage": "npm run compile-tests && npx vscode-test --coverage",
-    "format": "prettier --write .",
+    "format": "prettier --write . && eslint --fix .",
     "format:check": "prettier --check ."
   },
   "dependencies": {

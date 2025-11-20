@@ -6,8 +6,8 @@ Use GitHub Copilot (or any LM-enabled workflow in VS Code) to start, inspect, an
 
 The extension contributes Language Model Tools that Copilot can invoke:
 
-1. **Start Debugger** (`start_debugger_with_breakpoints`) – Launch a configured debug session and wait for the first breakpoint (optionally set breakpoints/logpoints or filter variables).
-2. **Resume Debug Session** (`resume_debug_session`) – Continue execution of an existing paused session and optionally wait for the next stop.
+1. **Start Debugger** (`start_debugger_with_breakpoints`) – Launch a configured debug session and wait for the first breakpoint (you must supply at least one breakpoint with an exact-name `variableFilter` list; also supports logpoints & capture actions).
+2. **Resume Debug Session** (`resume_debug_session`) – Continue execution of an existing paused session and optionally wait for the next stop (new breakpoints added during resume may omit `variableFilter` if you only need a pause, but include it for scoped variable output or interpolation).
 3. **Get Variables** (`get_variables`) – Retrieve all variables in the current top stack frame scopes.
 4. **Expand Variable** (`expand_variable`) – Drill into a single variable to inspect its immediate children.
 5. **Evaluate Expression** (`evaluate_expression`) – Run an arbitrary expression (like the Debug Console) in the paused stack frame.
@@ -47,7 +47,7 @@ npm run compile
 
 `copilot-debugger.entryTimeoutSeconds` – How long (in seconds) to wait for the initial _entry_ stop after launching (before continuing to user breakpoints). Increase this for large projects with long cold builds or container start times (e.g. 180). If the entry stop is not observed within the window a timeout error is returned.
 
-> **Important:** `start_debugger_with_breakpoints` requires at least one breakpoint **and** a non-empty `variableFilter`. Tight filters keep the response concise so Copilot doesn’t exhaust the LLM context window.
+> **Important:** `start_debugger_with_breakpoints` requires at least one breakpoint **and** a non-empty `variableFilter` per breakpoint. Each `variableFilter` is a list of **exact** variable names (case-sensitive). Regex / glob patterns are not supported; enumerate only what you need to minimize output.
 
 Example settings snippet:
 
@@ -71,7 +71,7 @@ If none of the above apply (and multiple configs exist), an error is returned so
 Minimal example (auto-selection when sole config exists):
 
 ```text
-Start the debugger in workspace folder /absolute/path/to/project with a breakpoint at src/index.ts line 15 and variables foo,bar.
+Start the debugger in workspace folder /absolute/path/to/project with a breakpoint at src/index.ts line 15 filtering variables foo,bar.
 ```
 
 Explicit configuration example:
@@ -91,11 +91,11 @@ Start debug with configurationName "Run test.js" and capture action at test-work
 ## 🧪 Example Copilot Prompts
 
 ```text
-Start the debugger with a breakpoint at src/app.ts line 42; only show variables matching ^(user|session)$.
+Start the debugger with a breakpoint at src/app.ts line 42 filtering variables user,session.
 ```
 
 ```text
-Resume the last debug session, add a breakpoint at src/server.ts line 42 and filter ^order_, then wait for it to hit.
+Resume the last debug session, add a breakpoint at src/server.ts line 42 filtering variables orderId,orderTotal then wait for it to hit.
 ```
 
 ```text
@@ -108,11 +108,11 @@ Stop every debug session named "Web API".
 
 ### Prompt Priorities & Output Size
 
-Tool responses are now rendered with `@vscode/prompt-tsx`, the same priority-aware prompt builder used in Microsoft’s chat samples. Each tool result includes a structured `LanguageModelPromptTsxPart`, so Copilot (or any prompt-tsx–aware planner) can automatically drop low-priority sections when the context window is tight.
+Tool responses are rendered with `@vscode/prompt-tsx`, the same priority-aware prompt builder used in Microsoft’s chat samples. Each tool result includes structured parts so Copilot (or any prompt-tsx–aware planner) can automatically drop low-priority sections when the context window is tight.
 
-- High priority → breakpoint summary (session/file/line).
-- Medium priority → thread + frame metadata.
-- Low priority → filtered scope snapshots (potentially large, so they’re pruned first).
+- High priority → breakpoint summary (session/file/line)
+- Medium priority → thread + frame metadata
+- Low priority → filtered scope snapshots (pruned first)
 
 Because variable filters are mandatory and the prompt is minified before returning, typical tool output is now only a few thousand characters instead of tens of thousands.
 
@@ -174,12 +174,30 @@ You can also run tests/debug from VS Code’s Run and Debug view using the provi
 
 ---
 
-## 📦 Publishing
+## 📦 Publishing & Release Workflow
 
-- **CI/CD** – `.github/workflows/ci.yml` runs lint/format/test on push & PR, then packages + publishes on GitHub releases.
-- **Secrets** – add `VSCE_PAT` (Marketplace PAT with Manage scope); `GITHUB_TOKEN` is provided automatically.
-- **Manual publish** – `npm run lint && npm test`, bump `npm version`, then `npx @vscode/vsce package` and `npx @vscode/vsce publish -p <VSCE_PAT>`.
-- **Release flow** – tag (`git push --tags`) and create a GitHub release to kick off the publish workflow.
+Standard release checklist (copy/paste):
+
+```text
+1. Update code / docs
+2. npm run format && npm run lint
+3. npm test (all pass)
+4. Update CHANGELOG.md (new section [x.y.z] - YYYY-MM-DD)
+5. Bump version in package.json
+6. git add . && git commit -m "chore(release): x.y.z <summary>"
+7. git tag -a vx.y.z -m "Release vx.y.z: <summary>"
+8. git push origin main --follow-tags
+9. (CI) Publishes: verifies, packages, publishes marketplace
+10. (Optional) gh release create vx.y.z --title "vx.y.z" --notes-file RELEASE_NOTES_x.y.z.md
+```
+
+CI/CD – `.github/workflows/ci.yml` runs lint/format/test on push & PR, then packages + publishes on GitHub releases.
+
+Secrets – add `VSCE_PAT` (Marketplace PAT with Manage scope); `GITHUB_TOKEN` is provided automatically.
+
+Manual publish – `npm run lint && npm test`, bump version (`npm version patch|minor|major`), then `npx @vscode/vsce package` and `npx @vscode/vsce publish -p <VSCE_PAT>`.
+
+Release flow – push tag & create a GitHub release to trigger publish workflow.
 
 ## 🗒️ Changelog
 

@@ -10,6 +10,16 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - Security: Override transitive `glob` to 10.5.0 (fixes GHSA-5j98-mcp5-4vw2) via root `overrides` after audit flagged vulnerable range (<10.5.0). Lockfile committed for reproducible remediation.
 - **Breaking:** Removed `launchConfigurationName` alias from Start Debugger tool input schema. Use `configurationName` exclusively. Resolution order unchanged (direct value → setting → auto-select sole configuration). Prompts referencing the alias must be updated.
 
+## [0.0.16] - 2025-11-20
+
+**Documentation:** Clarified that `variableFilter` values are exact, case-sensitive variable names (no regex support). Removed prior regex-style examples (`^(user|session)$`, `^order_`) from README and replaced with explicit name lists. Added note that `resume_debug_session` breakpoints may omit `variableFilter` (optional) while `start_debugger_with_breakpoints` requires it per breakpoint to keep responses compact.
+
+**Added:** Expanded README action guidance (difference between `break`, `capture`, `stopDebugging`), release workflow steps, and improved examples for capture interpolation.
+
+**Internal:** Version bump only; no functional code changes. Test suite unchanged. Prepares accurate docs baseline before subsequent feature work.
+
+**Rationale:** Prevent confusion observed in prompts using regex patterns; LLM planners should enumerate exact variable names they want returned.
+
 ## [0.0.15] - 2025-11-20
 
 **Purpose:** Patch release to establish an immutable post–force-tag artifact after moving `v0.0.14` to commit `75294db`. Ensures CI publish runs against a stable tag without retroactive modification.

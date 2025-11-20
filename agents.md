@@ -11,6 +11,20 @@
 - **Prepare for publish**: `npm run vscode:prepublish` - Runs compile before publishing
 - **Important**: Always run `npm run format` before `npm run lint` to avoid formatting conflicts
 
+## User-Facing Commands Added
+
+- `copilotBreakpointDebugger.startAndWaitManual` now uses existing workspace breakpoints. It will:
+  1. Verify at least one `SourceBreakpoint` already exists; if none, it instructs the user to set one and aborts early.
+  2. Prompt only for a launch configuration and a comma-separated variable list (no file path / line prompts).
+  3. Derive a breakpoint configuration from all existing breakpoints and invoke the core start logic with `useExistingBreakpoints: true`.
+  4. Restore original breakpoints after session completes (unchanged core behavior).
+
+- `copilotBreakpointDebugger.setDefaultLaunchConfiguration` lets users set the workspace-scoped `copilot-debugger.defaultLaunchConfiguration` setting via a quick pick of launch configurations found in `.vscode/launch.json`.
+
+### New Internal Parameter
+
+`startDebuggingAndWaitForStop` accepts an optional `useExistingBreakpoints?: boolean` (default `false`). Currently informational—manual command constructs the full `breakpointConfig` from existing breakpoints—but this flag documents intent for future evolution (e.g., auto-harvesting breakpoints internally when config omitted).
+
 ## Architecture
 
 This is a VS Code extension that integrates with GitHub Copilot to provide debugging capabilities through language model tools.
@@ -199,6 +213,28 @@ The debug tracker extension provides API services for monitoring debug sessions 
 - Provide clear installation instructions in error messages
 - Use try-catch blocks around async operations with proper cleanup
 - Distinguish between recoverable and non-recoverable errors
+
+### IMPORTANT: NO FALLBACK LOGIC (GLOBAL PRINCIPLE)
+
+Fallback logic (silent retries, alternate code paths, regex backups, hidden defaults) MUST NOT be introduced. If an operation cannot proceed (e.g., missing workspace folder, malformed markdown, absent launch configuration), fail fast with a precise, actionable error.
+
+Reasons:
+
+- Transparency – Hidden fallbacks mask real configuration or data issues and degrade model guidance quality.
+- Determinism – Explicit failures maintain predictable tool behavior for language model planners.
+- Debuggability – Surfacing the first cause preserves stack/context for rapid triage.
+- Scope Control – Prevents accidental expansion of supported inputs (e.g., silently accepting partial paths or malformed headings).
+
+Avoid:
+
+- Swallowing exceptions and returning partial success.
+- Auto-inferring missing fields (e.g., guessing a launch config from file names).
+- Regex heuristics when structural parse fails (instruct user to fix source instead).
+- Silent conversion of relative to absolute paths.
+
+Allowed recovery only when the user explicitly requests a transformation; otherwise throw with a clear remediation hint.
+
+If behavior changes, update tests + docs and keep error messaging crisp: one sentence problem statement + specific remediation steps.
 
 ### DAP Variable Access Implementation
 

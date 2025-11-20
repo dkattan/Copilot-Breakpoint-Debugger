@@ -2,7 +2,7 @@
   "publisher": "dkattan",
   "name": "copilot-breakpoint-debugger",
   "displayName": "Copilot Breakpoint Debugger",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "description": "Use GitHub Copilot to automate starting, inspecting and resuming VS Code debug sessions with conditional breakpoints, exact numeric hit counts (hitCount), logpoints, and capture actions that interpolate variables inside log messages.",
   "preview": true,
   "license": "MIT",
@@ -37,6 +37,13 @@
     "onStartupFinished"
   ],
   "contributes": {
+    "commands": [
+      {
+        "command": "copilotBreakpointDebugger.startAndWaitManual",
+        "title": "Copilot Breakpoint Debugger: Manual Start & Wait",
+        "category": "Copilot Breakpoint Debugger"
+      }
+    ],
     "configuration": {
       "title": "Copilot Breakpoint Debugger",
       "properties": {
@@ -127,6 +134,29 @@
                   "description": "Breakpoints to add before starting session."
                 }
               }
+            },
+            "serverReady": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "File path relative to workspace or absolute for the server-ready breakpoint."
+                },
+                "line": {
+                  "type": "integer",
+                  "description": "1-based line number that indicates the server is accepting connections."
+                },
+                "command": {
+                  "type": "string",
+                  "description": "Shell command to execute automatically when the server-ready breakpoint is hit (e.g., curl http://localhost:3000/health). Session will auto-resume after execution."
+                }
+              },
+              "required": [
+                "path",
+                "line",
+                "command"
+              ],
+              "description": "Optional server-ready breakpoint that triggers a command and auto-resumes before waiting for user breakpoints."
             }
           },
           "required": [
@@ -301,7 +331,7 @@
     "compile-tests": "tsc -p ./",
     "pretest": "npm run lint && npm run compile-tests",
     "lint": "eslint",
-    "test": "npx vscode-test",
+    "test": "rm -rf ./.vscode-test/user-data/DIP && npx vscode-test",
     "test:coverage": "npm run compile-tests && npx vscode-test --coverage",
     "format": "prettier --write . && eslint --fix .",
     "format:check": "prettier --check ."

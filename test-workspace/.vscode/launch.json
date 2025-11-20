@@ -32,6 +32,14 @@
       "program": "${workspaceFolder}/b/test.js",
       "cwd": "${workspaceFolder}/b",
       "console": "internalConsole"
+    },
+    {
+      "name": "Run b/server.js",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/b/server.js",
+      "cwd": "${workspaceFolder}/b",
+      "console": "internalConsole"
     }
   ]
 }

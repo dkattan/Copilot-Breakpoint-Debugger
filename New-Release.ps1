@@ -75,36 +75,21 @@ function Add-ChangelogEntry {
     $content = Get-Content $Path -Raw
     $header = "## [$($V.ToString())] - $Date" + [Environment]::NewLine + [Environment]::NewLine + $Notes.Trim() + [Environment]::NewLine + [Environment]::NewLine
 
-    # Prefer structural parse via ConvertFrom-Markdown (Markdig) over regex.
-    try {
-        $md = ConvertFrom-Markdown -InputObject $content -NoHtml -Verbose:$false
-        # Find heading token matching level 2 and text [Unreleased]
-        $unreleasedToken = $md.Tokens | Where-Object {
-            $_.GetType().Name -eq 'HeadingBlock' -and $_.Level -eq 2 -and (
-                ($_.Inline | ForEach-Object { $_.ToString() }) -join '' -match '\[Unreleased\]'
-            )
-        } | Select-Object -First 1
-        if ($unreleasedToken) {
-            # Use Span to determine insertion point just after heading line
-            $spanEnd = $unreleasedToken.Span.End
-            # Span.End gives index of last char; find next newline after spanEnd
-            $nextNewlineIndex = $content.IndexOf("`n", $spanEnd)
-            if ($nextNewlineIndex -lt 0) { $nextNewlineIndex = $content.Length - 1 }
-            $insertionIndex = $nextNewlineIndex + 1
-            $updated = $content.Substring(0, $insertionIndex) + [Environment]::NewLine + $header + $content.Substring($insertionIndex)
-            return $updated
-        } else {
-            Write-Warning 'Markdown token parse did not locate [Unreleased] heading; falling back to regex.'
-        }
+    # Structural parse via ConvertFrom-Markdown (Markdig). NO FALLBACK: fail fast if structure missing.
+    $md = ConvertFrom-Markdown -InputObject $content -Verbose:$false
+    $unreleasedToken = $md.Tokens | Where-Object {
+        $_ -is [Markdig.Syntax.HeadingBlock] -and $_.Level -eq 2 -and (
+            ($_.Inline | ForEach-Object { $_.ToString() }) -join '' -match '\[Unreleased\]'
+        )
+    } | Select-Object -First 1
+    if (-not $unreleasedToken) {
+        throw "[Unreleased] heading not found. Add '## [Unreleased]' near top of CHANGELOG.md before running release script."
     }
-    catch {
-        Write-Warning "Markdown parse failed ($($_.Exception.Message)); falling back to regex."
-    }
-
-    # Fallback regex (should be rare)
-    $pattern = "## \[Unreleased\]"
-    if ($content -notmatch $pattern) { throw '[Unreleased] heading not found for insertion.' }
-    return ($content -replace $pattern, ($pattern + [Environment]::NewLine + [Environment]::NewLine + $header))
+    $spanEnd = $unreleasedToken.Span.End
+    $nextNewlineIndex = $content.IndexOf("`n", $spanEnd)
+    if ($nextNewlineIndex -lt 0) { $nextNewlineIndex = $content.Length - 1 }
+    $insertionIndex = $nextNewlineIndex + 1
+    return $content.Substring(0, $insertionIndex) + [Environment]::NewLine + $header + $content.Substring($insertionIndex)
 }
 
 $Version = Get-NextVersion

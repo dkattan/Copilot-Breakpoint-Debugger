@@ -35,6 +35,7 @@ export interface StartDebuggerToolParameters {
   workspaceFolder: string;
   configurationName?: string; // configuration to use; if omitted relies on setting or auto-select logic
   breakpointConfig: BreakpointConfiguration;
+  serverReady?: { path: string; line: number; command: string }; // optional server-ready breakpoint
 }
 
 // Removed scope variable limiting; concise output filters directly.
@@ -45,8 +46,12 @@ export class StartDebuggerTool
   async invoke(
     options: LanguageModelToolInvocationOptions<StartDebuggerToolParameters>
   ): Promise<LanguageModelToolResult> {
-    const { workspaceFolder, configurationName, breakpointConfig } =
-      options.input;
+    const {
+      workspaceFolder,
+      configurationName,
+      breakpointConfig,
+      serverReady,
+    } = options.input;
     try {
       // Intentionally leave the parameter validation to the underlying debugger start function.
       const stopInfo = await startDebuggingAndWaitForStop({
@@ -54,6 +59,7 @@ export class StartDebuggerTool
         nameOrConfiguration: configurationName,
         breakpointConfig,
         sessionName: '',
+        serverReady,
       });
 
       const summary = {

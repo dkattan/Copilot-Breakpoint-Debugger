@@ -8,6 +8,10 @@
       "name": "workspace-b",
       "path": "b",
     },
+    {
+      "name": "workspace-root",
+      "path": ".",
+    },
   ],
   "settings": {
     "copilot-debugger.defaultLaunchConfiguration": "Run test.ps1",

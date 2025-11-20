@@ -10,6 +10,18 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - Security: Override transitive `glob` to 10.5.0 (fixes GHSA-5j98-mcp5-4vw2) via root `overrides` after audit flagged vulnerable range (<10.5.0). Lockfile committed for reproducible remediation.
 - **Breaking:** Removed `launchConfigurationName` alias from Start Debugger tool input schema. Use `configurationName` exclusively. Resolution order unchanged (direct value → setting → auto-select sole configuration). Prompts referencing the alias must be updated.
 
+## [0.0.17] - 2025-11-20
+
+**Fixed:** Server-ready breakpoint detection no longer falsely treats the initial stop as a user breakpoint due to path normalization mismatches. Logic now tolerates the first stopped event being either a user breakpoint or the serverReady marker line and will correctly continue past the serverReady line to the intended user breakpoint.
+
+**Behavior:** Explicitly supports user breakpoint hitting first (adapters that emit a breakpoint before an `entry` reason). The first valid stopped event is treated as the entry stop when it coincides with a user breakpoint; no timeout or misclassification occurs.
+
+**Removed (Tests):** `autoSelectLaunchConfig.test.ts` eliminated per product decision to reduce maintenance overhead. Auto-select logic (sole configuration when none specified and no setting) remains unchanged and documented; only the test artifact was removed.
+
+**Internal:** Minor conditional simplification for serverReady detection (line-based match only). No schema or tool interface changes.
+
+**Upgrade Impact:** None. Existing workflows continue to function; improved resilience for early user breakpoint scenarios.
+
 ## [0.0.16] - 2025-11-20
 
 **Documentation:** Clarified that `variableFilter` values are exact, case-sensitive variable names (no regex support). Removed prior regex-style examples (`^(user|session)$`, `^order_`) from README and replaced with explicit name lists. Added note that `resume_debug_session` breakpoints may omit `variableFilter` (optional) while `start_debugger_with_breakpoints` requires it per breakpoint to keep responses compact.

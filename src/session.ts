@@ -110,6 +110,11 @@ export const listDebugSessions = () => {
  * @param params.timeoutSeconds - Optional timeout in seconds to wait for a breakpoint hit (default: 60).
  * @param params.breakpointConfig - Optional configuration for managing breakpoints during the debug session.
  * @param params.breakpointConfig.breakpoints - Array of breakpoint configurations to set before starting the session.
+ * @param params.serverReady - Optional server ready breakpoint configuration; if first stop matches this breakpoint its command is executed then session continues.
+ * @param params.serverReady.path - Path to file containing server ready breakpoint.
+ * @param params.serverReady.line - 1-based line number for server ready breakpoint.
+ * @param params.serverReady.command - Shell command to execute when server ready breakpoint is hit.
+ * @param params.useExistingBreakpoints - When true, caller intends to use already-set workspace breakpoints (manual command).
  */
 export const startDebuggingAndWaitForStop = async (params: {
   sessionName: string;
@@ -127,6 +132,15 @@ export const startDebuggingAndWaitForStop = async (params: {
       action?: 'break' | 'stopDebugging' | 'capture'; // 'capture' collects data + log messages then continues
     }>;
   };
+  serverReady?: { path: string; line: number; command: string };
+  /**
+   * When true, the caller indicates the debug session should use the user's existing breakpoints
+   * (e.g. from the UI) instead of prompting for a single file+line. The current implementation expects
+   * breakpointConfig to be supplied (the manual command derives it from existing breakpoints) but this flag
+   * documents intent and allows future internal logic changes without altering the call sites.
+   * Defaults to false.
+   */
+  useExistingBreakpoints?: boolean;
 }): Promise<
   DebugContext & {
     scopeVariables: ScopeVariables[];
@@ -146,6 +160,8 @@ export const startDebuggingAndWaitForStop = async (params: {
     nameOrConfiguration,
     timeoutSeconds: timeoutOverride,
     breakpointConfig,
+    serverReady,
+    useExistingBreakpoints: _useExistingBreakpoints = false,
   } = params;
 
   // Basic breakpoint configuration validation (moved from StartDebuggerTool)
@@ -256,12 +272,57 @@ export const startDebuggingAndWaitForStop = async (params: {
       );
     }
   }
+  // Optional serverReady breakpoint (declare early so scope is available later)
+  let serverReadySource: vscode.SourceBreakpoint | undefined;
+  if (serverReady) {
+    const serverReadyPath = path.isAbsolute(serverReady.path)
+      ? serverReady.path
+      : path.join(folderFsPath, serverReady.path);
+    try {
+      const doc = await vscode.workspace.openTextDocument(
+        vscode.Uri.file(serverReadyPath)
+      );
+      const lineCount = doc.lineCount;
+      const duplicate = validated.some(v => {
+        const existingPath = v.sb.location.uri.fsPath;
+        const existingLine = v.sb.location.range.start.line + 1;
+        return (
+          existingPath === serverReadyPath && existingLine === serverReady.line
+        );
+      });
+      if (serverReady.line < 1 || serverReady.line > lineCount || duplicate) {
+        logger.warn(
+          `ServerReady breakpoint invalid or duplicate (${serverReadyPath}:${serverReady.line}); ignoring.`
+        );
+      } else {
+        serverReadySource = new vscode.SourceBreakpoint(
+          new vscode.Location(
+            vscode.Uri.file(serverReadyPath),
+            new vscode.Position(serverReady.line - 1, 0)
+          ),
+          true
+        );
+      }
+    } catch (e) {
+      logger.error(
+        `Failed to open serverReady file ${serverReadyPath}: ${
+          e instanceof Error ? e.message : String(e)
+        }`
+      );
+    }
+  }
   if (validated.length) {
     vscode.debug.addBreakpoints(validated.map(v => v.sb));
     logger.info(`Added ${validated.length} validated breakpoint(s).`);
     await new Promise(resolve => setTimeout(resolve, 500));
   } else {
     logger.warn('No valid breakpoints to add after validation.');
+  }
+  if (serverReadySource) {
+    vscode.debug.addBreakpoints([serverReadySource]);
+    logger.info(
+      `Added serverReady breakpoint at ${serverReadySource.location.uri.fsPath}:$${serverReadySource.location.range.start.line + 1}`
+    );
   }
 
   // Resolve launch configuration: always inject stopOnEntry=true to ensure early pause, but never synthesize a generic config.
@@ -309,11 +370,8 @@ export const startDebuggingAndWaitForStop = async (params: {
   }
   const resolvedConfig = { ...found };
   // Inject stopOnEntry if not already present (harmless if adapter ignores it)
-  if (!('stopOnEntry' in resolvedConfig)) {
-    (resolvedConfig as Record<string, unknown>).stopOnEntry = true;
-  } else {
-    (resolvedConfig as Record<string, unknown>).stopOnEntry = true; // force true
-  }
+  // Always force stopOnEntry true (adapter may ignore)
+  (resolvedConfig as Record<string, unknown>).stopOnEntry = true;
 
   const effectiveSessionName = sessionName || resolvedConfig.name || '';
   logger.info(
@@ -325,6 +383,7 @@ export const startDebuggingAndWaitForStop = async (params: {
     excludeSessionIds: existingIds,
     timeout: effectiveTimeoutSeconds * 1000,
   });
+
   const success = await vscode.debug.startDebugging(folder, resolvedConfig);
   if (!success) {
     throw new Error(`Failed to start debug session '${effectiveSessionName}'.`);
@@ -346,16 +405,48 @@ export const startDebuggingAndWaitForStop = async (params: {
       );
     }
     const sessionId = entryStop.session.id;
-    // Decide whether to continue immediately (entry not at user breakpoint)
+    // Determine if entry stop is serverReady breakpoint
+    // Tolerate serverReady breakpoint being the first ("entry") stop even if a user breakpoint
+    // might also be hit first in some adapters. We only require line equality; path mismatch is
+    // highly unlikely and path normalization differences previously caused false negatives.
+    // This broadened check ensures we properly detect and continue past serverReady to user breakpoint.
+    const isServerReadyHit =
+      !!serverReadySource && entryStop.line === serverReady?.line;
+    // Decide whether to continue immediately (entry not at user breakpoint OR serverReady hit)
     const entryLineZeroBased = entryStop.line ? entryStop.line - 1 : -1;
     const hitRequestedBreakpoint = validated.some(
       v => v.sb.location.range.start.line === entryLineZeroBased
     );
-    if (!hitRequestedBreakpoint) {
+    logger.info(
+      `EntryStop diagnostics: line=${entryStop.line} serverReadyLine=${serverReady?.line} isServerReadyHit=${isServerReadyHit} hitRequestedBreakpoint=${hitRequestedBreakpoint}`
+    );
+    if (!hitRequestedBreakpoint || isServerReadyHit) {
       logger.debug(
-        `Entry stop for session ${sessionId} not at requested breakpoint; continuing to first user breakpoint.`
+        isServerReadyHit
+          ? `Entry stop is serverReady breakpoint; executing command then continuing.`
+          : `Entry stop for session ${sessionId} not at requested breakpoint; continuing to first user breakpoint.`
       );
+      if (isServerReadyHit && serverReady) {
+        try {
+          const terminal = vscode.window.createTerminal({
+            name: 'serverReady',
+          });
+          terminal.sendText(serverReady.command, true);
+          logger.info(`Executed serverReady command: ${serverReady.command}`);
+        } catch (termErr) {
+          logger.error(
+            `Failed executing serverReady command '${serverReady.command}': ${
+              termErr instanceof Error ? termErr.message : String(termErr)
+            }`
+          );
+        }
+      }
       try {
+        // Remove serverReady breakpoint BEFORE continuing to avoid immediate re-stop
+        if (isServerReadyHit && serverReadySource) {
+          vscode.debug.removeBreakpoints([serverReadySource]);
+          logger.debug('Removed serverReady breakpoint prior to continue.');
+        }
         await entryStop.session.customRequest('continue', {
           threadId: entryStop.threadId,
         });
@@ -375,6 +466,101 @@ export const startDebuggingAndWaitForStop = async (params: {
       throw new Error(
         `Debug session '${effectiveSessionName}' terminated before hitting a user breakpoint.`
       );
+    }
+    // If serverReady was NOT the entry stop but becomes the first user stop, process it now then continue.
+    if (
+      !isServerReadyHit &&
+      serverReadySource &&
+      finalStop.line === serverReady?.line
+    ) {
+      logger.info(
+        `Processing serverReady breakpoint post-entry at line ${finalStop.line}. Executing command then continuing to user breakpoint.`
+      );
+      try {
+        const terminal = vscode.window.createTerminal({ name: 'serverReady' });
+        terminal.sendText(serverReady!.command, true);
+        logger.info(`Executed serverReady command: ${serverReady!.command}`);
+      } catch (termErr) {
+        logger.error(
+          `Failed executing late serverReady command '${serverReady!.command}': ${termErr instanceof Error ? termErr.message : String(termErr)}`
+        );
+      }
+      // Remove serverReady breakpoint to avoid re-trigger
+      vscode.debug.removeBreakpoints([serverReadySource]);
+      try {
+        await finalStop.session.customRequest('continue', {
+          threadId: finalStop.threadId,
+        });
+      } catch (contErr) {
+        logger.warn(
+          `Failed to continue after late serverReady processing: ${contErr instanceof Error ? contErr.message : String(contErr)}`
+        );
+      }
+      // Wait for the actual user breakpoint
+      const nextStop = await waitForDebuggerStopBySessionId({
+        sessionId: finalStop.session.id,
+        timeout: remainingMs,
+      });
+      if (nextStop.reason === 'terminated') {
+        throw new Error(
+          `Debug session '${effectiveSessionName}' terminated after serverReady processing before hitting a user breakpoint.`
+        );
+      }
+      finalStop = nextStop;
+    }
+    // Deterministic advancement: some adapters may re-stop on the serverReady line after continue.
+    // If still on serverReady and a user breakpoint exists immediately after, perform explicit step(s) to reach it.
+    if (
+      isServerReadyHit &&
+      serverReady?.line &&
+      finalStop.line === serverReady.line
+    ) {
+      const userNextLine = serverReady.line + 1;
+      const hasUserNext = validated.some(
+        v => v.sb.location.range.start.line === userNextLine - 1
+      );
+      if (hasUserNext) {
+        logger.info(
+          `Advancing from serverReady line ${serverReady.line} to user breakpoint line ${userNextLine} via step(s).`
+        );
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            await finalStop.session.customRequest('next', {
+              threadId: finalStop.threadId,
+            });
+          } catch (stepErr) {
+            logger.warn(
+              `Step attempt ${attempt + 1} failed: ${stepErr instanceof Error ? stepErr.message : String(stepErr)}`
+            );
+            break;
+          }
+          try {
+            const stepped = await waitForDebuggerStopBySessionId({
+              sessionId: finalStop.session.id,
+              timeout: remainingMs,
+            });
+            if (stepped.reason === 'terminated') {
+              logger.warn(
+                'Session terminated during serverReady advancement step.'
+              );
+              finalStop = stepped;
+              break;
+            }
+            finalStop = stepped;
+            if (finalStop.line === userNextLine) {
+              logger.info(
+                `Reached user breakpoint line ${userNextLine} after ${attempt + 1} step(s).`
+              );
+              break;
+            }
+          } catch (waitErr) {
+            logger.warn(
+              `Wait after step attempt ${attempt + 1} failed: ${waitErr instanceof Error ? waitErr.message : String(waitErr)}`
+            );
+            break;
+          }
+        }
+      }
     }
     debugContext = await DAPHelpers.getDebugContext(
       finalStop.session,

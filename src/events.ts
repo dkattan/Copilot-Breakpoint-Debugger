@@ -281,8 +281,15 @@ export const waitForDebuggerStopBySessionId = async (params: {
 };
 
 /**
- * Wait for the first 'entry' stopped event for any new debug session (one whose id was not present in excludeIds).
- * This lets us capture the concrete session id immediately after launch without relying on the configured name.
+ * Wait for the first stopped event ("entry" OR any other valid stop reason such as breakpoint/step/exception)
+ * for any new debug session (one whose id was not present in excludeIds).
+ *
+ * Some debug adapters (e.g. Azure Functions attach) ignore `stopOnEntry` and never emit an "entry" reason.
+ * They will, however, emit a regular breakpoint (or other) stopped event once user code is reached. Our
+ * previous logic waited strictly for `reason === 'entry'` which caused a premature timeout for these adapters.
+ *
+ * This updated logic treats the FIRST valid stopped event for a newly created session as the "entry" equivalent
+ * for purposes of acquiring the concrete session id. Termination before any stop is still surfaced distinctly.
  */
 export const waitForEntryStop = async (params: {
   excludeSessionIds?: string[];
@@ -294,11 +301,12 @@ export const waitForEntryStop = async (params: {
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
     const excludeSet = new Set(excludeSessionIds);
     const listener = onBreakpointHit(event => {
-      if (event.reason !== 'entry') {
-        return; // only care about entry stops
-      }
       // Ignore events for sessions that existed before launch (excludeSet)
       if (excludeSet.has(event.session.id)) {
+        return;
+      }
+      // Ignore internal error events; wait for a genuine stopped reason
+      if (event.reason === 'error') {
         return;
       }
       listener.dispose();
@@ -330,7 +338,11 @@ export const waitForEntryStop = async (params: {
       listener.dispose();
       terminateListener?.dispose();
       timeoutHandle = undefined;
-      reject(new Error(`Timed out waiting for entry stop (${timeout}ms).`));
+      reject(
+        new Error(
+          `Timed out waiting for initial stopped event (${timeout}ms). Debug adapter did not pause (no entry/breakpoint/step/exception).`
+        )
+      );
     }, timeout);
   });
 };

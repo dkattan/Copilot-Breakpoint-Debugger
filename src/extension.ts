@@ -28,7 +28,154 @@ function registerTools(context: vscode.ExtensionContext) {
     vscode.lm.registerTool('get_variables', new GetVariablesTool()),
     vscode.lm.registerTool('expand_variable', new ExpandVariableTool()),
     vscode.lm.registerTool('evaluate_expression', new EvaluateExpressionTool()),
-    vscode.lm.registerTool('stop_debug_session', new StopDebugSessionTool())
+    vscode.lm.registerTool('stop_debug_session', new StopDebugSessionTool()),
+
+    vscode.commands.registerCommand(
+      'copilotBreakpointDebugger.startAndWaitManual',
+      async () => {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders?.length) {
+          vscode.window.showErrorMessage('No workspace folder open.');
+          return;
+        }
+        const folder = workspaceFolders[0].uri.fsPath;
+        // First ensure user has at least one breakpoint set; skip path/line prompts when using existing breakpoints.
+        const existingSourceBreakpoints = vscode.debug.breakpoints.filter(
+          bp => bp instanceof vscode.SourceBreakpoint
+        ) as vscode.SourceBreakpoint[];
+        if (!existingSourceBreakpoints.length) {
+          vscode.window.showInformationMessage(
+            'No breakpoints set. Please set a breakpoint and rerun the command.'
+          );
+          return;
+        }
+        // Only after confirming breakpoints, ask for launch configuration.
+        const launchConfig = vscode.workspace.getConfiguration(
+          'launch',
+          workspaceFolders[0].uri
+        );
+        const allConfigs =
+          (launchConfig.get<unknown>(
+            'configurations'
+          ) as vscode.DebugConfiguration[]) || [];
+        if (!allConfigs.length) {
+          vscode.window.showErrorMessage(
+            'No launch configurations found in .vscode/launch.json.'
+          );
+          return;
+        }
+        const picked = await vscode.window.showQuickPick(
+          allConfigs.map(c => ({ label: c.name })),
+          {
+            placeHolder: 'Select a launch configuration to start',
+            ignoreFocusOut: true,
+          }
+        );
+        if (!picked) {
+          vscode.window.showInformationMessage(
+            'Launch configuration selection canceled.'
+          );
+          return;
+        }
+        const variableFilterInput = await vscode.window.showInputBox({
+          prompt: 'Variable names to capture (comma-separated, at least one)',
+          validateInput: value => {
+            const arr = value
+              .split(',')
+              .map(v => v.trim())
+              .filter(Boolean);
+            return arr.length
+              ? undefined
+              : 'Provide at least one variable name';
+          },
+        });
+        if (!variableFilterInput) {
+          vscode.window.showInformationMessage('Breakpoint setup canceled.');
+          return;
+        }
+        const variableFilter = variableFilterInput
+          .split(',')
+          .map(v => v.trim())
+          .filter(Boolean);
+        // Convert existing breakpoints into the expected configuration shape.
+        const breakpointConfig = {
+          breakpoints: existingSourceBreakpoints.map(sb => ({
+            path: sb.location.uri.fsPath,
+            line: sb.location.range.start.line + 1,
+            variableFilter,
+            action: 'break' as const,
+          })),
+        };
+        try {
+          await startDebuggingAndWaitForStop({
+            sessionName: 'manual-start',
+            workspaceFolder: folder,
+            nameOrConfiguration: picked.label,
+            breakpointConfig,
+            useExistingBreakpoints: true,
+          });
+          void vscode.window.showInformationMessage(
+            `Started '${picked.label}' and hit breakpoint.`
+          );
+        } catch (e) {
+          void vscode.window.showErrorMessage(
+            `Manual start failed: ${e instanceof Error ? e.message : String(e)}`
+          );
+        }
+      }
+    )
+  );
+
+  // Command to set the default launch configuration (workspace scope)
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'copilotBreakpointDebugger.setDefaultLaunchConfiguration',
+      async () => {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders?.length) {
+          vscode.window.showErrorMessage('No workspace folder open.');
+          return;
+        }
+        const folderUri = workspaceFolders[0].uri;
+        const launchConfig = vscode.workspace.getConfiguration(
+          'launch',
+          folderUri
+        );
+        const allConfigs =
+          (launchConfig.get<unknown>(
+            'configurations'
+          ) as vscode.DebugConfiguration[]) || [];
+        if (!allConfigs.length) {
+          vscode.window.showErrorMessage(
+            'No launch configurations found in .vscode/launch.json.'
+          );
+          return;
+        }
+        const picked = await vscode.window.showQuickPick(
+          allConfigs.map(c => ({ label: c.name })),
+          {
+            placeHolder: 'Select a configuration to set as default',
+            ignoreFocusOut: true,
+          }
+        );
+        if (!picked) {
+          vscode.window.showInformationMessage('Selection canceled.');
+          return;
+        }
+        const cfg = vscode.workspace.getConfiguration(
+          'copilot-debugger',
+          folderUri
+        );
+        await cfg.update(
+          'defaultLaunchConfiguration',
+          picked.label,
+          vscode.ConfigurationTarget.Workspace
+        );
+        vscode.window.showInformationMessage(
+          `Set default launch configuration to '${picked.label}'.`
+        );
+      }
+    )
   );
 }
 

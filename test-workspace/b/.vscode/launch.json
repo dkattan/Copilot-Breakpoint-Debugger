@@ -17,6 +17,14 @@
       "cwd": "${workspaceFolder}",
       "console": "internalConsole",
       "preLaunchTask": "sleep-build-delay"
+    },
+    {
+      "name": "Run b/server.js",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/server.js",
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole"
     }
   ]
 }

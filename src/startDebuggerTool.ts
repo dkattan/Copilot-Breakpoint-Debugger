@@ -33,8 +33,7 @@ export interface StartDebuggerToolParameters {
   // Absolute path to an OPEN workspace folder. Must exactly match one of
   // vscode.workspace.workspaceFolders[].uri.fsPath after normalization.
   workspaceFolder: string;
-  configurationName?: string; // preferred field
-  launchConfigurationName?: string; // alias accepted for user convenience
+  configurationName?: string; // configuration to use; if omitted relies on setting or auto-select logic
   breakpointConfig: BreakpointConfiguration;
 }
 
@@ -46,17 +45,13 @@ export class StartDebuggerTool
   async invoke(
     options: LanguageModelToolInvocationOptions<StartDebuggerToolParameters>
   ): Promise<LanguageModelToolResult> {
-    const {
-      workspaceFolder,
-      configurationName,
-      launchConfigurationName,
-      breakpointConfig,
-    } = options.input;
+    const { workspaceFolder, configurationName, breakpointConfig } =
+      options.input;
     try {
       // Intentionally leave the parameter validation to the underlying debugger start function.
       const stopInfo = await startDebuggingAndWaitForStop({
         workspaceFolder,
-        nameOrConfiguration: configurationName || launchConfigurationName,
+        nameOrConfiguration: configurationName,
         breakpointConfig,
         sessionName: '',
       });

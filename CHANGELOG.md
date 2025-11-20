@@ -8,6 +8,7 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 - Initial release
 - Security: Override transitive `glob` to 10.5.0 (fixes GHSA-5j98-mcp5-4vw2) via root `overrides` after audit flagged vulnerable range (<10.5.0). Lockfile committed for reproducible remediation.
+- **Breaking:** Removed `launchConfigurationName` alias from Start Debugger tool input schema. Use `configurationName` exclusively. Resolution order unchanged (direct value → setting → auto-select sole configuration). Prompts referencing the alias must be updated.
 
 ## [0.0.15] - 2025-11-20
 

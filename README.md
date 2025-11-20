@@ -58,17 +58,15 @@ Example settings snippet:
 }
 ```
 
-### Launch Configuration Resolution & Aliases
+### Launch Configuration Resolution
 
-The Start Debugger tool accepts either `configurationName` **or** its alias `launchConfigurationName`. Resolution order:
+The Start Debugger tool uses a single `configurationName` field. Resolution order:
 
-1. Provided `configurationName` (or `launchConfigurationName`)
+1. Provided `configurationName`
 2. Workspace setting `copilot-debugger.defaultLaunchConfiguration`
 3. Auto-select when the target workspace folder defines **exactly one** launch configuration
 
 If none of the above apply (and multiple configs exist), an error is returned so Copilot can request clarification instead of silently guessing.
-
-Alias support allows existing prompts referencing `launchConfigurationName` to continue working while standardizing on `configurationName` going forward.
 
 Minimal example (auto-selection when sole config exists):
 
@@ -82,10 +80,10 @@ Explicit configuration example:
 Start debug with configurationName "Run test.js" adding a breakpoint at test-workspace/b/test.js line 9 filtering variable i.
 ```
 
-Using alias:
+Capture example:
 
 ```text
-Start debug with launchConfigurationName "Run test.js" and capture action at test-workspace/b/test.js line 9 filtering i and log message "i={i}".
+Start debug with configurationName "Run test.js" and capture action at test-workspace/b/test.js line 9 filtering i and log message "i={i}".
 ```
 
 > Tip: Variable filters are exact name matches (case-sensitive) and required per breakpoint to keep responses concise for the LLM.

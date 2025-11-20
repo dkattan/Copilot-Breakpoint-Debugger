@@ -71,10 +71,6 @@
               "type": "string",
               "description": "Name of launch configuration to start. If omitted uses copilot-debugger.defaultLaunchConfiguration or auto-selects sole configuration if exactly one exists."
             },
-            "launchConfigurationName": {
-              "type": "string",
-              "description": "Alias of configurationName. Same behavior."
-            },
             "breakpointConfig": {
               "type": "object",
               "properties": {

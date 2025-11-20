@@ -5,6 +5,7 @@ import { EvaluateExpressionTool } from './evaluateExpressionTool';
 import { ExpandVariableTool } from './expandVariableTool';
 import { GetVariablesTool } from './getVariablesTool';
 import { ResumeDebugSessionTool } from './resumeDebugSessionTool';
+import { startDebuggingAndWaitForStop } from './session';
 import { StartDebuggerTool } from './startDebuggerTool';
 import { StopDebugSessionTool } from './stopDebugSessionTool';
 

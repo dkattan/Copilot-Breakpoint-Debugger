@@ -76,10 +76,14 @@ export async function invokeStartDebuggerTool(
       let rawValue: string;
       // Use indexed access via casting to loose object type
       const loose = firstPart as { [k: string]: unknown };
-      if (typeof loose.value === 'string') rawValue = loose.value;
-      else if (typeof loose.text === 'string') rawValue = loose.text;
-      else rawValue = JSON.stringify(firstPart);
-      // eslint-disable-next-line no-console
+      if (typeof loose.value === 'string') {
+        rawValue = loose.value;
+      } else if (typeof loose.text === 'string') {
+        rawValue = loose.text;
+      } else {
+        rawValue = JSON.stringify(firstPart);
+      }
+
       console.log('[invokeStartDebuggerTool] raw output:', rawValue);
     }
   } catch {

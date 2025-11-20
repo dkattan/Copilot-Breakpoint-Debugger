@@ -4,9 +4,9 @@ import * as vscode from 'vscode';
 import { startDebuggingAndWaitForStop } from '../session';
 import {
   activateCopilotDebugger,
+  getExtensionRoot,
   openScriptDocument,
   stopAllDebugSessions,
-  getExtensionRoot,
 } from './utils/startDebuggerToolTestUtils';
 
 /**

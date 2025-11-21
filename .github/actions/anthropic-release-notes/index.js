@@ -39,6 +39,28 @@ function buildPrompt(language, commitsData) {
   ].join('\n');
 }
 
+async function fetchLatestModel(anthropicApiKey) {
+  const url = 'https://api.anthropic.com/v1/models';
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'X-Api-Key': anthropicApiKey,
+      },
+    });
+    if (!res.ok) {
+      throw new Error(`Model list request failed (${res.status})`);
+    }
+    const data = await res.json();
+    // Expecting data like { data: [ { id: 'claude-...' }, ... ] }
+    if (!data || !Array.isArray(data.data) || data.data.length === 0) {
+      throw new Error('Model list response missing data array');
+    }
+    return data.data[0].id; // first is most recent per user instruction
+  } catch (err) {
+    throw new Error(`Failed to auto-select latest model: ${err.message}`);
+  }
+}
+
 async function run() {
   info('Running Anthropic release notes action');
   const { anthropicApiKey, language, model, token, version } = parseInputs();
@@ -101,9 +123,14 @@ async function run() {
   const prompt = buildPrompt(language || 'en', commitsStructured);
 
   try {
+    let chosenModel = model && model.trim() ? model.trim() : null;
+    if (!chosenModel) {
+      chosenModel = await fetchLatestModel(anthropicApiKey);
+      info(`Auto-selected latest Anthropic model: ${chosenModel}`);
+    }
     const anthropic = new Anthropic({ apiKey: anthropicApiKey });
     const completion = await anthropic.messages.create({
-      model: model || 'claude-3-5-sonnet-latest',
+      model: chosenModel,
       max_tokens: 800,
       messages: [{ role: 'user', content: prompt }],
     });

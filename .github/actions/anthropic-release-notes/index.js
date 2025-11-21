@@ -30,7 +30,7 @@ function buildPrompt(language, commitsData) {
     'You are a DEV OPS engineer; write a concise changelog for the new software version.',
     'The changelog lists new features (use verb "Add"), changes/improvements/updates (also start with "Add"), and bug fixes (start lines with "Fix").',
     'Order sections: features/changes first, then fixes.',
-    'Format exactly as:\n```\n## What\'s Changed\n- Add <feature/change>\n- Fix <bug>\n```',
+    "Format exactly as:\n```\n## What's Changed\n- Add <feature/change>\n- Fix <bug>\n```",
     'Do not invent items. Use ONLY the following commit data (message, author, PRs).',
     'If no features or fixes are present, provide a minimal placeholder like "- Add internal refactors".',
     `Return output in language: ${language}. Translate commit-derived content.`,
@@ -47,7 +47,10 @@ async function run() {
   // Gather commits since last release
   let latestRelease = null;
   try {
-    latestRelease = await octokit.rest.repos.getLatestRelease({ owner: context.repo.owner, repo: context.repo.repo });
+    latestRelease = await octokit.rest.repos.getLatestRelease({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+    });
   } catch (e) {
     info(`No previous release found; using all recent commits (${e.message})`);
   }
@@ -65,11 +68,17 @@ async function run() {
       commits = compare.data.commits;
     } else {
       // fallback: list recent commits (first page)
-      const list = await octokit.rest.repos.listCommits({ owner: context.repo.owner, repo: context.repo.repo, per_page: 100 });
+      const list = await octokit.rest.repos.listCommits({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        per_page: 100,
+      });
       commits = list.data;
     }
   } catch (error) {
-    return setFailed(`Failed to gather commits: ${error.message || 'unknown error'}`);
+    return setFailed(
+      `Failed to gather commits: ${error.message || 'unknown error'}`
+    );
   }
 
   if (!commits.length) {
@@ -96,11 +105,12 @@ async function run() {
     const completion = await anthropic.messages.create({
       model: model || 'claude-3-5-sonnet-latest',
       max_tokens: 800,
-      messages: [ { role: 'user', content: prompt } ],
+      messages: [{ role: 'user', content: prompt }],
     });
 
     const contentBlock = completion.content && completion.content[0];
-    const responseText = contentBlock && contentBlock.text ? contentBlock.text : null;
+    const responseText =
+      contentBlock && contentBlock.text ? contentBlock.text : null;
     if (!responseText) {
       throw new Error('Anthropic did not return content');
     }

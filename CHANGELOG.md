@@ -6,6 +6,25 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.0.21] - 2025-11-21
+
+# v0.0.21 Release Notes
+
+## Summary
+Patch release with documentation maintenance only. No runtime or API changes.
+
+## Changes
+- Fixed markdown TypeScript snippet style in `RELEASE_NOTES_0.0.20.md` (converted object literal example to `interface ServerReady` for lint compliance).
+- Verified unified `serverReady` trigger/action model remains unchanged.
+- No code modifications; all tests expected to pass unchanged.
+
+## Migration
+No action required. This version is documentation-only; consumers can remain on v0.0.20 if desired.
+
+## Integrity
+Plan: run automated release script to bump patch version and then re-run full test suite.
+
+
 ## [0.0.20] - 2025-11-21
 
 **Breaking:** Removed legacy `serverReady` shape (`path`, `line`, `command`, `httpRequest`, `pattern`, `immediateOnAttach`). Introduced unified object:
@@ -192,3 +211,4 @@ src/testTypes.ts
 test-workspace.code-workspace -> test-workspace/test-workspace.code-workspace (moved)
 tsconfig.json
 ```
+

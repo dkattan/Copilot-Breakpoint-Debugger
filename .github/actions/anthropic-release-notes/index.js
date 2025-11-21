@@ -45,6 +45,8 @@ async function fetchLatestModel(anthropicApiKey) {
     const res = await fetch(url, {
       headers: {
         'X-Api-Key': anthropicApiKey,
+        'anthropic-version': '2023-06-01',
+        'accept': 'application/json',
       },
     });
     if (!res.ok) {
@@ -125,8 +127,13 @@ async function run() {
   try {
     let chosenModel = model && model.trim() ? model.trim() : null;
     if (!chosenModel) {
-      chosenModel = await fetchLatestModel(anthropicApiKey);
-      info(`Auto-selected latest Anthropic model: ${chosenModel}`);
+      try {
+        chosenModel = await fetchLatestModel(anthropicApiKey);
+        info(`Auto-selected latest Anthropic model: ${chosenModel}`);
+      } catch (e) {
+        chosenModel = 'claude-3-5-sonnet-latest';
+        info(`Model auto-select failed: ${e.message}; falling back to ${chosenModel}`);
+      }
     }
     const anthropic = new Anthropic({ apiKey: anthropicApiKey });
     const completion = await anthropic.messages.create({

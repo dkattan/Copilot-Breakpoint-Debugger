@@ -6,9 +6,65 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.0.20] - 2025-11-21
+
+**Breaking:** Removed legacy `serverReady` shape (`path`, `line`, `command`, `httpRequest`, `pattern`, `immediateOnAttach`). Introduced unified object:
+
+```ts
+serverReady: {
+	trigger?: { path?: string; line?: number; pattern?: string }; // omit for immediate attach
+	action: { shellCommand: string } |
+					{ httpRequest: { url: string; method?: string; headers?: Record<string,string>; body?: string } } |
+					{ vscodeCommand: { command: string; args?: unknown[] } };
+}
+```
+
+**Added:** `vscodeCommand` action variant for execution of VS Code commands upon readiness.
+
+**Changed:** HTTP request action is now dispatched fire‑and‑forget (non-blocking) to prevent slow health endpoints from interfering with transition to user breakpoints.
+
+**Removed:** Obsolete compatibility shim (`LegacyServerReady`) and associated mapping logic in `startDebuggerTool.ts`. All tooling / tests now consume the new structure directly.
+
+**Schema:** Updated `package.json` tool input schema: replaced prior multi-variant + mutual exclusion validation with a single `serverReady` object containing `trigger` and discriminated `action` union. Mandatory `action`; optional `trigger`.
+
+**Docs:** README section rewritten (examples for breakpoint, pattern, immediate attach, and vscodeCommand). Added Azure Functions attach sequence diagram illustrating immediate action execution when `trigger` omitted.
+
+**Tests:** Updated existing serverReady tests to new structure (shellCommand + httpRequest). Added `serverReadyVscodeCommand` test (covers VS Code command action). Deleted deprecated `autoSelectLaunchConfig.test.ts` pending placeholder via direct file removal (runtime auto-select behavior remains documented).
+
+**Internal:** Introduced helper `executeServerReadyAction` in `session.ts` to centralize serverReady action dispatch phases (`entry`, `late`, `immediate`). Simplified advancement logic after serverReady breakpoint hits. Ensured NO FALLBACK principle by eliminating legacy field tolerance and not inferring triggers.
+
+**Upgrade Guidance:** Update any invocations supplying legacy fields to new `trigger`/`action` structure. For prior immediate attach usage (`immediateOnAttach: true`), simply omit `trigger` and keep the action. For breakpoint mode wrap former `path`/`line` in `trigger`. For pattern mode wrap former `pattern` in `trigger.pattern`.
+
+**Impact:** Tool consumers (LLMs / prompts) gain clearer, future-extensible readiness API while reducing ambiguity and validation branching.
+
 - Initial release
 - Security: Override transitive `glob` to 10.5.0 (fixes GHSA-5j98-mcp5-4vw2) via root `overrides` after audit flagged vulnerable range (<10.5.0). Lockfile committed for reproducible remediation.
 - **Breaking:** Removed `launchConfigurationName` alias from Start Debugger tool input schema. Use `configurationName` exclusively. Resolution order unchanged (direct value → setting → auto-select sole configuration). Prompts referencing the alias must be updated.
+
+## [0.0.19] - 2025-11-21
+
+**Changed:** Refined `serverReady` input schema using `oneOf` to support three variants: breakpoint (`path`+`line`), pattern (`pattern`), or immediate attach (`immediateOnAttach`). Added `allOf` + nested `oneOf` ensuring mutual exclusivity between `command` and `httpRequest` (exactly one action form required per variant).
+
+**Removed:** Legacy wording from descriptions; breakpoint mode remains first-class, not deprecated.
+
+**Internal:** Schema-only enhancement; runtime logic already tolerates absence of `path`/`line` and supports `pattern` and `immediateOnAttach`. No code changes required in this revision.
+
+**Upgrade Impact:** Non-breaking; existing payloads still valid. New validation enforces that both `command` and `httpRequest` cannot appear together and guarantees at least one readiness trigger mode is specified.
+
+**Added:** Expanded `serverReady` automation with optional properties:
+
+- `pattern` – Injects a VS Code `serverReadyAction` (openExternally) pointing to a `vscode://dkattan.copilot-breakpoint-debugger/serverReady` URI so the built-in output detectors (debug console / task terminal) signal readiness without duplicating pattern matching code.
+- `httpRequest` – Perform an HTTP request (`fetch`) when readiness is detected (breakpoint, pattern, or immediate attach). Supports `url`, `method`, `headers`, `body`.
+- `immediateOnAttach` – For `request: "attach"` configurations, execute the command or HTTP request right after attaching (Azure Functions host scenarios where output has already scrolled past).
+- All legacy breakpoint fields (`path`, `line`) are now optional; you can use pure pattern or immediate attach modes.
+
+**Changed:** `serverReady` schema in `package.json` no longer requires `path`, `line`, `command`. Added documentation in README with examples for each mode (legacy breakpoint, pattern-based, immediate attach).
+
+**Internal:** Pattern handling attaches a temporary URI handler resolving a Promise keyed by a random token; actions run asynchronously and do not interfere with breakpoint wait logic.
+
+**Upgrade Impact:** Non-breaking. Existing breakpoint-based usage continues to function. New properties are additive. If a prior workflow relied on required `path`/`line` validation it will now accept an object without them.
+
+**Note:** Pattern detection leverages VS Code's built-in extension behavior via URI indirection for maintainability—no fallback duplicated regex scanning logic introduced (preserves NO FALLBACK principle).
 
 ## [0.0.17] - 2025-11-20
 

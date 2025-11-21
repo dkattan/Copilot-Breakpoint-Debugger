@@ -30,12 +30,32 @@ export interface BreakpointConfiguration {
 }
 
 export interface StartDebuggerToolParameters {
-  // Absolute path to an OPEN workspace folder. Must exactly match one of
-  // vscode.workspace.workspaceFolders[].uri.fsPath after normalization.
   workspaceFolder: string;
-  configurationName?: string; // configuration to use; if omitted relies on setting or auto-select logic
+  configurationName?: string;
   breakpointConfig: BreakpointConfiguration;
-  serverReady?: { path: string; line: number; command: string }; // optional server-ready breakpoint
+  /**
+   * Optional serverReady configuration.
+   * trigger: defines when to run the action (breakpoint path+line OR pattern). If omitted and request === 'attach' the action runs immediately after attach (default immediate attach mode).
+   * action: exactly one of shellCommand | httpRequest | vscodeCommand.
+   */
+  serverReady?: {
+    trigger?: {
+      path?: string;
+      line?: number;
+      pattern?: string;
+    };
+    action:
+      | { shellCommand: string }
+      | {
+          httpRequest: {
+            url: string;
+            method?: string;
+            headers?: Record<string, string>;
+            body?: string;
+          };
+        }
+      | { vscodeCommand: { command: string; args?: unknown[] } };
+  };
 }
 
 // Removed scope variable limiting; concise output filters directly.
@@ -53,7 +73,7 @@ export class StartDebuggerTool
       serverReady,
     } = options.input;
     try {
-      // Intentionally leave the parameter validation to the underlying debugger start function.
+      // Direct invocation with new serverReady structure
       const stopInfo = await startDebuggingAndWaitForStop({
         workspaceFolder,
         nameOrConfiguration: configurationName,

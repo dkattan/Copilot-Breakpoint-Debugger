@@ -51,6 +51,102 @@ npm run compile
 
 Example settings snippet:
 
+### Server Readiness Automation (Unified `trigger` + `action`)
+
+You may supply a `serverReady` object when starting the debugger to run an automated action (shell command, HTTP request, or VS Code command) once the target is "ready".
+
+Structure:
+
+```ts
+interface ServerReady {
+  trigger?: { path?: string; line?: number; pattern?: string };
+  action:
+    | { shellCommand: string }
+    | {
+        httpRequest: {
+          url: string;
+          method?: string;
+          headers?: Record<string, string>;
+          body?: string;
+        };
+      }
+    | { vscodeCommand: { command: string; args?: unknown[] } };
+}
+```
+
+Modes (decided by `trigger`):
+
+1. Breakpoint trigger – provide `trigger.path` + `trigger.line`. When that source breakpoint is hit (whether first or after entry) the action executes, then the session automatically continues to the first user breakpoint.
+2. Pattern trigger – provide `trigger.pattern` (regex). A VS Code `serverReadyAction` URI is injected; built-in output detectors (debug console / task terminal) fire it when the pattern appears. Action executes asynchronously (fire‑and‑forget) without blocking normal breakpoint flow.
+3. Immediate attach – omit `trigger` entirely for `request: "attach"` configurations (e.g., Azure Functions). The action runs immediately after attach since output may have scrolled before the adapter connected.
+
+Actions:
+
+- `shellCommand` – Runs in a new terminal named `serverReady-<phase>` (phase is `entry`, `late`, or `immediate`).
+- `httpRequest` – Issues a fetch; now dispatched fire‑and‑forget so a slow service cannot block debugger continuation.
+- `vscodeCommand` – Invokes a VS Code command (e.g. telemetry-free internal toggles or extension commands) with optional `args`.
+
+Examples:
+
+```jsonc
+// Pattern-based readiness executing an HTTP health probe
+{
+  "serverReady": {
+    "trigger": { "pattern": "listening on .*:3000" },
+    "action": { "httpRequest": { "url": "http://localhost:3000/health" } },
+  },
+}
+```
+
+```jsonc
+// Breakpoint-triggered shell command
+{
+  "serverReady": {
+    "trigger": { "path": "src/server.ts", "line": 27 },
+    "action": { "shellCommand": "curl http://localhost:3000/health" },
+  },
+}
+```
+
+```jsonc
+// Immediate attach (Azure Functions) – no trigger; action fires right after attach
+{
+  "serverReady": {
+    "action": { "httpRequest": { "url": "http://localhost:7071/api/status" } },
+  },
+}
+```
+
+```jsonc
+// VS Code command action (e.g., close panel after readiness)
+{
+  "serverReady": {
+    "trigger": { "path": "src/server.ts", "line": 10 },
+    "action": { "vscodeCommand": { "command": "workbench.action.closePanel" } },
+  },
+}
+```
+
+Azure Functions Attach Sequence (Immediate Action):
+
+```mermaid
+sequenceDiagram
+  participant VSCode
+  participant DebugAdapter
+  participant Extension
+  participant FunctionsHost as Functions Host
+  VSCode->>DebugAdapter: start attach (stopOnEntry=true)
+  DebugAdapter-->>VSCode: (no initial stop; adapter ignores stopOnEntry)
+  Extension->>Extension: trigger omitted ⇒ immediate serverReady action
+  Extension->>FunctionsHost: HTTP GET /api/status
+  FunctionsHost-->>Extension: 200 OK
+  Extension->>DebugAdapter: wait for first user breakpoint
+  DebugAdapter-->>VSCode: stopped (breakpoint)
+  Extension->>VSCode: tool result (variables, call stack)
+```
+
+Pattern detection uses an internal `vscode://dkattan.copilot-breakpoint-debugger/serverReady?token=...` URI. No custom regex scanning or fallback logic is implemented (honors the **NO FALLBACK** principle). If omitted, the debugger behaves normally (entry stop then user breakpoints).
+
 ```jsonc
 {
   "copilot-debugger.defaultLaunchConfiguration": "Run test.js",

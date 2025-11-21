@@ -2,7 +2,7 @@
   "publisher": "dkattan",
   "name": "copilot-breakpoint-debugger",
   "displayName": "Copilot Breakpoint Debugger",
-  "version": "0.0.17",
+  "version": "0.0.20",
   "description": "Use GitHub Copilot to automate starting, inspecting and resuming VS Code debug sessions with conditional breakpoints, exact numeric hit counts (hitCount), logpoints, and capture actions that interpolate variables inside log messages.",
   "preview": true,
   "license": "MIT",
@@ -137,26 +137,108 @@
             },
             "serverReady": {
               "type": "object",
+              "description": "Optional server readiness automation using unified trigger/action. trigger: {path+line | pattern} omitted => immediate execution for attach. action: one of shellCommand | httpRequest | vscodeCommand.",
               "properties": {
-                "path": {
-                  "type": "string",
-                  "description": "File path relative to workspace or absolute for the server-ready breakpoint."
+                "trigger": {
+                  "type": "object",
+                  "description": "Readiness trigger. Provide either path+line for breakpoint or pattern for output-based readiness. Omit for immediate attach execution.",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Breakpoint file path (relative or absolute)."
+                    },
+                    "line": {
+                      "type": "integer",
+                      "description": "1-based line number for breakpoint trigger."
+                    },
+                    "pattern": {
+                      "type": "string",
+                      "description": "Regex pattern matched against debug/task output for readiness."
+                    }
+                  }
                 },
-                "line": {
-                  "type": "integer",
-                  "description": "1-based line number that indicates the server is accepting connections."
-                },
-                "command": {
-                  "type": "string",
-                  "description": "Shell command to execute automatically when the server-ready breakpoint is hit (e.g., curl http://localhost:3000/health). Session will auto-resume after execution."
+                "action": {
+                  "description": "Action executed when ready (shellCommand | httpRequest | vscodeCommand).",
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "shellCommand": {
+                          "type": "string",
+                          "description": "Shell command executed in a new terminal."
+                        }
+                      },
+                      "required": [
+                        "shellCommand"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "httpRequest": {
+                          "type": "object",
+                          "description": "HTTP request executed when ready.",
+                          "properties": {
+                            "url": {
+                              "type": "string",
+                              "description": "Target URL."
+                            },
+                            "method": {
+                              "type": "string",
+                              "description": "Optional HTTP method (default GET)."
+                            },
+                            "headers": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "string"
+                              },
+                              "description": "Optional headers."
+                            },
+                            "body": {
+                              "type": "string",
+                              "description": "Optional request body."
+                            }
+                          },
+                          "required": [
+                            "url"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "httpRequest"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "vscodeCommand": {
+                          "type": "object",
+                          "description": "VS Code command executed when ready.",
+                          "properties": {
+                            "command": {
+                              "type": "string",
+                              "description": "VS Code command ID."
+                            },
+                            "args": {
+                              "type": "array",
+                              "description": "Optional arguments array."
+                            }
+                          },
+                          "required": [
+                            "command"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "vscodeCommand"
+                      ]
+                    }
+                  ]
                 }
               },
               "required": [
-                "path",
-                "line",
-                "command"
-              ],
-              "description": "Optional server-ready breakpoint that triggers a command and auto-resumes before waiting for user breakpoints."
+                "action"
+              ]
             }
           },
           "required": [

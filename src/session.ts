@@ -110,10 +110,12 @@ export const listDebugSessions = () => {
  * @param params.timeoutSeconds - Optional timeout in seconds to wait for a breakpoint hit (default: 60).
  * @param params.breakpointConfig - Optional configuration for managing breakpoints during the debug session.
  * @param params.breakpointConfig.breakpoints - Array of breakpoint configurations to set before starting the session.
- * @param params.serverReady - Optional server ready breakpoint configuration; if first stop matches this breakpoint its command is executed then session continues.
- * @param params.serverReady.path - Path to file containing server ready breakpoint.
- * @param params.serverReady.line - 1-based line number for server ready breakpoint.
- * @param params.serverReady.command - Shell command to execute when server ready breakpoint is hit.
+ * @param params.serverReady - Optional server readiness automation descriptor.
+ * @param params.serverReady.trigger - Optional readiness trigger (breakpoint path+line or pattern). If omitted and request==='attach', action executes immediately post-attach.
+ * @param params.serverReady.trigger.path - Breakpoint file path.
+ * @param params.serverReady.trigger.line - Breakpoint 1-based line number.
+ * @param params.serverReady.trigger.pattern - Regex pattern for output readiness via injected serverReadyAction.
+ * @param params.serverReady.action - Action executed when ready (one of: { shellCommand }, { httpRequest }, { vscodeCommand }).
  * @param params.useExistingBreakpoints - When true, caller intends to use already-set workspace breakpoints (manual command).
  */
 export const startDebuggingAndWaitForStop = async (params: {
@@ -132,7 +134,20 @@ export const startDebuggingAndWaitForStop = async (params: {
       action?: 'break' | 'stopDebugging' | 'capture'; // 'capture' collects data + log messages then continues
     }>;
   };
-  serverReady?: { path: string; line: number; command: string };
+  serverReady?: {
+    trigger?: { path?: string; line?: number; pattern?: string };
+    action:
+      | { shellCommand: string }
+      | {
+          httpRequest: {
+            url: string;
+            method?: string;
+            headers?: Record<string, string>;
+            body?: string;
+          };
+        }
+      | { vscodeCommand: { command: string; args?: unknown[] } };
+  };
   /**
    * When true, the caller indicates the debug session should use the user's existing breakpoints
    * (e.g. from the UI) instead of prompting for a single file+line. The current implementation expects
@@ -163,6 +178,66 @@ export const startDebuggingAndWaitForStop = async (params: {
     serverReady,
     useExistingBreakpoints: _useExistingBreakpoints = false,
   } = params;
+
+  // Helper to execute configured serverReady action
+  const executeServerReadyAction = async (
+    phase: 'entry' | 'late' | 'immediate'
+  ) => {
+    if (!serverReady) {
+      return;
+    }
+    try {
+      if ('shellCommand' in serverReady.action) {
+        const terminal = vscode.window.createTerminal({
+          name: `serverReady-${phase}`,
+        });
+        terminal.sendText(serverReady.action.shellCommand, true);
+        logger.info(
+          `Executed serverReady shellCommand (${phase}): ${serverReady.action.shellCommand}`
+        );
+      } else if ('httpRequest' in serverReady.action) {
+        const {
+          url,
+          method = 'GET',
+          headers,
+          body,
+        } = serverReady.action.httpRequest;
+        logger.info(
+          `Dispatching serverReady httpRequest (${phase}) to ${url} method=${method}`
+        );
+        void fetch(url, { method, headers, body })
+          .then(resp => {
+            logger.info(
+              `serverReady httpRequest (${phase}) response status=${resp.status}`
+            );
+          })
+          .catch(httpErr => {
+            logger.error(
+              `serverReady httpRequest (${phase}) failed: ${httpErr instanceof Error ? httpErr.message : String(httpErr)}`
+            );
+          });
+      } else if ('vscodeCommand' in serverReady.action) {
+        const { command, args = [] } = serverReady.action.vscodeCommand;
+        logger.info(
+          `Executing serverReady vscodeCommand (${phase}): ${command}`
+        );
+        try {
+          const result = await vscode.commands.executeCommand(command, ...args);
+          logger.debug(
+            `serverReady vscodeCommand (${phase}) result: ${JSON.stringify(result)}`
+          );
+        } catch (cmdErr) {
+          logger.error(
+            `serverReady vscodeCommand (${phase}) failed: ${cmdErr instanceof Error ? cmdErr.message : String(cmdErr)}`
+          );
+        }
+      }
+    } catch (err) {
+      logger.error(
+        `Failed executing serverReady action (${phase}): ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  };
 
   // Basic breakpoint configuration validation (moved from StartDebuggerTool)
   if (!breakpointConfig || !Array.isArray(breakpointConfig.breakpoints)) {
@@ -274,10 +349,13 @@ export const startDebuggingAndWaitForStop = async (params: {
   }
   // Optional serverReady breakpoint (declare early so scope is available later)
   let serverReadySource: vscode.SourceBreakpoint | undefined;
-  if (serverReady) {
-    const serverReadyPath = path.isAbsolute(serverReady.path)
-      ? serverReady.path
-      : path.join(folderFsPath, serverReady.path);
+  if (
+    serverReady?.trigger?.path &&
+    typeof serverReady.trigger.line === 'number'
+  ) {
+    const serverReadyPath = path.isAbsolute(serverReady.trigger.path)
+      ? serverReady.trigger.path!
+      : path.join(folderFsPath, serverReady.trigger.path!);
     try {
       const doc = await vscode.workspace.openTextDocument(
         vscode.Uri.file(serverReadyPath)
@@ -287,18 +365,23 @@ export const startDebuggingAndWaitForStop = async (params: {
         const existingPath = v.sb.location.uri.fsPath;
         const existingLine = v.sb.location.range.start.line + 1;
         return (
-          existingPath === serverReadyPath && existingLine === serverReady.line
+          existingPath === serverReadyPath &&
+          existingLine === serverReady.trigger!.line
         );
       });
-      if (serverReady.line < 1 || serverReady.line > lineCount || duplicate) {
+      if (
+        serverReady.trigger.line! < 1 ||
+        serverReady.trigger.line! > lineCount ||
+        duplicate
+      ) {
         logger.warn(
-          `ServerReady breakpoint invalid or duplicate (${serverReadyPath}:${serverReady.line}); ignoring.`
+          `ServerReady breakpoint invalid or duplicate (${serverReadyPath}:${serverReady.trigger.line}); ignoring.`
         );
       } else {
         serverReadySource = new vscode.SourceBreakpoint(
           new vscode.Location(
             vscode.Uri.file(serverReadyPath),
-            new vscode.Position(serverReady.line - 1, 0)
+            new vscode.Position(serverReady.trigger.line! - 1, 0)
           ),
           true
         );
@@ -411,14 +494,14 @@ export const startDebuggingAndWaitForStop = async (params: {
     // highly unlikely and path normalization differences previously caused false negatives.
     // This broadened check ensures we properly detect and continue past serverReady to user breakpoint.
     const isServerReadyHit =
-      !!serverReadySource && entryStop.line === serverReady?.line;
+      !!serverReadySource && entryStop.line === serverReady?.trigger?.line;
     // Decide whether to continue immediately (entry not at user breakpoint OR serverReady hit)
     const entryLineZeroBased = entryStop.line ? entryStop.line - 1 : -1;
     const hitRequestedBreakpoint = validated.some(
       v => v.sb.location.range.start.line === entryLineZeroBased
     );
     logger.info(
-      `EntryStop diagnostics: line=${entryStop.line} serverReadyLine=${serverReady?.line} isServerReadyHit=${isServerReadyHit} hitRequestedBreakpoint=${hitRequestedBreakpoint}`
+      `EntryStop diagnostics: line=${entryStop.line} serverReadyLine=${serverReady?.trigger?.line} isServerReadyHit=${isServerReadyHit} hitRequestedBreakpoint=${hitRequestedBreakpoint}`
     );
     if (!hitRequestedBreakpoint || isServerReadyHit) {
       logger.debug(
@@ -427,19 +510,7 @@ export const startDebuggingAndWaitForStop = async (params: {
           : `Entry stop for session ${sessionId} not at requested breakpoint; continuing to first user breakpoint.`
       );
       if (isServerReadyHit && serverReady) {
-        try {
-          const terminal = vscode.window.createTerminal({
-            name: 'serverReady',
-          });
-          terminal.sendText(serverReady.command, true);
-          logger.info(`Executed serverReady command: ${serverReady.command}`);
-        } catch (termErr) {
-          logger.error(
-            `Failed executing serverReady command '${serverReady.command}': ${
-              termErr instanceof Error ? termErr.message : String(termErr)
-            }`
-          );
-        }
+        await executeServerReadyAction('entry');
       }
       try {
         // Remove serverReady breakpoint BEFORE continuing to avoid immediate re-stop
@@ -471,20 +542,12 @@ export const startDebuggingAndWaitForStop = async (params: {
     if (
       !isServerReadyHit &&
       serverReadySource &&
-      finalStop.line === serverReady?.line
+      finalStop.line === serverReady?.trigger?.line
     ) {
       logger.info(
-        `Processing serverReady breakpoint post-entry at line ${finalStop.line}. Executing command then continuing to user breakpoint.`
+        `Processing serverReady breakpoint post-entry at line ${finalStop.line}. Executing serverReady action then continuing to user breakpoint.`
       );
-      try {
-        const terminal = vscode.window.createTerminal({ name: 'serverReady' });
-        terminal.sendText(serverReady!.command, true);
-        logger.info(`Executed serverReady command: ${serverReady!.command}`);
-      } catch (termErr) {
-        logger.error(
-          `Failed executing late serverReady command '${serverReady!.command}': ${termErr instanceof Error ? termErr.message : String(termErr)}`
-        );
-      }
+      await executeServerReadyAction('late');
       // Remove serverReady breakpoint to avoid re-trigger
       vscode.debug.removeBreakpoints([serverReadySource]);
       try {
@@ -512,16 +575,16 @@ export const startDebuggingAndWaitForStop = async (params: {
     // If still on serverReady and a user breakpoint exists immediately after, perform explicit step(s) to reach it.
     if (
       isServerReadyHit &&
-      serverReady?.line &&
-      finalStop.line === serverReady.line
+      serverReady?.trigger?.line &&
+      finalStop.line === serverReady.trigger.line
     ) {
-      const userNextLine = serverReady.line + 1;
+      const userNextLine = serverReady.trigger.line + 1;
       const hasUserNext = validated.some(
         v => v.sb.location.range.start.line === userNextLine - 1
       );
       if (hasUserNext) {
         logger.info(
-          `Advancing from serverReady line ${serverReady.line} to user breakpoint line ${userNextLine} via step(s).`
+          `Advancing from serverReady line ${serverReady.trigger.line} to user breakpoint line ${userNextLine} via step(s).`
         );
         for (let attempt = 0; attempt < 3; attempt++) {
           try {

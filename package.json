@@ -412,7 +412,7 @@
     "build:dist": "node esbuild.js --production",
     "package": "npm run format && npm run build:dist",
     "compile-tests": "tsc -p ./",
-    "pretest": "npm run lint && npm run compile-tests",
+    "pretest": "npm run format && npm run lint && npm run compile-tests",
     "lint": "eslint",
     "test": "rm -rf ./.vscode-test/user-data/DIP && npx vscode-test",
     "test:coverage": "npm run compile-tests && npx vscode-test --coverage",

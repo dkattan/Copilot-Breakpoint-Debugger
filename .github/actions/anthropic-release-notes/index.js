@@ -125,31 +125,60 @@ async function run() {
   const prompt = buildPrompt(language || 'en', commitsStructured);
 
   try {
+    const anthropic = new Anthropic({ apiKey: anthropicApiKey });
     let chosenModel = model && model.trim() ? model.trim() : null;
-    if (!chosenModel) {
+    let attemptedProvided = false;
+    let completion;
+
+    async function attemptWithModel(m) {
+      info(`Attempting completion with model '${m}'`);
+      return anthropic.messages.create({
+        model: m,
+        max_tokens: 800,
+        messages: [{ role: 'user', content: prompt }],
+      });
+    }
+
+    // Helper to dynamically select latest model with fallback constant
+    async function getDynamicFallback() {
       try {
-        chosenModel = await fetchLatestModel(anthropicApiKey);
-        info(`Auto-selected latest Anthropic model: ${chosenModel}`);
+        const latest = await fetchLatestModel(anthropicApiKey);
+        info(`Dynamic fallback selected latest model: ${latest}`);
+        return latest;
       } catch (e) {
-        chosenModel = 'claude-3-5-sonnet-latest';
+        const staticFallback = 'claude-3-5-sonnet-20241022';
         info(
-          `Model auto-select failed: ${e.message}; falling back to ${chosenModel}`
+          `Dynamic model fetch failed (${e.message}); using static fallback ${staticFallback}`
         );
+        return staticFallback;
       }
     }
-    const anthropic = new Anthropic({ apiKey: anthropicApiKey });
-    const completion = await anthropic.messages.create({
-      model: chosenModel,
-      max_tokens: 800,
-      messages: [{ role: 'user', content: prompt }],
-    });
+
+    try {
+      if (chosenModel) {
+        attemptedProvided = true;
+        completion = await attemptWithModel(chosenModel);
+      } else {
+        chosenModel = await getDynamicFallback();
+        completion = await attemptWithModel(chosenModel);
+      }
+    } catch (err) {
+      const msg = String(err.message || err);
+      const notFound = /not_found_error|404/.test(msg);
+      if (attemptedProvided && notFound) {
+        info(
+          `Provided model '${chosenModel}' not found ("${msg}"). Retrying with dynamic fallback.`
+        );
+        chosenModel = await getDynamicFallback();
+        completion = await attemptWithModel(chosenModel);
+      } else {
+        throw err; // different error type, rethrow
+      }
+    }
 
     const contentBlock = completion.content && completion.content[0];
-    const responseText =
-      contentBlock && contentBlock.text ? contentBlock.text : null;
-    if (!responseText) {
-      throw new Error('Anthropic did not return content');
-    }
+    const responseText = contentBlock && contentBlock.text ? contentBlock.text : null;
+    if (!responseText) throw new Error('Anthropic did not return content');
 
     // Create release
     await octokit.rest.repos.createRelease({

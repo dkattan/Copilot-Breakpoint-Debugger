@@ -405,19 +405,17 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
-    "compile": "npm run format && tsc -p ./",
+    "compile": "tsc -p ./",
     "watch": "npm-run-all -p watch:*",
     "watch:esbuild": "node esbuild.js --watch",
     "watch:tsc": "tsc --noEmit --watch -p ./",
     "build:dist": "node esbuild.js --production",
-    "package": "npm run format && npm run build:dist",
+    "package": "npm run build:dist",
     "compile-tests": "tsc -p ./",
-    "pretest": "npm run format && npm run lint && npm run compile-tests",
+    "pretest": "npm run lint && npm run compile-tests",
     "lint": "eslint",
     "test": "rm -rf ./.vscode-test/user-data/DIP && npx vscode-test",
-    "test:coverage": "npm run compile-tests && npx vscode-test --coverage",
-    "format": "prettier --write . && eslint --fix .",
-    "format:check": "prettier --check ."
+    "test:coverage": "npm run compile-tests && npx vscode-test --coverage"
   },
   "dependencies": {
     "@actions/core": "^1.11.1",
@@ -440,10 +438,7 @@
     "esbuild": "^0.27.0",
     "esbuild-register": "^3.6.0",
     "eslint": "^9.25.1",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-prettier": "^5.5.3",
     "npm-run-all": "^4.1.5",
-    "prettier": "^3.6.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   },

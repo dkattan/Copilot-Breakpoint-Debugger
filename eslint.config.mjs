@@ -1,7 +1,6 @@
 // Migrated to Antfu's flat ESLint config. See: https://github.com/antfu/eslint-config
 // We preserve prior custom rules (naming-convention for imports, curly, eqeqeq)
-// Prettier plugin integration is intentionally removed because Antfu's stylistic
-// setup handles formatting opinions; we still keep the separate prettier script.
+// Prettier has been removed entirely; ESLint (antfu config + --fix) now handles stylistic normalization.
 import antfu from '@antfu/eslint-config';
 
 // Custom rule to ban "fallback" or "fall-back" in any form
@@ -68,7 +67,7 @@ const banFallbackTerms = {
 
 export default antfu(
   {
-    // Enable TypeScript rules; disable stylistic so existing Prettier formatting doesn't conflict
+    // Enable TypeScript rules; stylistic remains disabled for minimal diffs and faster linting.
     typescript: true,
     stylistic: false,
   },

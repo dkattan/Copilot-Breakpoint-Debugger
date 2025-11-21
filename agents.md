@@ -5,16 +5,13 @@
 - **Build**: `npm run compile` - Compiles TypeScript to JavaScript in `out/` directory
 - **Watch mode**: `npm run watch` - Compiles TypeScript in watch mode for development
 - **Lint**: `npm run lint` - Runs ESLint on TypeScript files in `src/`
-- **Format**: `npm run format` - Formats all files with Prettier
-- **Format check**: `npm run format:check` - Checks if files are properly formatted
 - **Test**: `npm run test` - Runs tests using vscode-test
 - **Prepare for publish**: `npm run vscode:prepublish` - Runs compile before publishing
-- **Important**: Always run `npm run format` before `npm run lint` to avoid formatting conflicts
+- **Formatting**: Formatting is handled by ESLint autofix (`npm run lint -- --fix` or just `npm run lint` if configured). Prettier was removed to simplify the stack.
 
 ## User-Facing Commands Added
 
 - `copilotBreakpointDebugger.startAndWaitManual` now uses existing workspace breakpoints. It will:
-  1. Verify at least one `SourceBreakpoint` already exists; if none, it instructs the user to set one and aborts early.
   2. Prompt only for a launch configuration and a comma-separated variable list (no file path / line prompts).
   3. Derive a breakpoint configuration from all existing breakpoints and invoke the core start logic with `useExistingBreakpoints: true`.
   4. Restore original breakpoints after session completes (unchanged core behavior).

@@ -242,9 +242,8 @@ Contributions are welcome!
 
 - `npm run watch` – Incremental TypeScript compilation
 - `npm test` – Compiles then runs test suite
-- `npm run lint` – ESLint static analysis
-- `npm run format` – Auto-format code with Prettier
-- `npm run format:check` – Check formatting without changes
+- `npm run lint` – ESLint static analysis (run with `--fix` for autofix)
+
 
 ### Testing
 
@@ -261,7 +260,7 @@ Contributions are welcome!
    - Build once: `npm run compile`
    - Watch for changes: `npm run watch`
    - Lint: `npm run lint`
-   - Format: `npm run format`
+  - (Optional) Lint autofix: `npm run lint -- --fix`
 4. **Test**: `npm test`
    - Uses `@vscode/test-cli` to launch a temporary VS Code build inside `.vscode-test/`
    - If a previous run hangs, delete `.vscode-test/` and rerun
@@ -276,7 +275,7 @@ Standard release checklist (copy/paste):
 
 ```text
 1. Update code / docs
-2. npm run format && npm run lint
+2. npm run lint
 3. npm test (all pass)
 4. Update CHANGELOG.md (new section [x.y.z] - YYYY-MM-DD)
 5. Bump version in package.json

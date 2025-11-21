@@ -1,6 +1,13 @@
 import * as path from 'node:path';
+import * as process from 'node:process';
 import { glob } from 'glob';
 import * as Mocha from 'mocha';
+
+// Capture unhandled promise rejections during tests to avoid premature process termination.
+// Mocha will surface assertion/timeout failures via its own mechanisms; we only log here.
+process.on('unhandledRejection', reason => {
+  console.error('[test harness] Unhandled rejection (captured):', reason);
+});
 
 export function run(): Promise<void> {
   // Create the mocha test

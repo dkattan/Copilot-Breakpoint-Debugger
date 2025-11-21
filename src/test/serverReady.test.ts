@@ -53,10 +53,11 @@ describe('serverReady breakpoint', () => {
         ],
       },
       serverReady: {
-        path: serverPath,
-        line: readyLine,
-        command:
-          "node -e \"require('node:http').get('http://localhost:31337/health', r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>console.log('health='+d));});\"",
+        trigger: { path: serverPath, line: readyLine },
+        action: {
+          shellCommand:
+            "node -e \"require('node:http').get('http://localhost:31337/health', r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>console.log('health='+d));});\"",
+        },
       },
     });
 
@@ -90,6 +91,52 @@ describe('serverReady breakpoint', () => {
       context.hitBreakpoint?.line,
       userBreakpointLine,
       'hitBreakpoint line mismatch'
+    );
+  });
+
+  it('runs httpRequest at serverReady breakpoint then pauses at user breakpoint', async () => {
+    await activateCopilotDebugger();
+    const extensionRoot = getExtensionRoot();
+    const workspaceFolder = path.join(extensionRoot, 'test-workspace', 'b');
+    const serverPath = path.join(workspaceFolder, 'server.js');
+    const serverDoc = await vscode.workspace.openTextDocument(serverPath);
+    await openScriptDocument(serverDoc.uri);
+    const readyLine =
+      serverDoc
+        .getText()
+        .split(/\r?\n/)
+        .findIndex(l => l.includes('LINE_FOR_SERVER_READY')) + 1;
+    assert.ok(readyLine > 0, 'Did not find serverReady marker line');
+    const userBreakpointLine = readyLine + 1;
+    const context = await startDebuggingAndWaitForStop({
+      sessionName: '',
+      workspaceFolder,
+      nameOrConfiguration: 'Run b/server.js',
+      breakpointConfig: {
+        breakpoints: [
+          {
+            path: serverPath,
+            line: userBreakpointLine,
+            variableFilter: ['started'],
+            action: 'break',
+          },
+        ],
+      },
+      serverReady: {
+        trigger: { path: serverPath, line: readyLine },
+        action: { httpRequest: { url: 'http://localhost:31337/health' } },
+      },
+    });
+    assert.strictEqual(
+      context.frame.line,
+      userBreakpointLine,
+      'Did not pause at expected user breakpoint line after serverReady continue (httpRequest)'
+    );
+    assert.ok(context.hitBreakpoint, 'hitBreakpoint missing (httpRequest)');
+    assert.strictEqual(
+      context.hitBreakpoint?.line,
+      userBreakpointLine,
+      'hitBreakpoint line mismatch (httpRequest)'
     );
   });
 });

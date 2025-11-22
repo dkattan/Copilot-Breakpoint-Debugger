@@ -1,4 +1,4 @@
-# Copilot Breakpoint Debugger (Preview)
+# Copilot Breakpoint Debugger
 
 Use GitHub Copilot (or any LM-enabled workflow in VS Code) to start, inspect, and resume debug sessions automatically with conditional breakpoints, hit conditions, and logpoints.
 
@@ -337,7 +337,3 @@ See [CHANGELOG.md](./CHANGELOG.md).
 ## 🛡️ License
 
 MIT © Contributors
-
----
-
-> Preview: Functionality may evolve; expect breaking changes prior to 1.0.0.

@@ -3,10 +3,6 @@ name: CI/CD Pipeline
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
-  release:
-    types: [published]
 
 jobs:
   build-and-test:

@@ -412,7 +412,7 @@
     "build:dist": "node esbuild.js --production",
     "package": "npm run build:dist",
     "compile-tests": "tsc -p ./",
-    "pretest": "npm run lint && npm run compile-tests",
+    "pretest": "npm run lint && npm run compile-tests && npm run build:dist",
     "lint": "eslint",
     "test": "node -e \"try{require('fs').rmSync('./.vscode-test/user-data/DIP',{recursive:true,force:true});}catch(e){}\" && npx vscode-test",
     "test:coverage": "npm run compile-tests && npx vscode-test --coverage"

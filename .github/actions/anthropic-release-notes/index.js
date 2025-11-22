@@ -178,7 +178,9 @@ async function run() {
 
     const contentBlock = completion.content && completion.content[0];
     const responseText = contentBlock && contentBlock.text ? contentBlock.text : null;
-    if (!responseText) throw new Error('Anthropic did not return content');
+    if (!responseText) {
+      throw new Error('Anthropic did not return content');
+    }
 
     // Create release
     await octokit.rest.repos.createRelease({

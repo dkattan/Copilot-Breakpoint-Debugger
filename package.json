@@ -414,7 +414,7 @@
     "compile-tests": "tsc -p ./",
     "pretest": "npm run lint && npm run compile-tests",
     "lint": "eslint",
-    "test": "rm -rf ./.vscode-test/user-data/DIP && npx vscode-test",
+    "test": "node -e \"try{require('fs').rmSync('./.vscode-test/user-data/DIP',{recursive:true,force:true});}catch(e){}\" && npx vscode-test",
     "test:coverage": "npm run compile-tests && npx vscode-test --coverage"
   },
   "dependencies": {

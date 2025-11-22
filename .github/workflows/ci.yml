@@ -56,6 +56,8 @@ jobs:
     needs: build-and-test
     permissions:
       contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -143,8 +145,8 @@ jobs:
   publish:
     name: Publish to VS Code Marketplace
     runs-on: ubuntu-latest
-    needs: package
-    if: github.event_name == 'release' && github.event.action == 'published'
+    needs: [package, auto-release]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip ci]')
     permissions:
       contents: write
 
@@ -166,9 +168,9 @@ jobs:
 
       - name: Sync package.json version to tag (no commit)
         env:
-          TAG_VERSION: ${{ github.event.release.tag_name }}
+          TAG_VERSION: ${{ needs.auto-release.outputs.version }}
         run: |
-          node -e "const fs=require('fs'); const tag=process.env.TAG_VERSION.replace(/^v/,''); const pkg=JSON.parse(fs.readFileSync('package.json','utf8')); if(pkg.version!==tag){ pkg.version=tag; fs.writeFileSync('package.json', JSON.stringify(pkg,null,2)+'\n'); console.log('Synced package.json version to tag', tag); } else { console.log('package.json version already matches tag', tag); }"
+          node -e "const fs=require('fs'); const tag=process.env.TAG_VERSION; const pkg=JSON.parse(fs.readFileSync('package.json','utf8')); if(pkg.version!==tag){ pkg.version=tag; fs.writeFileSync('package.json', JSON.stringify(pkg,null,2)+'\n'); console.log('Synced package.json version to tag', tag); } else { console.log('package.json version already matches tag', tag); }"
 
       - name: Publish to VS Code Marketplace
         env:
@@ -184,5 +186,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: '*.vsix'
+          tag_name: ${{ needs.auto-release.outputs.version }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

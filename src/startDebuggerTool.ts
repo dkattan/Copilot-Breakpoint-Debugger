@@ -2,12 +2,9 @@ import type {
   LanguageModelTool,
   LanguageModelToolInvocationOptions,
 } from 'vscode';
-// Removed prompt-tsx rendering for concise text output
-// Note: vscode import retained earlier for validation; now removed to keep thin wrapper minimal.
-// import * as vscode from 'vscode';
+import * as vscode from 'vscode';
 import { LanguageModelTextPart, LanguageModelToolResult } from 'vscode';
 import { logger } from './logger';
-// Legacy prompt component retained elsewhere; not used here.
 import { startDebuggingAndWaitForStop } from './session';
 
 // Parameters for starting a debug session. The tool starts a debugger using the
@@ -18,11 +15,12 @@ import { startDebuggingAndWaitForStop } from './session';
 export interface BreakpointDefinition {
   path: string;
   line: number;
-  variableFilter: string[]; // Required per-breakpoint variable names (exact matches, no regex)
-  action?: 'break' | 'stopDebugging' | 'capture'; // 'capture' returns data then continues
+  variableFilter?: string[]; // Optional: when action=capture and omitted we auto-capture all locals (bounded by captureMaxVariables setting)
+  action?: 'break' | 'stopDebugging' | 'capture'; // 'capture' returns data then continues (non-blocking)
   condition?: string; // Expression evaluated at breakpoint; stop only if true
   hitCount?: number; // Exact numeric hit count (3 means pause on 3rd hit)
   logMessage?: string; // Logpoint style message with {var} interpolation
+  reasonCode?: string; // Internal telemetry tag (not surfaced)
 }
 
 export interface BreakpointConfiguration {
@@ -92,30 +90,44 @@ export class StartDebuggerTool
         reason: stopInfo.frame?.name,
       };
 
-      // Select filter strictly from the hit breakpoint; if absent, treat as configuration error.
+      // Ensure we have a hit breakpoint
       if (!stopInfo.hitBreakpoint) {
         throw new TypeError(
-          'Hit breakpoint not identifiable; cannot determine variable filters.'
+          'Hit breakpoint not identifiable; no frame/line correlation.'
         );
       }
-      const activeFilters: string[] = stopInfo.hitBreakpoint.variableFilter;
-      const action =
-        (
-          stopInfo.hitBreakpoint as {
-            action?: 'break' | 'stopDebugging' | 'capture';
-          }
-        ).action ?? 'break';
+      const action = stopInfo.hitBreakpoint.action ?? 'break';
+      let activeFilters: string[] = stopInfo.hitBreakpoint.variableFilter || [];
+      const captureAll = action === 'capture' && activeFilters.length === 0;
+      const wsConfig = vscode.workspace.getConfiguration('copilot-debugger');
+      const maxAuto = wsConfig.get<number>('captureMaxVariables') ?? 40;
       const capturedLogs = stopInfo.capturedLogMessages ?? [];
-      // Exact-name filtering (case-sensitive) per requirement
+      // Build list of variables: explicit filters OR auto-capture OR none.
+      if (captureAll) {
+        const names: string[] = [];
+        for (const scope of stopInfo.scopeVariables ?? []) {
+          for (const variable of scope.variables) {
+            if (!names.includes(variable.name)) {
+              names.push(variable.name);
+              if (names.length >= maxAuto) {
+                break; // inner break
+              }
+            }
+          }
+          if (names.length >= maxAuto) {
+            break; // outer break
+          }
+        }
+        activeFilters = names;
+      }
       const filterSet = new Set(activeFilters);
-      const flattened: Array<{
-        name: string;
-        value: string;
-        scope: string;
-        type?: string;
-      }> = [];
+      const flattened: Array<{ name: string; value: string; scope: string; type?: string }> = [];
       for (const scope of stopInfo.scopeVariables ?? []) {
         for (const variable of scope.variables) {
+          if (filterSet.size === 0) {
+            // No filters provided (non-capture breakpoint) => skip reporting variables to keep output concise.
+            continue;
+          }
           if (filterSet.has(variable.name)) {
             flattened.push({
               name: variable.name,
@@ -140,9 +152,17 @@ export class StartDebuggerTool
         ? summary.file.split(/[/\\]/).pop()
         : 'unknown';
       const header = `Breakpoint ${fileName}:${summary.line} action=${action}`;
-      const bodyVars = flattened.length
-        ? `Vars: ${variableStr}`
-        : `Vars: <none> (filters: ${activeFilters.join(', ')})`;
+      let bodyVars: string;
+      if (flattened.length) {
+        bodyVars = `Vars: ${variableStr}`;
+      } else if (filterSet.size === 0) {
+        bodyVars = 'Vars: <none> (no filter provided)';
+      } else {
+        bodyVars = `Vars: <none> (filters: ${activeFilters.join(', ')})`;
+      }
+      if (captureAll) {
+        bodyVars += ` (auto-captured ${activeFilters.length} variable(s), cap=${maxAuto})`;
+      }
       const bodyLogs = capturedLogs.length
         ? `Logs: ${capturedLogs.map(l => (l.length > 120 ? `${l.slice(0, 120)}…` : l)).join(' | ')}`
         : '';

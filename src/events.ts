@@ -1,11 +1,11 @@
-import * as vscode from 'vscode';
+import * as vscode from "vscode";
 import {
   activeSessions,
   type BreakpointHitInfo,
   onSessionTerminate,
-} from './common';
-import { DAPHelpers, type DebugContext } from './debugUtils';
-import { logger } from './logger';
+} from "./common";
+import { DAPHelpers, type DebugContext } from "./debugUtils";
+import { logger } from "./logger";
 
 // Debug Adapter Protocol message types
 interface DebugProtocolMessage {
@@ -14,7 +14,7 @@ interface DebugProtocolMessage {
 }
 
 interface DebugProtocolEvent extends DebugProtocolMessage {
-  type: 'event';
+  type: "event";
   event: string;
   body?: unknown;
 }
@@ -34,22 +34,24 @@ export const breakpointEventEmitter =
 export const onBreakpointHit = breakpointEventEmitter.event;
 
 // Register debug adapter tracker to monitor debug events
-vscode.debug.registerDebugAdapterTrackerFactory('*', {
+vscode.debug.registerDebugAdapterTrackerFactory("*", {
   createDebugAdapterTracker: (
     session: vscode.DebugSession
   ): vscode.ProviderResult<vscode.DebugAdapterTracker> => {
     // Create a class that implements the DebugAdapterTracker interface
     class DebugAdapterTrackerImpl implements vscode.DebugAdapterTracker {
       private readonly traceEnabled = vscode.workspace
-        .getConfiguration('copilotBreakpointDebugger')
-        .get<boolean>('enableTraceLogging', false);
+        .getConfiguration("copilotBreakpointDebugger")
+        .get<boolean>("enableTraceLogging", false);
 
       private safeStringify(obj: unknown, maxLength = 1000): string {
         let str: string;
         try {
           str = JSON.stringify(obj);
         } catch (e) {
-          str = `[unstringifiable: ${e instanceof Error ? e.message : String(e)}]`;
+          str = `[unstringifiable: ${
+            e instanceof Error ? e.message : String(e)
+          }]`;
         }
         if (str.length > maxLength) {
           const truncated = str.slice(0, maxLength);
@@ -69,21 +71,21 @@ vscode.debug.registerDebugAdapterTrackerFactory('*', {
 
       async onDidSendMessage(message: DebugProtocolMessage): Promise<void> {
         // Log all messages sent from the debug adapter to VS Code
-        if (message.type !== 'event') {
+        if (message.type !== "event") {
           return;
         }
         const event = message as DebugProtocolEvent;
-        if (event.event !== 'stopped') {
+        if (event.event !== "stopped") {
           return;
         }
         const body = event.body as StoppedEventBody;
         const validReasons = [
-          'breakpoint',
-          'step',
-          'pause',
-          'exception',
-          'assertion',
-          'entry',
+          "breakpoint",
+          "step",
+          "pause",
+          "exception",
+          "assertion",
+          "entry",
         ];
         if (!validReasons.includes(body.reason)) {
           return;
@@ -91,16 +93,16 @@ vscode.debug.registerDebugAdapterTrackerFactory('*', {
 
         try {
           let exceptionDetails;
-          if (body.reason === 'exception' && body.description) {
+          if (body.reason === "exception" && body.description) {
             exceptionDetails = {
-              description: body.description || 'Unknown exception',
-              details: body.text || 'No additional details available',
+              description: body.description || "Unknown exception",
+              details: body.text || "No additional details available",
             };
           }
 
           // Some debug adapters may send 'stopped' before frames/threads fully available.
           // Retry a few times with incremental backoff.
-          const isEntry = body.reason === 'entry';
+          const isEntry = body.reason === "entry";
           // Entry stops often occur before the thread is fully paused; allow a few more attempts
           const retries = isEntry ? 5 : 3;
           let lastError: unknown;
@@ -108,7 +110,7 @@ vscode.debug.registerDebugAdapterTrackerFactory('*', {
           for (let attempt = 0; attempt < retries; attempt++) {
             try {
               if (attempt > 0) {
-                await new Promise(r => setTimeout(r, 50 * attempt));
+                await new Promise((r) => setTimeout(r, 50 * attempt));
               }
               callStackData = await DAPHelpers.getDebugContext(
                 session,
@@ -116,7 +118,9 @@ vscode.debug.registerDebugAdapterTrackerFactory('*', {
               );
               if (!callStackData.frame?.source?.path) {
                 throw new Error(
-                  `Top stack frame missing source path: ${JSON.stringify(callStackData.frame)}`
+                  `Top stack frame missing source path: ${JSON.stringify(
+                    callStackData.frame
+                  )}`
                 );
               }
               // Success
@@ -124,7 +128,9 @@ vscode.debug.registerDebugAdapterTrackerFactory('*', {
             } catch (err) {
               lastError = err;
               logger.debug(
-                `getDebugContext attempt ${attempt + 1} failed for thread ${body.threadId}: ${err instanceof Error ? err.message : String(err)}`
+                `getDebugContext attempt ${attempt + 1} failed for thread ${
+                  body.threadId
+                }: ${err instanceof Error ? err.message : String(err)}`
               );
             }
           }
@@ -143,7 +149,13 @@ vscode.debug.registerDebugAdapterTrackerFactory('*', {
               return; // Do not emit error event; wait for a real breakpoint/step stop
             }
             throw new Error(
-              `Unable to retrieve call stack after ${retries} attempts for thread ${body.threadId}: ${lastError instanceof Error ? lastError.message : String(lastError)}`
+              `Unable to retrieve call stack after ${retries} attempts for thread ${
+                body.threadId
+              }: ${
+                lastError instanceof Error
+                  ? lastError.message
+                  : String(lastError)
+              }`
             );
           }
 
@@ -166,7 +178,7 @@ vscode.debug.registerDebugAdapterTrackerFactory('*', {
           const errorEvent: BreakpointHitInfo = {
             session,
             threadId: body?.threadId ?? 0,
-            reason: 'error',
+            reason: "error",
           };
           breakpointEventEmitter.fire(errorEvent);
         }
@@ -226,7 +238,7 @@ export const waitForDebuggerStopBySessionId = async (params: {
   return await new Promise<BreakpointHitInfo>((resolve, reject) => {
     let terminateListener: vscode.Disposable | undefined;
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-    const listener = onBreakpointHit(event => {
+    const listener = onBreakpointHit((event) => {
       if (event.session.id !== sessionId) {
         return; // ignore other sessions
       }
@@ -238,7 +250,7 @@ export const waitForDebuggerStopBySessionId = async (params: {
       }
       resolve(event);
     });
-    terminateListener = onSessionTerminate(endEvent => {
+    terminateListener = onSessionTerminate((endEvent) => {
       if (endEvent.session.id !== sessionId) {
         return; // ignore
       }
@@ -251,7 +263,7 @@ export const waitForDebuggerStopBySessionId = async (params: {
       resolve({
         session: endEvent.session,
         threadId: 0,
-        reason: 'terminated',
+        reason: "terminated",
       });
     });
     timeoutHandle = setTimeout(() => {
@@ -259,7 +271,7 @@ export const waitForDebuggerStopBySessionId = async (params: {
       terminateListener?.dispose();
       timeoutHandle = undefined;
       try {
-        const target = activeSessions.find(s => s.id === sessionId);
+        const target = activeSessions.find((s) => s.id === sessionId);
         if (target) {
           void vscode.debug.stopDebugging(target);
           logger.warn(
@@ -268,7 +280,9 @@ export const waitForDebuggerStopBySessionId = async (params: {
         }
       } catch (e) {
         logger.warn(
-          `Timeout cleanup error (by session id): ${e instanceof Error ? e.message : String(e)}`
+          `Timeout cleanup error (by session id): ${
+            e instanceof Error ? e.message : String(e)
+          }`
         );
       }
       reject(
@@ -300,13 +314,13 @@ export const waitForEntryStop = async (params: {
     let terminateListener: vscode.Disposable | undefined; // not strictly needed for entry but keep symmetry
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
     const excludeSet = new Set(excludeSessionIds);
-    const listener = onBreakpointHit(event => {
+    const listener = onBreakpointHit((event) => {
       // Ignore events for sessions that existed before launch (excludeSet)
       if (excludeSet.has(event.session.id)) {
         return;
       }
       // Ignore internal error events; wait for a genuine stopped reason
-      if (event.reason === 'error') {
+      if (event.reason === "error") {
         return;
       }
       listener.dispose();
@@ -317,7 +331,7 @@ export const waitForEntryStop = async (params: {
       }
       resolve(event);
     });
-    terminateListener = onSessionTerminate(endEvent => {
+    terminateListener = onSessionTerminate((endEvent) => {
       // If a new session terminates before entry stop, treat as termination
       if (excludeSet.has(endEvent.session.id)) {
         return; // old session termination unrelated to launch
@@ -331,7 +345,7 @@ export const waitForEntryStop = async (params: {
       resolve({
         session: endEvent.session,
         threadId: 0,
-        reason: 'terminated',
+        reason: "terminated",
       });
     });
     timeoutHandle = setTimeout(() => {
@@ -340,7 +354,7 @@ export const waitForEntryStop = async (params: {
       timeoutHandle = undefined;
       reject(
         new Error(
-          `Timed out waiting for initial stopped event (${timeout}ms). Debug adapter did not pause (no entry/breakpoint/step/exception).`
+          `Timed out waiting for initial stopped event (${timeout}ms). Debug adapter did not pause (no entry/breakpoint/step/exception). If you need more time you can override this value in .vscode/settings.json: 'copilot-debugger.entryTimeoutSeconds'.`
         )
       );
     }, timeout);

@@ -42,6 +42,11 @@
         "command": "copilotBreakpointDebugger.startAndWaitManual",
         "title": "Copilot Breakpoint Debugger: Manual Start & Wait",
         "category": "Copilot Breakpoint Debugger"
+      },
+      {
+        "command": "copilotBreakpointDebugger.insertSampleStartDebuggerPayload",
+        "title": "Copilot Breakpoint Debugger: Insert Sample Start Payload",
+        "category": "Copilot Breakpoint Debugger"
       }
     ],
     "configuration": {
@@ -56,6 +61,22 @@
           "type": "integer",
           "default": 60,
           "description": "Timeout in seconds waiting for initial entry stop after launching (before first user breakpoint). Supports long startup/build times; must be > 0."
+        },
+        "copilot-debugger.captureMaxVariables": {
+          "type": "integer",
+          "default": 40,
+          "description": "Maximum number of variables auto-captured when a breakpoint action=capture omits variableFilter (capture-all mode)."
+        },
+        "copilot-debugger.serverReadyEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable serverReady automation (trigger + action). When disabled, provided serverReady payloads are ignored." 
+        },
+        "copilot-debugger.serverReadyDefaultActionType": {
+          "type": "string",
+          "enum": ["httpRequest", "shellCommand", "vscodeCommand"],
+          "default": "httpRequest",
+          "description": "Preferred serverReady action type surfaced in samples and quick insert command."
         }
       }
     },
@@ -65,8 +86,8 @@
         "displayName": "Start Debugger",
         "toolReferenceName": "startDebugger",
         "canBeReferencedInPrompt": true,
-        "userDescription": "Start a debug session, set breakpoints, and wait until a breakpoint is hit. Supports actions: break (pause & return), capture (collect variables & interpolated log messages then resume automatically), stopDebugging (terminate after hit). Exact numeric hitCount pauses on that occurrence.",
-        "modelDescription": "Start a debug session using the configured default launch configuration or an explicitly provided configurationName. Auto-selects sole launch config when none specified and no default setting is present. Each breakpoint can specify an action: break (pause), capture (gather variables & interpolate {var} placeholders in logMessage then continue), or stopDebugging (terminate immediately after hit). Supports conditional expressions and exact numeric hitCount only.",
+        "userDescription": "Start a debug session, set breakpoints, and wait until a breakpoint is hit. Supports actions: break (pause & return), capture (collect variables & interpolated log messages then resume automatically; non-blocking), stopDebugging (terminate after hit). Supports serverReady.action types: httpRequest | shellCommand | vscodeCommand (auto-run after readiness trigger). Exact numeric hitCount pauses on that occurrence.",
+        "modelDescription": "Start a debug session using the configured default launch configuration or an explicitly provided configurationName. Auto-selects sole launch config when none specified and no default setting is present. Each breakpoint can specify an action: break (pause), capture (non-blocking gather of variables & interpolation of {var} placeholders in logMessage then continue), or stopDebugging (terminate immediately after hit). Supports serverReady with trigger {path+line | pattern | omitted attach} and action.type httpRequest | shellCommand | vscodeCommand. Conditional expressions and exact numeric hitCount only. variableFilter required only for capture; omit to capture all locals up to captureMaxVariables.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -101,7 +122,7 @@
                           "type": "string"
                         },
                         "minItems": 1,
-                        "description": "List of exact variable names to include when reporting variables for this breakpoint or for interpolation in capture action. Case-sensitive."
+                        "description": "List of exact variable names to include when reporting variables for this breakpoint or for interpolation in capture action. Required only if action=capture and you want a subset; when omitted for capture all locals (up to captureMaxVariables) are auto-collected. Ignored for break/stopDebugging. Case-sensitive."
                       },
                       "action": {
                         "type": "string",
@@ -110,7 +131,7 @@
                           "capture",
                           "stopDebugging"
                         ],
-                        "description": "Breakpoint action: break pauses and returns; capture collects variables & interpolated log messages then resumes; stopDebugging terminates session after hit. Default is break."
+                        "description": "Breakpoint action: break pauses and returns; capture collects variables & interpolated log messages then resumes (non-blocking); stopDebugging terminates session after hit. Default is break."
                       },
                       "condition": {
                         "type": "string",
@@ -123,12 +144,15 @@
                       "logMessage": {
                         "type": "string",
                         "description": "Optional log message for logpoint or capture action. Uses curly braces for variable interpolation (e.g., 'Value is {x}'). If action=capture, interpolated messages are returned as capturedLogMessages."
+                       },
+                       "reasonCode": {
+                         "type": "string",
+                         "description": "Internal telemetry-friendly reason/tag (not surfaced in UI)."
                       }
                     },
                     "required": [
                       "path",
-                      "line",
-                      "variableFilter"
+                      "line"
                     ]
                   },
                   "description": "Breakpoints to add before starting session."
@@ -137,103 +161,35 @@
             },
             "serverReady": {
               "type": "object",
-              "description": "Optional server readiness automation using unified trigger/action. trigger: {path+line | pattern} omitted => immediate execution for attach. action: one of shellCommand | httpRequest | vscodeCommand.",
+              "description": "Optional server readiness automation. New flat schema: trigger {path+line | pattern | omitted attach}; action.type in httpRequest | shellCommand | vscodeCommand. Backward compatible with legacy shape.",
               "properties": {
                 "trigger": {
                   "type": "object",
-                  "description": "Readiness trigger. Provide either path+line for breakpoint or pattern for output-based readiness. Omit for immediate attach execution.",
+                  "description": "Readiness trigger. Provide either path+line for breakpoint or pattern for output-based readiness. Omit entirely for immediate attach execution.",
                   "properties": {
-                    "path": {
-                      "type": "string",
-                      "description": "Breakpoint file path (relative or absolute)."
-                    },
-                    "line": {
-                      "type": "integer",
-                      "description": "1-based line number for breakpoint trigger."
-                    },
-                    "pattern": {
-                      "type": "string",
-                      "description": "Regex pattern matched against debug/task output for readiness."
-                    }
+                    "path": { "type": "string", "description": "Breakpoint file path (relative or absolute)." },
+                    "line": { "type": "integer", "description": "1-based line number for breakpoint trigger." },
+                    "pattern": { "type": "string", "description": "Regex pattern matched against debug/task output for readiness." }
                   }
                 },
                 "action": {
-                  "description": "Action executed when ready (shellCommand | httpRequest | vscodeCommand).",
-                  "oneOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "shellCommand": {
-                          "type": "string",
-                          "description": "Shell command executed in a new terminal."
-                        }
-                      },
-                      "required": [
-                        "shellCommand"
-                      ]
+                  "type": "object",
+                  "description": "Action executed when ready. Flat schema with discriminator 'type'.",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": ["httpRequest", "shellCommand", "vscodeCommand"],
+                      "description": "Action type discriminator."
                     },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "httpRequest": {
-                          "type": "object",
-                          "description": "HTTP request executed when ready.",
-                          "properties": {
-                            "url": {
-                              "type": "string",
-                              "description": "Target URL."
-                            },
-                            "method": {
-                              "type": "string",
-                              "description": "Optional HTTP method (default GET)."
-                            },
-                            "headers": {
-                              "type": "object",
-                              "additionalProperties": {
-                                "type": "string"
-                              },
-                              "description": "Optional headers."
-                            },
-                            "body": {
-                              "type": "string",
-                              "description": "Optional request body."
-                            }
-                          },
-                          "required": [
-                            "url"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "httpRequest"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "vscodeCommand": {
-                          "type": "object",
-                          "description": "VS Code command executed when ready.",
-                          "properties": {
-                            "command": {
-                              "type": "string",
-                              "description": "VS Code command ID."
-                            },
-                            "args": {
-                              "type": "array",
-                              "description": "Optional arguments array."
-                            }
-                          },
-                          "required": [
-                            "command"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "vscodeCommand"
-                      ]
-                    }
-                  ]
+                    "url": { "type": "string", "description": "Target URL (httpRequest)." },
+                    "method": { "type": "string", "description": "HTTP method (default GET)." },
+                    "headers": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Optional HTTP headers." },
+                    "body": { "type": "string", "description": "Optional HTTP request body." },
+                    "shellCommand": { "type": "string", "description": "Shell command executed in a new terminal (shellCommand)." },
+                    "command": { "type": "string", "description": "VS Code command ID (vscodeCommand)." },
+                    "args": { "type": "array", "description": "Optional VS Code command arguments." }
+                  },
+                  "required": ["type"]
                 }
               },
               "required": [
@@ -244,6 +200,26 @@
           "required": [
             "workspaceFolder",
             "breakpointConfig"
+          ],
+          "examples": [
+            {
+              "workspaceFolder": "/abs/path/project",
+              "configurationName": "Run test.js",
+              "breakpointConfig": {
+                "breakpoints": [
+                  { "path": "src/server.ts", "line": 27, "action": "capture", "logMessage": "port={PORT}", "variableFilter": ["PORT"] }
+                ]
+              },
+              "serverReady": {
+                "trigger": { "pattern": "listening on .*:(\\d+)" },
+                "action": { "type": "httpRequest", "url": "http://localhost:%PORT%/swagger" }
+              }
+            },
+            {
+              "workspaceFolder": "/abs/path/project",
+              "breakpointConfig": { "breakpoints": [ { "path": "src/index.ts", "line": 10 } ] },
+              "serverReady": { "action": { "type": "shellCommand", "shellCommand": "curl http://localhost:3000/health" } }
+            }
           ]
         }
       },

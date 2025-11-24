@@ -130,23 +130,20 @@ export const startDebuggingAndWaitForStop = async (params: {
       condition?: string;
       hitCount?: number; // numeric hit count (exact)
       logMessage?: string;
-      variableFilter: string[]; // retain per-breakpoint filter for upstream use
+      variableFilter?: string[]; // optional; when capture and omitted we auto-capture all locals (bounded in StartDebuggerTool)
       action?: 'break' | 'stopDebugging' | 'capture'; // 'capture' collects data + log messages then continues
+      reasonCode?: string; // internal telemetry tag
     }>;
   };
   serverReady?: {
     trigger?: { path?: string; line?: number; pattern?: string };
     action:
       | { shellCommand: string }
-      | {
-          httpRequest: {
-            url: string;
-            method?: string;
-            headers?: Record<string, string>;
-            body?: string;
-          };
-        }
-      | { vscodeCommand: { command: string; args?: unknown[] } };
+      | { httpRequest: { url: string; method?: string; headers?: Record<string, string>; body?: string } }
+      | { vscodeCommand: { command: string; args?: unknown[] } }
+      | { type: 'httpRequest'; url: string; method?: string; headers?: Record<string, string>; body?: string }
+      | { type: 'shellCommand'; shellCommand: string }
+      | { type: 'vscodeCommand'; command: string; args?: unknown[] };
   };
   /**
    * When true, the caller indicates the debug session should use the user's existing breakpoints
@@ -162,9 +159,10 @@ export const startDebuggingAndWaitForStop = async (params: {
     hitBreakpoint?: {
       path: string;
       line: number;
-      variableFilter: string[];
+      variableFilter?: string[];
       action?: 'break' | 'stopDebugging' | 'capture';
       logMessage?: string;
+      reasonCode?: string;
     };
     capturedLogMessages?: string[];
   }
@@ -180,62 +178,78 @@ export const startDebuggingAndWaitForStop = async (params: {
   } = params;
 
   // Helper to execute configured serverReady action
-  const executeServerReadyAction = async (
-    phase: 'entry' | 'late' | 'immediate'
-  ) => {
-    if (!serverReady) {
-      return;
-    }
+  const executeServerReadyAction = async (phase: 'entry' | 'late' | 'immediate') => {
+    if (!serverReady) { return; }
     try {
-      if ('shellCommand' in serverReady.action) {
-        const terminal = vscode.window.createTerminal({
-          name: `serverReady-${phase}`,
-        });
-        terminal.sendText(serverReady.action.shellCommand, true);
-        logger.info(
-          `Executed serverReady shellCommand (${phase}): ${serverReady.action.shellCommand}`
-        );
-      } else if ('httpRequest' in serverReady.action) {
-        const {
-          url,
-          method = 'GET',
-          headers,
-          body,
-        } = serverReady.action.httpRequest;
-        logger.info(
-          `Dispatching serverReady httpRequest (${phase}) to ${url} method=${method}`
-        );
-        void fetch(url, { method, headers, body })
-          .then(resp => {
-            logger.info(
-              `serverReady httpRequest (${phase}) response status=${resp.status}`
-            );
-          })
-          .catch(httpErr => {
-            logger.error(
-              `serverReady httpRequest (${phase}) failed: ${httpErr instanceof Error ? httpErr.message : String(httpErr)}`
-            );
-          });
-      } else if ('vscodeCommand' in serverReady.action) {
-        const { command, args = [] } = serverReady.action.vscodeCommand;
-        logger.info(
-          `Executing serverReady vscodeCommand (${phase}): ${command}`
-        );
-        try {
-          const result = await vscode.commands.executeCommand(command, ...args);
-          logger.debug(
-            `serverReady vscodeCommand (${phase}) result: ${JSON.stringify(result)}`
-          );
-        } catch (cmdErr) {
-          logger.error(
-            `serverReady vscodeCommand (${phase}) failed: ${cmdErr instanceof Error ? cmdErr.message : String(cmdErr)}`
-          );
+      // Determine action shape (new flat with type discriminator OR legacy union)
+      type FlatAction = { type: 'httpRequest'; url: string; method?: string; headers?: Record<string,string>; body?: string } | { type: 'shellCommand'; shellCommand: string } | { type: 'vscodeCommand'; command: string; args?: unknown[] };
+      type LegacyAction = { shellCommand: string } | { httpRequest: { url: string; method?: string; headers?: Record<string,string>; body?: string } } | { vscodeCommand: { command: string; args?: unknown[] } };
+      const actionAny: FlatAction | LegacyAction = serverReady.action as FlatAction | LegacyAction;
+      let discriminator: string | undefined;
+      if ('type' in (actionAny as object)) {
+        discriminator = (actionAny as { type: string }).type;
+      }
+      const kind = discriminator || (
+        'shellCommand' in actionAny
+          ? 'shellCommand'
+          : 'httpRequest' in actionAny
+            ? 'httpRequest'
+            : 'vscodeCommand' in actionAny
+              ? 'vscodeCommand'
+              : undefined
+      );
+      switch (kind) {
+        case 'shellCommand': {
+          const cmd = discriminator ? (actionAny as FlatAction & { shellCommand: string }).shellCommand : (actionAny as { shellCommand: string }).shellCommand;
+          if (!cmd) {
+            logger.warn('serverReady shellCommand missing command text.');
+            return;
+          }
+            const terminal = vscode.window.createTerminal({ name: `serverReady-${phase}` });
+            terminal.sendText(cmd, true);
+            logger.info(`Executed serverReady shellCommand (${phase}): ${cmd}`);
+          break;
         }
+        case 'httpRequest': {
+          const url = discriminator ? (actionAny as FlatAction & { url: string }).url : (actionAny as { httpRequest?: { url?: string } }).httpRequest?.url;
+          if (!url) {
+            logger.warn('serverReady httpRequest missing url.');
+            return;
+          }
+          const method = discriminator ? (actionAny as FlatAction & { method?: string }).method ?? 'GET' : (actionAny as { httpRequest?: { method?: string } }).httpRequest?.method ?? 'GET';
+          const headers = discriminator ? (actionAny as FlatAction & { headers?: Record<string,string> }).headers : (actionAny as { httpRequest?: { headers?: Record<string,string> } }).httpRequest?.headers;
+          const body = discriminator ? (actionAny as FlatAction & { body?: string }).body : (actionAny as { httpRequest?: { body?: string } }).httpRequest?.body;
+          logger.info(`Dispatching serverReady httpRequest (${phase}) to ${url} method=${method}`);
+          void fetch(url, { method, headers, body })
+            .then(resp => {
+              logger.info(`serverReady httpRequest (${phase}) response status=${resp.status}`);
+            })
+            .catch(httpErr => {
+              logger.error(`serverReady httpRequest (${phase}) failed: ${httpErr instanceof Error ? httpErr.message : String(httpErr)}`);
+            });
+          break;
+        }
+        case 'vscodeCommand': {
+          const command = discriminator ? (actionAny as FlatAction & { command: string }).command : (actionAny as { vscodeCommand?: { command?: string } }).vscodeCommand?.command;
+          if (!command) {
+            logger.warn('serverReady vscodeCommand missing command id.');
+            return;
+          }
+          const args = discriminator ? (actionAny as FlatAction & { args?: unknown[] }).args ?? [] : (actionAny as { vscodeCommand?: { args?: unknown[] } }).vscodeCommand?.args ?? [];
+          logger.info(`Executing serverReady vscodeCommand (${phase}): ${command}`);
+          try {
+            const result = await vscode.commands.executeCommand(command, ...args);
+            logger.debug(`serverReady vscodeCommand (${phase}) result: ${JSON.stringify(result)}`);
+          } catch (cmdErr) {
+            logger.error(`serverReady vscodeCommand (${phase}) failed: ${cmdErr instanceof Error ? cmdErr.message : String(cmdErr)}`);
+          }
+          break;
+        }
+        default:
+          logger.warn('serverReady action type not recognized; skipping.');
       }
     } catch (err) {
-      logger.error(
-        `Failed executing serverReady action (${phase}): ${err instanceof Error ? err.message : String(err)}`
-      );
+      logger.error(`Failed executing serverReady action (${phase}): ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -249,10 +263,8 @@ export const startDebuggingAndWaitForStop = async (params: {
     );
   }
   for (const bp of breakpointConfig.breakpoints) {
-    if (!Array.isArray(bp.variableFilter) || bp.variableFilter.length === 0) {
-      throw new Error(
-        `Breakpoint at ${bp.path}:${bp.line} missing required non-empty variableFilter array.`
-      );
+    if (bp.action === 'capture' && bp.variableFilter && bp.variableFilter.length === 0) {
+      throw new Error(`Breakpoint at ${bp.path}:${bp.line} has empty variableFilter (omit entirely for auto-capture or provide at least one name).`);
     }
   }
   if (!path.isAbsolute(workspaceFolder)) {
@@ -331,12 +343,16 @@ export const startDebuggingAndWaitForStop = async (params: {
       const location = new vscode.Position(bp.line - 1, 0);
       const effectiveHitCondition =
         bp.hitCount !== undefined ? String(bp.hitCount) : undefined;
+      // For 'capture' action we intentionally do NOT pass bp.logMessage to SourceBreakpoint.
+      // Passing a logMessage turns the breakpoint into a logpoint (non-pausing) in many adapters.
+      // Capture semantics require a real pause to gather variables, then we auto-continue.
+      const adapterLogMessage = bp.action === 'capture' ? undefined : bp.logMessage;
       const sourceBp = new vscode.SourceBreakpoint(
         new vscode.Location(uri, location),
         true,
         bp.condition,
         effectiveHitCondition,
-        bp.logMessage
+        adapterLogMessage
       );
       validated.push({ bp, sb: sourceBp });
     } catch (e) {
@@ -466,6 +482,8 @@ export const startDebuggingAndWaitForStop = async (params: {
     excludeSessionIds: existingIds,
     timeout: effectiveTimeoutSeconds * 1000,
   });
+  // Prevent unhandled rejection warning (error is rethrown via awaited path below)
+  void entryStopPromise.catch(() => {});
 
   const success = await vscode.debug.startDebugging(folder, resolvedConfig);
   if (!success) {
@@ -642,9 +660,10 @@ export const startDebuggingAndWaitForStop = async (params: {
       | {
           path: string;
           line: number;
-          variableFilter: string[];
+          variableFilter?: string[];
           action?: 'break' | 'stopDebugging' | 'capture';
           logMessage?: string;
+          reasonCode?: string;
         }
       | undefined;
     const framePath = debugContext.frame?.source?.path;
@@ -665,6 +684,7 @@ export const startDebuggingAndWaitForStop = async (params: {
             variableFilter: bp.variableFilter,
             action: bp.action,
             logMessage: bp.logMessage,
+            reasonCode: bp.reasonCode,
           };
           break;
         }

@@ -6,7 +6,7 @@ Use GitHub Copilot (or any LM-enabled workflow in VS Code) to start, inspect, an
 
 The extension contributes Language Model Tools that Copilot can invoke:
 
-1. **Start Debugger** (`start_debugger_with_breakpoints`) – Launch a configured debug session and wait for the first breakpoint (you must supply at least one breakpoint with an exact-name `variableFilter` list; also supports logpoints & capture actions).
+1. **Start Debugger** (`start_debugger_with_breakpoints`) – Launch a configured debug session and wait for the first breakpoint. You must supply at least one breakpoint, but `variableFilter` is now optional: include it to narrow captured variables, omit it for a pure pause (`break` / `stopDebugging`) or automatic capture-all (`capture` action).
 2. **Resume Debug Session** (`resume_debug_session`) – Continue execution of an existing paused session and optionally wait for the next stop (new breakpoints added during resume may omit `variableFilter` if you only need a pause, but include it for scoped variable output or interpolation).
 3. **Get Variables** (`get_variables`) – Retrieve all variables in the current top stack frame scopes.
 4. **Expand Variable** (`expand_variable`) – Drill into a single variable to inspect its immediate children.
@@ -47,7 +47,13 @@ npm run compile
 
 `copilot-debugger.entryTimeoutSeconds` – How long (in seconds) to wait for the initial _entry_ stop after launching (before continuing to user breakpoints). Increase this for large projects with long cold builds or container start times (e.g. 180). If the entry stop is not observed within the window a timeout error is returned.
 
-> **Important:** `start_debugger_with_breakpoints` requires at least one breakpoint **and** a non-empty `variableFilter` per breakpoint. Each `variableFilter` is a list of **exact** variable names (case-sensitive). Regex / glob patterns are not supported; enumerate only what you need to minimize output.
+`copilot-debugger.captureMaxVariables` – Upper bound (# of variables) auto‑captured when a breakpoint uses `action: "capture"` but omits `variableFilter` (capture‑all mode). Defaults to 40 to keep responses concise.
+
+`copilot-debugger.serverReadyEnabled` – Globally enable/disable serverReady automation. When false, any provided `serverReady` payload is ignored (useful for troubleshooting).
+
+`copilot-debugger.serverReadyDefaultActionType` – Preferred action type surfaced in samples / quick insert command (httpRequest | shellCommand | vscodeCommand).
+
+> **Important (updated):** `start_debugger_with_breakpoints` requires at least one breakpoint. `variableFilter` is **only required** when you want a *subset* of variables for a `capture` action. If you set `action: "capture"` and omit `variableFilter`, the tool auto-captures the first `captureMaxVariables` locals (case‑sensitive exact names) to reduce friction. For `break` or `stopDebugging` actions, omit `variableFilter` for a pure pause without variable output.
 
 Example settings snippet:
 
@@ -55,23 +61,26 @@ Example settings snippet:
 
 You may supply a `serverReady` object when starting the debugger to run an automated action (shell command, HTTP request, or VS Code command) once the target is "ready".
 
-Structure:
+Structure (legacy union still accepted; new flat shape preferred):
 
 ```ts
-interface ServerReady {
+// New flat schema (with discriminator) recommended – mirrors package.json tool schema
+interface ServerReadyFlat {
+  trigger?: { path?: string; line?: number; pattern?: string };
+  action:
+    | { type: 'shellCommand'; shellCommand: string }
+    | { type: 'httpRequest'; url: string; method?: string; headers?: Record<string,string>; body?: string }
+    | { type: 'vscodeCommand'; command: string; args?: unknown[] };
+}
+// Legacy (still supported for backward compatibility)
+interface ServerReadyLegacy {
   trigger?: { path?: string; line?: number; pattern?: string };
   action:
     | { shellCommand: string }
-    | {
-        httpRequest: {
-          url: string;
-          method?: string;
-          headers?: Record<string, string>;
-          body?: string;
-        };
-      }
+    | { httpRequest: { url: string; method?: string; headers?: Record<string,string>; body?: string } }
     | { vscodeCommand: { command: string; args?: unknown[] } };
 }
+```
 ```
 
 Modes (decided by `trigger`):
@@ -93,7 +102,7 @@ Examples:
 {
   "serverReady": {
     "trigger": { "pattern": "listening on .*:3000" },
-    "action": { "httpRequest": { "url": "http://localhost:3000/health" } },
+    "action": { "type": "httpRequest", "url": "http://localhost:3000/health" }
   },
 }
 ```
@@ -103,7 +112,7 @@ Examples:
 {
   "serverReady": {
     "trigger": { "path": "src/server.ts", "line": 27 },
-    "action": { "shellCommand": "curl http://localhost:3000/health" },
+    "action": { "type": "shellCommand", "shellCommand": "curl http://localhost:3000/health" },
   },
 }
 ```
@@ -112,7 +121,7 @@ Examples:
 // Immediate attach (Azure Functions) – no trigger; action fires right after attach
 {
   "serverReady": {
-    "action": { "httpRequest": { "url": "http://localhost:7071/api/status" } },
+    "action": { "type": "httpRequest", "url": "http://localhost:7071/api/status" },
   },
 }
 ```
@@ -122,7 +131,7 @@ Examples:
 {
   "serverReady": {
     "trigger": { "path": "src/server.ts", "line": 10 },
-    "action": { "vscodeCommand": { "command": "workbench.action.closePanel" } },
+    "action": { "type": "vscodeCommand", "command": "workbench.action.closePanel" },
   },
 }
 ```
@@ -180,9 +189,35 @@ Capture example:
 
 ```text
 Start debug with configurationName "Run test.js" and capture action at test-workspace/b/test.js line 9 filtering i and log message "i={i}".
+
+Auto-capture example (omit variableFilter – first N locals collected):
+
+```text
+Start debug with configurationName "Run test.js" and capture action at test-workspace/b/test.js line 9 with log message "i={i}" (omit variableFilter for automatic capture).
 ```
 
-> Tip: Variable filters are exact name matches (case-sensitive) and required per breakpoint to keep responses concise for the LLM.
+### Quick Start: Auto Warm Swagger + Capture (Port Token Replacement)
+
+```jsonc
+{
+  "workspaceFolder": "/abs/path/project",
+  "configurationName": "Run test.js",
+  "breakpointConfig": {
+    "breakpoints": [
+      { "path": "src/server.ts", "line": 27, "action": "capture", "logMessage": "port={PORT}", "variableFilter": ["PORT"] }
+    ]
+  },
+  "serverReady": {
+    "trigger": { "pattern": "listening on .*:(\\d+)" },
+    "action": { "type": "httpRequest", "url": "http://localhost:%PORT%/swagger" }
+  }
+}
+```
+
+The `%PORT%` token is substituted from the captured log message interpolation / variable value (pattern group extraction occurs in the debug adapter output before the action executes). If the token cannot be resolved the raw string is used. This encourages discovery of port token replacement without extra explanation.
+```
+
+> Tip: Variable filters are exact name matches (case-sensitive). Provide them only when you want a narrowed subset; omit for capture-all (bounded by `captureMaxVariables`) or for simple pause actions.
 
 ## 🧪 Example Copilot Prompts
 

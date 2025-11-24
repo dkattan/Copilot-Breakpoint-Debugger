@@ -1,13 +1,13 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
-import * as vscode from 'vscode';
-import { EvaluateExpressionTool } from './evaluateExpressionTool';
-import { ExpandVariableTool } from './expandVariableTool';
-import { GetVariablesTool } from './getVariablesTool';
-import { ResumeDebugSessionTool } from './resumeDebugSessionTool';
-import { startDebuggingAndWaitForStop } from './session';
-import { StartDebuggerTool } from './startDebuggerTool';
-import { StopDebugSessionTool } from './stopDebugSessionTool';
+import * as vscode from "vscode";
+import { EvaluateExpressionTool } from "./evaluateExpressionTool";
+import { ExpandVariableTool } from "./expandVariableTool";
+import { GetVariablesTool } from "./getVariablesTool";
+import { ResumeDebugSessionTool } from "./resumeDebugSessionTool";
+import { startDebuggingAndWaitForStop } from "./session";
+import { StartDebuggerTool } from "./startDebuggerTool";
+import { StopDebugSessionTool } from "./stopDebugSessionTool";
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -18,97 +18,125 @@ export function activate(context: vscode.ExtensionContext) {
 function registerTools(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.lm.registerTool(
-      'start_debugger_with_breakpoints',
+      "start_debugger_with_breakpoints",
       new StartDebuggerTool()
     ),
     vscode.lm.registerTool(
-      'resume_debug_session',
+      "resume_debug_session",
       new ResumeDebugSessionTool()
     ),
-    vscode.lm.registerTool('get_variables', new GetVariablesTool()),
-    vscode.lm.registerTool('expand_variable', new ExpandVariableTool()),
-    vscode.lm.registerTool('evaluate_expression', new EvaluateExpressionTool()),
-    vscode.lm.registerTool('stop_debug_session', new StopDebugSessionTool()),
+    vscode.lm.registerTool("get_variables", new GetVariablesTool()),
+    vscode.lm.registerTool("expand_variable", new ExpandVariableTool()),
+    vscode.lm.registerTool("evaluate_expression", new EvaluateExpressionTool()),
+    vscode.lm.registerTool("stop_debug_session", new StopDebugSessionTool()),
 
     vscode.commands.registerCommand(
-      'copilotBreakpointDebugger.startAndWaitManual',
+      "copilotBreakpointDebugger.startAndWaitManual",
       async () => {
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (!workspaceFolders?.length) {
-          vscode.window.showErrorMessage('No workspace folder open.');
+          vscode.window.showErrorMessage("No workspace folder open.");
           return;
         }
-        const folder = workspaceFolders[0].uri.fsPath;
+        // Prompt user to select the workspace folder instead of defaulting to index 0.
+        const folderItems = workspaceFolders.map((f) => ({
+          label: f.name,
+          description: f.uri.fsPath,
+        }));
+        const pickedFolderItem = await vscode.window.showQuickPick(
+          folderItems,
+          {
+            placeHolder: "Select a workspace folder to use for debugging",
+            ignoreFocusOut: true,
+          }
+        );
+        if (!pickedFolderItem) {
+          vscode.window.showInformationMessage(
+            "Workspace folder selection canceled."
+          );
+          return;
+        }
+        const selectedFolder = workspaceFolders.find(
+          (f) => f.name === pickedFolderItem.label
+        );
+        if (!selectedFolder) {
+          vscode.window.showErrorMessage(
+            "Selected workspace folder could not be resolved."
+          );
+          return;
+        }
+        const folderUri = selectedFolder.uri;
+        const folder = folderUri.fsPath;
         // First ensure user has at least one breakpoint set; skip path/line prompts when using existing breakpoints.
         const existingSourceBreakpoints = vscode.debug.breakpoints.filter(
-          bp => bp instanceof vscode.SourceBreakpoint
+          (bp) => bp instanceof vscode.SourceBreakpoint
         ) as vscode.SourceBreakpoint[];
         if (!existingSourceBreakpoints.length) {
           vscode.window.showInformationMessage(
-            'No breakpoints set. Please set a breakpoint and rerun the command.'
+            "No breakpoints set. Please set a breakpoint and rerun the command."
           );
           return;
         }
         // Only after confirming breakpoints, ask for launch configuration.
         const launchConfig = vscode.workspace.getConfiguration(
-          'launch',
-          workspaceFolders[0].uri
+          "launch",
+          folderUri
         );
         const allConfigs =
           (launchConfig.get<unknown>(
-            'configurations'
+            "configurations"
           ) as vscode.DebugConfiguration[]) || [];
         if (!allConfigs.length) {
           vscode.window.showErrorMessage(
-            'No launch configurations found in .vscode/launch.json.'
+            "No launch configurations found in .vscode/launch.json."
           );
           return;
         }
         const picked = await vscode.window.showQuickPick(
-          allConfigs.map(c => ({ label: c.name })),
+          allConfigs.map((c) => ({ label: c.name })),
           {
-            placeHolder: 'Select a launch configuration to start',
+            placeHolder: "Select a launch configuration to start",
             ignoreFocusOut: true,
           }
         );
         if (!picked) {
           vscode.window.showInformationMessage(
-            'Launch configuration selection canceled.'
+            "Launch configuration selection canceled."
           );
           return;
         }
         const variableFilterInput = await vscode.window.showInputBox({
-          prompt: 'Variable names to capture (comma-separated, at least one)',
-          validateInput: value => {
+          prompt: "Variable names to capture (comma-separated, at least one)",
+          validateInput: (value) => {
             const arr = value
-              .split(',')
-              .map(v => v.trim())
+              .split(",")
+              .map((v) => v.trim())
               .filter(Boolean);
             return arr.length
               ? undefined
-              : 'Provide at least one variable name';
+              : "Provide at least one variable name";
           },
         });
         if (!variableFilterInput) {
-          vscode.window.showInformationMessage('Breakpoint setup canceled.');
+          vscode.window.showInformationMessage("Breakpoint setup canceled.");
           return;
         }
         const variableFilter = variableFilterInput
-          .split(',')
-          .map(v => v.trim())
+          .split(",")
+          .map((v) => v.trim())
           .filter(Boolean);
         // Convert existing breakpoints into the expected configuration shape.
         const breakpointConfig = {
-          breakpoints: existingSourceBreakpoints.map(sb => ({
+          breakpoints: existingSourceBreakpoints.map((sb) => ({
             path: sb.location.uri.fsPath,
             line: sb.location.range.start.line + 1,
             variableFilter,
-            action: 'break' as const,
+            action: "break" as const,
           })),
         };
         try {
           await startDebuggingAndWaitForStop({
-            sessionName: 'manual-start',
+            sessionName: "manual-start",
             workspaceFolder: folder,
             nameOrConfiguration: picked.label,
             breakpointConfig,
@@ -129,51 +157,84 @@ function registerTools(context: vscode.ExtensionContext) {
   // Command to set the default launch configuration (workspace scope)
   context.subscriptions.push(
     vscode.commands.registerCommand(
-      'copilotBreakpointDebugger.setDefaultLaunchConfiguration',
+      "copilotBreakpointDebugger.setDefaultLaunchConfiguration",
       async () => {
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (!workspaceFolders?.length) {
-          vscode.window.showErrorMessage('No workspace folder open.');
+          vscode.window.showErrorMessage("No workspace folder open.");
           return;
         }
         const folderUri = workspaceFolders[0].uri;
         const launchConfig = vscode.workspace.getConfiguration(
-          'launch',
+          "launch",
           folderUri
         );
         const allConfigs =
           (launchConfig.get<unknown>(
-            'configurations'
+            "configurations"
           ) as vscode.DebugConfiguration[]) || [];
         if (!allConfigs.length) {
           vscode.window.showErrorMessage(
-            'No launch configurations found in .vscode/launch.json.'
+            "No launch configurations found in .vscode/launch.json."
           );
           return;
         }
         const picked = await vscode.window.showQuickPick(
-          allConfigs.map(c => ({ label: c.name })),
+          allConfigs.map((c) => ({ label: c.name })),
           {
-            placeHolder: 'Select a configuration to set as default',
+            placeHolder: "Select a configuration to set as default",
             ignoreFocusOut: true,
           }
         );
         if (!picked) {
-          vscode.window.showInformationMessage('Selection canceled.');
+          vscode.window.showInformationMessage("Selection canceled.");
           return;
         }
         const cfg = vscode.workspace.getConfiguration(
-          'copilot-debugger',
+          "copilot-debugger",
           folderUri
         );
         await cfg.update(
-          'defaultLaunchConfiguration',
+          "defaultLaunchConfiguration",
           picked.label,
           vscode.ConfigurationTarget.Workspace
         );
         vscode.window.showInformationMessage(
           `Set default launch configuration to '${picked.label}'.`
         );
+      }
+    )
+  );
+
+  // Insert sample start debugger payload (opens new untitled JSON doc)
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "copilotBreakpointDebugger.insertSampleStartDebuggerPayload",
+      async () => {
+        const sample = {
+          workspaceFolder: "/abs/path/project",
+          configurationName: "Run test.js",
+          breakpointConfig: {
+            breakpoints: [
+              {
+                path: "src/server.ts",
+                line: 27,
+                action: "capture",
+                logMessage: "port={PORT}",
+                variableFilter: ["PORT"],
+              },
+            ],
+          },
+          serverReady: {
+            trigger: { pattern: "listening on .*:(\\d+)" },
+            action: { type: "httpRequest", url: "http://localhost:%PORT%/swagger" },
+          },
+        };
+        const doc = await vscode.workspace.openTextDocument({
+          language: "json",
+          content: JSON.stringify(sample, null, 2),
+        });
+        await vscode.window.showTextDocument(doc, { preview: false });
       }
     )
   );

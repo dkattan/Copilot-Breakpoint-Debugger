@@ -1,12 +1,12 @@
-import type * as vscode from 'vscode';
+import type * as vscode from "vscode";
 import type {
   LanguageModelTool,
   LanguageModelToolInvocationOptions,
   LanguageModelToolInvocationPrepareOptions,
   ProviderResult,
-} from 'vscode';
-import { LanguageModelTextPart, LanguageModelToolResult } from 'vscode';
-import { resumeDebugSession } from './session';
+} from "vscode";
+import { LanguageModelTextPart, LanguageModelToolResult } from "vscode";
+import { resumeDebugSession } from "./session";
 
 export interface ResumeDebugSessionToolParameters {
   sessionId: string; // ID of the debug session to resume
@@ -16,7 +16,7 @@ export interface ResumeDebugSessionToolParameters {
       path: string;
       line: number;
       variableFilter?: string[]; // optional (ignored unless future capture-on-resume implemented)
-      action?: 'break' | 'capture' | 'stopDebugging'; // accepted for schema parity; core resume flow currently treats all as 'break'
+      action?: "break" | "capture" | "stopDebugging"; // accepted for schema parity; core resume flow currently treats all as 'break'
       condition?: string;
       hitCount?: number;
       logMessage?: string;
@@ -54,7 +54,9 @@ export class ResumeDebugSessionTool
     options: LanguageModelToolInvocationPrepareOptions<ResumeDebugSessionToolParameters>
   ): ProviderResult<vscode.PreparedToolInvocation> {
     return {
-      invocationMessage: `Resuming debug session '${options.input.sessionId}'${options.input.waitForStop ? ' and waiting for breakpoint' : ''}`,
+      invocationMessage: `Resuming debug session '${options.input.sessionId}'${
+        options.input.waitForStop ? " and waiting for breakpoint" : ""
+      }`,
     };
   }
 }

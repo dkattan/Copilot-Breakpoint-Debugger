@@ -35,7 +35,7 @@ npm run compile
 ```jsonc
 // settings.json
 {
-  "copilot-debugger.defaultLaunchConfiguration": "Launch Program",
+  "copilot-debugger.defaultLaunchConfiguration": "Launch Program"
 }
 ```
 
@@ -53,7 +53,7 @@ npm run compile
 
 `copilot-debugger.serverReadyDefaultActionType` – Preferred action type surfaced in samples / quick insert command (httpRequest | shellCommand | vscodeCommand).
 
-> **Important (updated):** `start_debugger_with_breakpoints` requires at least one breakpoint. `variableFilter` is **only required** when you want a *subset* of variables for a `capture` action. If you set `action: "capture"` and omit `variableFilter`, the tool auto-captures the first `captureMaxVariables` locals (case‑sensitive exact names) to reduce friction. For `break` or `stopDebugging` actions, omit `variableFilter` for a pure pause without variable output.
+> **Important (updated):** `start_debugger_with_breakpoints` requires at least one breakpoint. `variableFilter` is **only required** when you want a _subset_ of variables for a `capture` action. If you set `action: "capture"` and omit `variableFilter`, the tool auto-captures the first `captureMaxVariables` locals (case‑sensitive exact names) to reduce friction. For `break` or `stopDebugging` actions, omit `variableFilter` for a pure pause without variable output.
 
 Example settings snippet:
 
@@ -68,20 +68,34 @@ Structure (legacy union still accepted; new flat shape preferred):
 interface ServerReadyFlat {
   trigger?: { path?: string; line?: number; pattern?: string };
   action:
-    | { type: 'shellCommand'; shellCommand: string }
-    | { type: 'httpRequest'; url: string; method?: string; headers?: Record<string,string>; body?: string }
-    | { type: 'vscodeCommand'; command: string; args?: unknown[] };
+    | { type: "shellCommand"; shellCommand: string }
+    | {
+        type: "httpRequest";
+        url: string;
+        method?: string;
+        headers?: Record<string, string>;
+        body?: string;
+      }
+    | { type: "vscodeCommand"; command: string; args?: unknown[] };
 }
 // Legacy (still supported for backward compatibility)
 interface ServerReadyLegacy {
   trigger?: { path?: string; line?: number; pattern?: string };
   action:
     | { shellCommand: string }
-    | { httpRequest: { url: string; method?: string; headers?: Record<string,string>; body?: string } }
+    | {
+        httpRequest: {
+          url: string;
+          method?: string;
+          headers?: Record<string, string>;
+          body?: string;
+        };
+      }
     | { vscodeCommand: { command: string; args?: unknown[] } };
 }
 ```
-```
+
+````
 
 Modes (decided by `trigger`):
 
@@ -105,15 +119,18 @@ Examples:
     "action": { "type": "httpRequest", "url": "http://localhost:3000/health" }
   },
 }
-```
+````
 
 ```jsonc
 // Breakpoint-triggered shell command
 {
   "serverReady": {
     "trigger": { "path": "src/server.ts", "line": 27 },
-    "action": { "type": "shellCommand", "shellCommand": "curl http://localhost:3000/health" },
-  },
+    "action": {
+      "type": "shellCommand",
+      "shellCommand": "curl http://localhost:3000/health"
+    }
+  }
 }
 ```
 
@@ -121,8 +138,11 @@ Examples:
 // Immediate attach (Azure Functions) – no trigger; action fires right after attach
 {
   "serverReady": {
-    "action": { "type": "httpRequest", "url": "http://localhost:7071/api/status" },
-  },
+    "action": {
+      "type": "httpRequest",
+      "url": "http://localhost:7071/api/status"
+    }
+  }
 }
 ```
 
@@ -131,8 +151,11 @@ Examples:
 {
   "serverReady": {
     "trigger": { "path": "src/server.ts", "line": 10 },
-    "action": { "type": "vscodeCommand", "command": "workbench.action.closePanel" },
-  },
+    "action": {
+      "type": "vscodeCommand",
+      "command": "workbench.action.closePanel"
+    }
+  }
 }
 ```
 
@@ -159,7 +182,7 @@ Pattern detection uses an internal `vscode://dkattan.copilot-breakpoint-debugger
 ```jsonc
 {
   "copilot-debugger.defaultLaunchConfiguration": "Run test.js",
-  "copilot-debugger.entryTimeoutSeconds": 120,
+  "copilot-debugger.entryTimeoutSeconds": 120
 }
 ```
 
@@ -187,14 +210,14 @@ Start debug with configurationName "Run test.js" adding a breakpoint at test-wor
 
 Capture example:
 
-```text
+````text
 Start debug with configurationName "Run test.js" and capture action at test-workspace/b/test.js line 9 filtering i and log message "i={i}".
 
 Auto-capture example (omit variableFilter – first N locals collected):
 
 ```text
 Start debug with configurationName "Run test.js" and capture action at test-workspace/b/test.js line 9 with log message "i={i}" (omit variableFilter for automatic capture).
-```
+````
 
 ### Quick Start: Auto Warm Swagger + Capture (Port Token Replacement)
 
@@ -204,18 +227,28 @@ Start debug with configurationName "Run test.js" and capture action at test-work
   "configurationName": "Run test.js",
   "breakpointConfig": {
     "breakpoints": [
-      { "path": "src/server.ts", "line": 27, "action": "capture", "logMessage": "port={PORT}", "variableFilter": ["PORT"] }
+      {
+        "path": "src/server.ts",
+        "line": 27,
+        "action": "capture",
+        "logMessage": "port={PORT}",
+        "variableFilter": ["PORT"]
+      }
     ]
   },
   "serverReady": {
     "trigger": { "pattern": "listening on .*:(\\d+)" },
-    "action": { "type": "httpRequest", "url": "http://localhost:%PORT%/swagger" }
+    "action": {
+      "type": "httpRequest",
+      "url": "http://localhost:%PORT%/swagger"
+    }
   }
 }
 ```
 
 The `%PORT%` token is substituted from the captured log message interpolation / variable value (pattern group extraction occurs in the debug adapter output before the action executes). If the token cannot be resolved the raw string is used. This encourages discovery of port token replacement without extra explanation.
-```
+
+````
 
 > Tip: Variable filters are exact name matches (case-sensitive). Provide them only when you want a narrowed subset; omit for capture-all (bounded by `captureMaxVariables`) or for simple pause actions.
 
@@ -223,7 +256,7 @@ The `%PORT%` token is substituted from the captured log message interpolation / 
 
 ```text
 Start the debugger with a breakpoint at src/app.ts line 42 filtering variables user,session.
-```
+````
 
 ```text
 Resume the last debug session, add a breakpoint at src/server.ts line 42 filtering variables orderId,orderTotal then wait for it to hit.
@@ -279,7 +312,6 @@ Contributions are welcome!
 - `npm test` – Compiles then runs test suite
 - `npm run lint` – ESLint static analysis (run with `--fix` for autofix)
 
-
 ### Testing
 
 `npm test` compiles the extension and runs the full VS Code integration suite via `@vscode/test-cli`. Set `CI=true` to skip PowerShell-specific cases. Tests live under `src/test/` (extension smoke tests, DAP helper flows, and multi-root coverage). You can also run them from VS Code’s Test Explorer using the supplied launch configs—just avoid executing compiled files manually, as the harness wires up the VS Code host and Mocha globals for you. Pre-commit hooks mirror these checks so local commits match CI expectations.
@@ -295,7 +327,9 @@ Contributions are welcome!
    - Build once: `npm run compile`
    - Watch for changes: `npm run watch`
    - Lint: `npm run lint`
-  - (Optional) Lint autofix: `npm run lint -- --fix`
+
+- (Optional) Lint autofix: `npm run lint -- --fix`
+
 4. **Test**: `npm test`
    - Uses `@vscode/test-cli` to launch a temporary VS Code build inside `.vscode-test/`
    - If a previous run hangs, delete `.vscode-test/` and rerun

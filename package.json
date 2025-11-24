@@ -71,6 +71,7 @@
           "type": "boolean",
           "default": true,
           "description": "Enable serverReady automation (trigger + action). When disabled, provided serverReady payloads are ignored."
+          "description": "Enable serverReady automation (trigger + action). When disabled, provided serverReady payloads are ignored."
         },
         "copilot-debugger.serverReadyDefaultActionType": {
           "type": "string",

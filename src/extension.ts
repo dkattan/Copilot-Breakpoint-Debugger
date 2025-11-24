@@ -227,7 +227,10 @@ function registerTools(context: vscode.ExtensionContext) {
           },
           serverReady: {
             trigger: { pattern: "listening on .*:(\\d+)" },
-            action: { type: "httpRequest", url: "http://localhost:%PORT%/swagger" },
+            action: {
+              type: "httpRequest",
+              url: "http://localhost:%PORT%/swagger",
+            },
           },
         };
         const doc = await vscode.workspace.openTextDocument({

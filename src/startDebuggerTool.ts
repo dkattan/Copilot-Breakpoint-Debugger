@@ -1,11 +1,11 @@
 import type {
   LanguageModelTool,
   LanguageModelToolInvocationOptions,
-} from 'vscode';
-import * as vscode from 'vscode';
-import { LanguageModelTextPart, LanguageModelToolResult } from 'vscode';
-import { logger } from './logger';
-import { startDebuggingAndWaitForStop } from './session';
+} from "vscode";
+import * as vscode from "vscode";
+import { LanguageModelTextPart, LanguageModelToolResult } from "vscode";
+import { logger } from "./logger";
+import { startDebuggingAndWaitForStop } from "./session";
 
 // Parameters for starting a debug session. The tool starts a debugger using the
 // configured default launch configuration and waits for the first breakpoint hit,
@@ -16,7 +16,7 @@ export interface BreakpointDefinition {
   path: string;
   line: number;
   variableFilter?: string[]; // Optional: when action=capture and omitted we auto-capture all locals (bounded by captureMaxVariables setting)
-  action?: 'break' | 'stopDebugging' | 'capture'; // 'capture' returns data then continues (non-blocking)
+  action?: "break" | "stopDebugging" | "capture"; // 'capture' returns data then continues (non-blocking)
   condition?: string; // Expression evaluated at breakpoint; stop only if true
   hitCount?: number; // Exact numeric hit count (3 means pause on 3rd hit)
   logMessage?: string; // Logpoint style message with {var} interpolation
@@ -76,7 +76,7 @@ export class StartDebuggerTool
         workspaceFolder,
         nameOrConfiguration: configurationName,
         breakpointConfig,
-        sessionName: '',
+        sessionName: "",
         serverReady,
       });
 
@@ -84,7 +84,7 @@ export class StartDebuggerTool
         session:
           stopInfo.thread?.name ??
           stopInfo.frame?.source?.name ??
-          'debug-session',
+          "debug-session",
         file: stopInfo.frame?.source?.path,
         line: stopInfo.frame?.line,
         reason: stopInfo.frame?.name,
@@ -93,14 +93,14 @@ export class StartDebuggerTool
       // Ensure we have a hit breakpoint
       if (!stopInfo.hitBreakpoint) {
         throw new TypeError(
-          'Hit breakpoint not identifiable; no frame/line correlation.'
+          "Hit breakpoint not identifiable; no frame/line correlation."
         );
       }
-      const action = stopInfo.hitBreakpoint.action ?? 'break';
+      const action = stopInfo.hitBreakpoint.action ?? "break";
       let activeFilters: string[] = stopInfo.hitBreakpoint.variableFilter || [];
-      const captureAll = action === 'capture' && activeFilters.length === 0;
-      const wsConfig = vscode.workspace.getConfiguration('copilot-debugger');
-      const maxAuto = wsConfig.get<number>('captureMaxVariables') ?? 40;
+      const captureAll = action === "capture" && activeFilters.length === 0;
+      const wsConfig = vscode.workspace.getConfiguration("copilot-debugger");
+      const maxAuto = wsConfig.get<number>("captureMaxVariables") ?? 40;
       const capturedLogs = stopInfo.capturedLogMessages ?? [];
       // Build list of variables: explicit filters OR auto-capture OR none.
       if (captureAll) {
@@ -121,7 +121,12 @@ export class StartDebuggerTool
         activeFilters = names;
       }
       const filterSet = new Set(activeFilters);
-      const flattened: Array<{ name: string; value: string; scope: string; type?: string }> = [];
+      const flattened: Array<{
+        name: string;
+        value: string;
+        scope: string;
+        type?: string;
+      }> = [];
       for (const scope of stopInfo.scopeVariables ?? []) {
         for (const variable of scope.variables) {
           if (filterSet.size === 0) {
@@ -143,30 +148,34 @@ export class StartDebuggerTool
         return val.length > max ? `${val.slice(0, max)}…(${val.length})` : val;
       };
       const variableStr = flattened
-        .map(v => {
-          const typePart = v.type ? `:${v.type}` : '';
+        .map((v) => {
+          const typePart = v.type ? `:${v.type}` : "";
           return `${v.name}=${truncate(v.value)} (${v.scope}${typePart})`;
         })
-        .join('; ');
+        .join("; ");
       const fileName = summary.file
         ? summary.file.split(/[/\\]/).pop()
-        : 'unknown';
+        : "unknown";
       const header = `Breakpoint ${fileName}:${summary.line} action=${action}`;
       let bodyVars: string;
       if (flattened.length) {
         bodyVars = `Vars: ${variableStr}`;
       } else if (filterSet.size === 0) {
-        bodyVars = 'Vars: <none> (no filter provided)';
+        bodyVars = "Vars: <none> (no filter provided)";
       } else {
-        bodyVars = `Vars: <none> (filters: ${activeFilters.join(', ')})`;
+        bodyVars = `Vars: <none> (filters: ${activeFilters.join(", ")})`;
       }
       if (captureAll) {
         bodyVars += ` (auto-captured ${activeFilters.length} variable(s), cap=${maxAuto})`;
       }
       const bodyLogs = capturedLogs.length
-        ? `Logs: ${capturedLogs.map(l => (l.length > 120 ? `${l.slice(0, 120)}…` : l)).join(' | ')}`
-        : '';
-      const textOutput = `${header}\n${bodyVars}${bodyLogs ? `\n${bodyLogs}` : ''}`;
+        ? `Logs: ${capturedLogs
+            .map((l) => (l.length > 120 ? `${l.slice(0, 120)}…` : l))
+            .join(" | ")}`
+        : "";
+      const textOutput = `${header}\n${bodyVars}${
+        bodyLogs ? `\n${bodyLogs}` : ""
+      }`;
 
       logger.info(`[StartDebuggerTool] textOutput ${textOutput}`);
       return new LanguageModelToolResult([

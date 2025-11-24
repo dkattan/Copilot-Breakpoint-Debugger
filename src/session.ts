@@ -1,20 +1,20 @@
-import type { BreakpointHitInfo } from './common';
-import * as path from 'node:path';
-import * as process from 'node:process';
-import * as vscode from 'vscode';
-import { activeSessions } from './common';
-import { DAPHelpers, type DebugContext, type VariableInfo } from './debugUtils';
-import { waitForDebuggerStopBySessionId, waitForEntryStop } from './events';
-import { logger } from './logger';
+import type { BreakpointHitInfo } from "./common";
+import * as path from "node:path";
+import * as process from "node:process";
+import * as vscode from "vscode";
+import { activeSessions } from "./common";
+import { DAPHelpers, type DebugContext, type VariableInfo } from "./debugUtils";
+import { waitForDebuggerStopBySessionId, waitForEntryStop } from "./events";
+import { logger } from "./logger";
 
 const normalizeFsPath = (value: string) => {
   // Normalize path, convert backslashes, strip trailing slashes.
   // On Windows, make comparison case-insensitive by lowercasing drive letter + entire path.
   const normalized = path
     .normalize(value)
-    .replace(/\\/g, '/')
-    .replace(/\/+$/, '');
-  return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
+    .replace(/\\/g, "/")
+    .replace(/\/+$/, "");
+  return process.platform === "win32" ? normalized.toLowerCase() : normalized;
 };
 
 /**
@@ -67,7 +67,7 @@ export interface DebugInfo {
  */
 export interface StartDebugSessionResult {
   content: Array<{
-    type: 'text' | 'json';
+    type: "text" | "json";
     text?: string;
     json?: DebugInfo;
   }>;
@@ -91,7 +91,7 @@ export const listDebugSessions = () => {
   return {
     content: [
       {
-        type: 'json',
+        type: "json",
         json: { sessions },
       },
     ],
@@ -131,7 +131,7 @@ export const startDebuggingAndWaitForStop = async (params: {
       hitCount?: number; // numeric hit count (exact)
       logMessage?: string;
       variableFilter?: string[]; // optional; when capture and omitted we auto-capture all locals (bounded in StartDebuggerTool)
-      action?: 'break' | 'stopDebugging' | 'capture'; // 'capture' collects data + log messages then continues
+      action?: "break" | "stopDebugging" | "capture"; // 'capture' collects data + log messages then continues
       reasonCode?: string; // internal telemetry tag
     }>;
   };
@@ -139,11 +139,24 @@ export const startDebuggingAndWaitForStop = async (params: {
     trigger?: { path?: string; line?: number; pattern?: string };
     action:
       | { shellCommand: string }
-      | { httpRequest: { url: string; method?: string; headers?: Record<string, string>; body?: string } }
+      | {
+          httpRequest: {
+            url: string;
+            method?: string;
+            headers?: Record<string, string>;
+            body?: string;
+          };
+        }
       | { vscodeCommand: { command: string; args?: unknown[] } }
-      | { type: 'httpRequest'; url: string; method?: string; headers?: Record<string, string>; body?: string }
-      | { type: 'shellCommand'; shellCommand: string }
-      | { type: 'vscodeCommand'; command: string; args?: unknown[] };
+      | {
+          type: "httpRequest";
+          url: string;
+          method?: string;
+          headers?: Record<string, string>;
+          body?: string;
+        }
+      | { type: "shellCommand"; shellCommand: string }
+      | { type: "vscodeCommand"; command: string; args?: unknown[] };
   };
   /**
    * When true, the caller indicates the debug session should use the user's existing breakpoints
@@ -160,7 +173,7 @@ export const startDebuggingAndWaitForStop = async (params: {
       path: string;
       line: number;
       variableFilter?: string[];
-      action?: 'break' | 'stopDebugging' | 'capture';
+      action?: "break" | "stopDebugging" | "capture";
       logMessage?: string;
       reasonCode?: string;
     };
@@ -178,93 +191,175 @@ export const startDebuggingAndWaitForStop = async (params: {
   } = params;
 
   // Helper to execute configured serverReady action
-  const executeServerReadyAction = async (phase: 'entry' | 'late' | 'immediate') => {
-    if (!serverReady) { return; }
+  const executeServerReadyAction = async (
+    phase: "entry" | "late" | "immediate"
+  ) => {
+    if (!serverReady) {
+      return;
+    }
     try {
       // Determine action shape (new flat with type discriminator OR legacy union)
-      type FlatAction = { type: 'httpRequest'; url: string; method?: string; headers?: Record<string,string>; body?: string } | { type: 'shellCommand'; shellCommand: string } | { type: 'vscodeCommand'; command: string; args?: unknown[] };
-      type LegacyAction = { shellCommand: string } | { httpRequest: { url: string; method?: string; headers?: Record<string,string>; body?: string } } | { vscodeCommand: { command: string; args?: unknown[] } };
-      const actionAny: FlatAction | LegacyAction = serverReady.action as FlatAction | LegacyAction;
+      type FlatAction =
+        | {
+            type: "httpRequest";
+            url: string;
+            method?: string;
+            headers?: Record<string, string>;
+            body?: string;
+          }
+        | { type: "shellCommand"; shellCommand: string }
+        | { type: "vscodeCommand"; command: string; args?: unknown[] };
+      type LegacyAction =
+        | { shellCommand: string }
+        | {
+            httpRequest: {
+              url: string;
+              method?: string;
+              headers?: Record<string, string>;
+              body?: string;
+            };
+          }
+        | { vscodeCommand: { command: string; args?: unknown[] } };
+      const actionAny: FlatAction | LegacyAction = serverReady.action as
+        | FlatAction
+        | LegacyAction;
       let discriminator: string | undefined;
-      if ('type' in (actionAny as object)) {
+      if ("type" in (actionAny as object)) {
         discriminator = (actionAny as { type: string }).type;
       }
-      const kind = discriminator || (
-        'shellCommand' in actionAny
-          ? 'shellCommand'
-          : 'httpRequest' in actionAny
-            ? 'httpRequest'
-            : 'vscodeCommand' in actionAny
-              ? 'vscodeCommand'
-              : undefined
-      );
+      const kind =
+        discriminator ||
+        ("shellCommand" in actionAny
+          ? "shellCommand"
+          : "httpRequest" in actionAny
+          ? "httpRequest"
+          : "vscodeCommand" in actionAny
+          ? "vscodeCommand"
+          : undefined);
       switch (kind) {
-        case 'shellCommand': {
-          const cmd = discriminator ? (actionAny as FlatAction & { shellCommand: string }).shellCommand : (actionAny as { shellCommand: string }).shellCommand;
+        case "shellCommand": {
+          const cmd = discriminator
+            ? (actionAny as FlatAction & { shellCommand: string }).shellCommand
+            : (actionAny as { shellCommand: string }).shellCommand;
           if (!cmd) {
-            logger.warn('serverReady shellCommand missing command text.');
+            logger.warn("serverReady shellCommand missing command text.");
             return;
           }
-            const terminal = vscode.window.createTerminal({ name: `serverReady-${phase}` });
-            terminal.sendText(cmd, true);
-            logger.info(`Executed serverReady shellCommand (${phase}): ${cmd}`);
+          const terminal = vscode.window.createTerminal({
+            name: `serverReady-${phase}`,
+          });
+          terminal.sendText(cmd, true);
+          logger.info(`Executed serverReady shellCommand (${phase}): ${cmd}`);
           break;
         }
-        case 'httpRequest': {
-          const url = discriminator ? (actionAny as FlatAction & { url: string }).url : (actionAny as { httpRequest?: { url?: string } }).httpRequest?.url;
+        case "httpRequest": {
+          const url = discriminator
+            ? (actionAny as FlatAction & { url: string }).url
+            : (actionAny as { httpRequest?: { url?: string } }).httpRequest
+                ?.url;
           if (!url) {
-            logger.warn('serverReady httpRequest missing url.');
+            logger.warn("serverReady httpRequest missing url.");
             return;
           }
-          const method = discriminator ? (actionAny as FlatAction & { method?: string }).method ?? 'GET' : (actionAny as { httpRequest?: { method?: string } }).httpRequest?.method ?? 'GET';
-          const headers = discriminator ? (actionAny as FlatAction & { headers?: Record<string,string> }).headers : (actionAny as { httpRequest?: { headers?: Record<string,string> } }).httpRequest?.headers;
-          const body = discriminator ? (actionAny as FlatAction & { body?: string }).body : (actionAny as { httpRequest?: { body?: string } }).httpRequest?.body;
-          logger.info(`Dispatching serverReady httpRequest (${phase}) to ${url} method=${method}`);
+          const method = discriminator
+            ? (actionAny as FlatAction & { method?: string }).method ?? "GET"
+            : (actionAny as { httpRequest?: { method?: string } }).httpRequest
+                ?.method ?? "GET";
+          const headers = discriminator
+            ? (actionAny as FlatAction & { headers?: Record<string, string> })
+                .headers
+            : (
+                actionAny as {
+                  httpRequest?: { headers?: Record<string, string> };
+                }
+              ).httpRequest?.headers;
+          const body = discriminator
+            ? (actionAny as FlatAction & { body?: string }).body
+            : (actionAny as { httpRequest?: { body?: string } }).httpRequest
+                ?.body;
+          logger.info(
+            `Dispatching serverReady httpRequest (${phase}) to ${url} method=${method}`
+          );
           void fetch(url, { method, headers, body })
-            .then(resp => {
-              logger.info(`serverReady httpRequest (${phase}) response status=${resp.status}`);
+            .then((resp) => {
+              logger.info(
+                `serverReady httpRequest (${phase}) response status=${resp.status}`
+              );
             })
-            .catch(httpErr => {
-              logger.error(`serverReady httpRequest (${phase}) failed: ${httpErr instanceof Error ? httpErr.message : String(httpErr)}`);
+            .catch((httpErr) => {
+              logger.error(
+                `serverReady httpRequest (${phase}) failed: ${
+                  httpErr instanceof Error ? httpErr.message : String(httpErr)
+                }`
+              );
             });
           break;
         }
-        case 'vscodeCommand': {
-          const command = discriminator ? (actionAny as FlatAction & { command: string }).command : (actionAny as { vscodeCommand?: { command?: string } }).vscodeCommand?.command;
+        case "vscodeCommand": {
+          const command = discriminator
+            ? (actionAny as FlatAction & { command: string }).command
+            : (actionAny as { vscodeCommand?: { command?: string } })
+                .vscodeCommand?.command;
           if (!command) {
-            logger.warn('serverReady vscodeCommand missing command id.');
+            logger.warn("serverReady vscodeCommand missing command id.");
             return;
           }
-          const args = discriminator ? (actionAny as FlatAction & { args?: unknown[] }).args ?? [] : (actionAny as { vscodeCommand?: { args?: unknown[] } }).vscodeCommand?.args ?? [];
-          logger.info(`Executing serverReady vscodeCommand (${phase}): ${command}`);
+          const args = discriminator
+            ? (actionAny as FlatAction & { args?: unknown[] }).args ?? []
+            : (actionAny as { vscodeCommand?: { args?: unknown[] } })
+                .vscodeCommand?.args ?? [];
+          logger.info(
+            `Executing serverReady vscodeCommand (${phase}): ${command}`
+          );
           try {
-            const result = await vscode.commands.executeCommand(command, ...args);
-            logger.debug(`serverReady vscodeCommand (${phase}) result: ${JSON.stringify(result)}`);
+            const result = await vscode.commands.executeCommand(
+              command,
+              ...args
+            );
+            logger.debug(
+              `serverReady vscodeCommand (${phase}) result: ${JSON.stringify(
+                result
+              )}`
+            );
           } catch (cmdErr) {
-            logger.error(`serverReady vscodeCommand (${phase}) failed: ${cmdErr instanceof Error ? cmdErr.message : String(cmdErr)}`);
+            logger.error(
+              `serverReady vscodeCommand (${phase}) failed: ${
+                cmdErr instanceof Error ? cmdErr.message : String(cmdErr)
+              }`
+            );
           }
           break;
         }
         default:
-          logger.warn('serverReady action type not recognized; skipping.');
+          logger.warn("serverReady action type not recognized; skipping.");
       }
     } catch (err) {
-      logger.error(`Failed executing serverReady action (${phase}): ${err instanceof Error ? err.message : String(err)}`);
+      logger.error(
+        `Failed executing serverReady action (${phase}): ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
     }
   };
 
   // Basic breakpoint configuration validation (moved from StartDebuggerTool)
   if (!breakpointConfig || !Array.isArray(breakpointConfig.breakpoints)) {
-    throw new Error('breakpointConfig.breakpoints is required.');
+    throw new Error("breakpointConfig.breakpoints is required.");
   }
   if (breakpointConfig.breakpoints.length === 0) {
     throw new Error(
-      'Provide at least one breakpoint (path + line) before starting the debugger.'
+      "Provide at least one breakpoint (path + line) before starting the debugger."
     );
   }
   for (const bp of breakpointConfig.breakpoints) {
-    if (bp.action === 'capture' && bp.variableFilter && bp.variableFilter.length === 0) {
-      throw new Error(`Breakpoint at ${bp.path}:${bp.line} has empty variableFilter (omit entirely for auto-capture or provide at least one name).`);
+    if (
+      bp.action === "capture" &&
+      bp.variableFilter &&
+      bp.variableFilter.length === 0
+    ) {
+      throw new Error(
+        `Breakpoint at ${bp.path}:${bp.line} has empty variableFilter (omit entirely for auto-capture or provide at least one name).`
+      );
     }
   }
   if (!path.isAbsolute(workspaceFolder)) {
@@ -277,29 +372,31 @@ export const startDebuggingAndWaitForStop = async (params: {
   // Ensure that workspace folders exist and are accessible.
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (!workspaceFolders || workspaceFolders.length === 0) {
-    throw new Error('No workspace folders are currently open.');
+    throw new Error("No workspace folders are currently open.");
   }
 
   logger.debug(
-    `Available workspace folders: ${workspaceFolders.map(f => `${f.name} -> ${f.uri.fsPath}`).join(', ')}`
+    `Available workspace folders: ${workspaceFolders
+      .map((f) => `${f.name} -> ${f.uri.fsPath}`)
+      .join(", ")}`
   );
   logger.debug(
     `Looking for workspace folder (resolved): ${resolvedWorkspaceFolder}`
   );
 
-  const normalizedFolders = workspaceFolders.map(f => ({
+  const normalizedFolders = workspaceFolders.map((f) => ({
     folder: f,
     normalized: normalizeFsPath(f.uri.fsPath),
   }));
   const folderEntry = normalizedFolders.find(
-    f => f.normalized === normalizedRequestedFolder
+    (f) => f.normalized === normalizedRequestedFolder
   );
   const folder = folderEntry?.folder;
   if (!folder) {
     throw new Error(
       `Workspace folder '${workspaceFolder}' is not currently open. Open folders: ${workspaceFolders
-        .map(f => f.uri.fsPath)
-        .join(', ')}`
+        .map((f) => f.uri.fsPath)
+        .join(", ")}`
     );
   }
   const folderFsPath = folder.uri.fsPath;
@@ -346,7 +443,8 @@ export const startDebuggingAndWaitForStop = async (params: {
       // For 'capture' action we intentionally do NOT pass bp.logMessage to SourceBreakpoint.
       // Passing a logMessage turns the breakpoint into a logpoint (non-pausing) in many adapters.
       // Capture semantics require a real pause to gather variables, then we auto-continue.
-      const adapterLogMessage = bp.action === 'capture' ? undefined : bp.logMessage;
+      const adapterLogMessage =
+        bp.action === "capture" ? undefined : bp.logMessage;
       const sourceBp = new vscode.SourceBreakpoint(
         new vscode.Location(uri, location),
         true,
@@ -367,7 +465,7 @@ export const startDebuggingAndWaitForStop = async (params: {
   let serverReadySource: vscode.SourceBreakpoint | undefined;
   if (
     serverReady?.trigger?.path &&
-    typeof serverReady.trigger.line === 'number'
+    typeof serverReady.trigger.line === "number"
   ) {
     const serverReadyPath = path.isAbsolute(serverReady.trigger.path)
       ? serverReady.trigger.path!
@@ -377,7 +475,7 @@ export const startDebuggingAndWaitForStop = async (params: {
         vscode.Uri.file(serverReadyPath)
       );
       const lineCount = doc.lineCount;
-      const duplicate = validated.some(v => {
+      const duplicate = validated.some((v) => {
         const existingPath = v.sb.location.uri.fsPath;
         const existingLine = v.sb.location.range.start.line + 1;
         return (
@@ -411,43 +509,45 @@ export const startDebuggingAndWaitForStop = async (params: {
     }
   }
   if (validated.length) {
-    vscode.debug.addBreakpoints(validated.map(v => v.sb));
+    vscode.debug.addBreakpoints(validated.map((v) => v.sb));
     logger.info(`Added ${validated.length} validated breakpoint(s).`);
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
   } else {
-    logger.warn('No valid breakpoints to add after validation.');
+    logger.warn("No valid breakpoints to add after validation.");
   }
   if (serverReadySource) {
     vscode.debug.addBreakpoints([serverReadySource]);
     logger.info(
-      `Added serverReady breakpoint at ${serverReadySource.location.uri.fsPath}:$${serverReadySource.location.range.start.line + 1}`
+      `Added serverReady breakpoint at ${
+        serverReadySource.location.uri.fsPath
+      }:$${serverReadySource.location.range.start.line + 1}`
     );
   }
 
   // Resolve launch configuration: always inject stopOnEntry=true to ensure early pause, but never synthesize a generic config.
   // Determine effective timeout
   const settings = vscode.workspace.getConfiguration(
-    'copilot-debugger',
+    "copilot-debugger",
     folder.uri
   );
-  const settingTimeout = settings.get<number>('entryTimeoutSeconds');
+  const settingTimeout = settings.get<number>("entryTimeoutSeconds");
   const effectiveTimeoutSeconds =
-    typeof timeoutOverride === 'number' && timeoutOverride > 0
+    typeof timeoutOverride === "number" && timeoutOverride > 0
       ? timeoutOverride
-      : typeof settingTimeout === 'number' && settingTimeout > 0
-        ? settingTimeout
-        : 60;
+      : typeof settingTimeout === "number" && settingTimeout > 0
+      ? settingTimeout
+      : 60;
 
   // Resolve launch configuration name: provided -> setting -> single config auto-select
   let effectiveLaunchName = nameOrConfiguration;
   if (!effectiveLaunchName) {
-    const settingDefault = settings.get<string>('defaultLaunchConfiguration');
+    const settingDefault = settings.get<string>("defaultLaunchConfiguration");
     effectiveLaunchName = settingDefault;
   }
-  const launchConfig = vscode.workspace.getConfiguration('launch', folder.uri);
+  const launchConfig = vscode.workspace.getConfiguration("launch", folder.uri);
   const allConfigs =
     (launchConfig.get<unknown>(
-      'configurations'
+      "configurations"
     ) as vscode.DebugConfiguration[]) || [];
   if (!effectiveLaunchName) {
     if (allConfigs.length === 1 && allConfigs[0].name) {
@@ -457,11 +557,11 @@ export const startDebuggingAndWaitForStop = async (params: {
       );
     } else {
       throw new Error(
-        'No launch configuration specified. Provide nameOrConfiguration, set copilot-debugger.defaultLaunchConfiguration, or define exactly one configuration.'
+        "No launch configuration specified. Provide nameOrConfiguration, set copilot-debugger.defaultLaunchConfiguration, or define exactly one configuration."
       );
     }
   }
-  const found = allConfigs.find(c => c.name === effectiveLaunchName);
+  const found = allConfigs.find((c) => c.name === effectiveLaunchName);
   if (!found) {
     throw new Error(
       `Launch configuration '${effectiveLaunchName}' not found in ${folder.uri.fsPath}. Add it to .vscode/launch.json.`
@@ -472,12 +572,12 @@ export const startDebuggingAndWaitForStop = async (params: {
   // Always force stopOnEntry true (adapter may ignore)
   (resolvedConfig as Record<string, unknown>).stopOnEntry = true;
 
-  const effectiveSessionName = sessionName || resolvedConfig.name || '';
+  const effectiveSessionName = sessionName || resolvedConfig.name || "";
   logger.info(
     `Starting debugger with configuration '${resolvedConfig.name}' (stopOnEntry forced to true). Waiting for first stop event.`
   );
   // Prepare entry stop listener BEFORE starting debugger to capture session id.
-  const existingIds = activeSessions.map(s => s.id);
+  const existingIds = activeSessions.map((s) => s.id);
   const entryStopPromise = waitForEntryStop({
     excludeSessionIds: existingIds,
     timeout: effectiveTimeoutSeconds * 1000,
@@ -500,7 +600,7 @@ export const startDebuggingAndWaitForStop = async (params: {
     entryStop = await entryStopPromise;
     const afterEntry = Date.now();
     remainingMs = Math.max(0, remainingMs - (afterEntry - startT));
-    if (entryStop.reason === 'terminated') {
+    if (entryStop.reason === "terminated") {
       throw new Error(
         `Debug session '${effectiveSessionName}' terminated before hitting entry.`
       );
@@ -516,7 +616,7 @@ export const startDebuggingAndWaitForStop = async (params: {
     // Decide whether to continue immediately (entry not at user breakpoint OR serverReady hit)
     const entryLineZeroBased = entryStop.line ? entryStop.line - 1 : -1;
     const hitRequestedBreakpoint = validated.some(
-      v => v.sb.location.range.start.line === entryLineZeroBased
+      (v) => v.sb.location.range.start.line === entryLineZeroBased
     );
     logger.info(
       `EntryStop diagnostics: line=${entryStop.line} serverReadyLine=${serverReady?.trigger?.line} isServerReadyHit=${isServerReadyHit} hitRequestedBreakpoint=${hitRequestedBreakpoint}`
@@ -528,20 +628,22 @@ export const startDebuggingAndWaitForStop = async (params: {
           : `Entry stop for session ${sessionId} not at requested breakpoint; continuing to first user breakpoint.`
       );
       if (isServerReadyHit && serverReady) {
-        await executeServerReadyAction('entry');
+        await executeServerReadyAction("entry");
       }
       try {
         // Remove serverReady breakpoint BEFORE continuing to avoid immediate re-stop
         if (isServerReadyHit && serverReadySource) {
           vscode.debug.removeBreakpoints([serverReadySource]);
-          logger.debug('Removed serverReady breakpoint prior to continue.');
+          logger.debug("Removed serverReady breakpoint prior to continue.");
         }
-        await entryStop.session.customRequest('continue', {
+        await entryStop.session.customRequest("continue", {
           threadId: entryStop.threadId,
         });
       } catch (e) {
         logger.warn(
-          `Failed to continue after entry stop: ${e instanceof Error ? e.message : String(e)}`
+          `Failed to continue after entry stop: ${
+            e instanceof Error ? e.message : String(e)
+          }`
         );
       }
       finalStop = await waitForDebuggerStopBySessionId({
@@ -551,7 +653,7 @@ export const startDebuggingAndWaitForStop = async (params: {
     } else {
       finalStop = entryStop; // entry coincides with user breakpoint
     }
-    if (finalStop.reason === 'terminated') {
+    if (finalStop.reason === "terminated") {
       throw new Error(
         `Debug session '${effectiveSessionName}' terminated before hitting a user breakpoint.`
       );
@@ -565,16 +667,18 @@ export const startDebuggingAndWaitForStop = async (params: {
       logger.info(
         `Processing serverReady breakpoint post-entry at line ${finalStop.line}. Executing serverReady action then continuing to user breakpoint.`
       );
-      await executeServerReadyAction('late');
+      await executeServerReadyAction("late");
       // Remove serverReady breakpoint to avoid re-trigger
       vscode.debug.removeBreakpoints([serverReadySource]);
       try {
-        await finalStop.session.customRequest('continue', {
+        await finalStop.session.customRequest("continue", {
           threadId: finalStop.threadId,
         });
       } catch (contErr) {
         logger.warn(
-          `Failed to continue after late serverReady processing: ${contErr instanceof Error ? contErr.message : String(contErr)}`
+          `Failed to continue after late serverReady processing: ${
+            contErr instanceof Error ? contErr.message : String(contErr)
+          }`
         );
       }
       // Wait for the actual user breakpoint
@@ -582,7 +686,7 @@ export const startDebuggingAndWaitForStop = async (params: {
         sessionId: finalStop.session.id,
         timeout: remainingMs,
       });
-      if (nextStop.reason === 'terminated') {
+      if (nextStop.reason === "terminated") {
         throw new Error(
           `Debug session '${effectiveSessionName}' terminated after serverReady processing before hitting a user breakpoint.`
         );
@@ -598,7 +702,7 @@ export const startDebuggingAndWaitForStop = async (params: {
     ) {
       const userNextLine = serverReady.trigger.line + 1;
       const hasUserNext = validated.some(
-        v => v.sb.location.range.start.line === userNextLine - 1
+        (v) => v.sb.location.range.start.line === userNextLine - 1
       );
       if (hasUserNext) {
         logger.info(
@@ -606,12 +710,14 @@ export const startDebuggingAndWaitForStop = async (params: {
         );
         for (let attempt = 0; attempt < 3; attempt++) {
           try {
-            await finalStop.session.customRequest('next', {
+            await finalStop.session.customRequest("next", {
               threadId: finalStop.threadId,
             });
           } catch (stepErr) {
             logger.warn(
-              `Step attempt ${attempt + 1} failed: ${stepErr instanceof Error ? stepErr.message : String(stepErr)}`
+              `Step attempt ${attempt + 1} failed: ${
+                stepErr instanceof Error ? stepErr.message : String(stepErr)
+              }`
             );
             break;
           }
@@ -620,9 +726,9 @@ export const startDebuggingAndWaitForStop = async (params: {
               sessionId: finalStop.session.id,
               timeout: remainingMs,
             });
-            if (stepped.reason === 'terminated') {
+            if (stepped.reason === "terminated") {
               logger.warn(
-                'Session terminated during serverReady advancement step.'
+                "Session terminated during serverReady advancement step."
               );
               finalStop = stepped;
               break;
@@ -630,13 +736,17 @@ export const startDebuggingAndWaitForStop = async (params: {
             finalStop = stepped;
             if (finalStop.line === userNextLine) {
               logger.info(
-                `Reached user breakpoint line ${userNextLine} after ${attempt + 1} step(s).`
+                `Reached user breakpoint line ${userNextLine} after ${
+                  attempt + 1
+                } step(s).`
               );
               break;
             }
           } catch (waitErr) {
             logger.warn(
-              `Wait after step attempt ${attempt + 1} failed: ${waitErr instanceof Error ? waitErr.message : String(waitErr)}`
+              `Wait after step attempt ${attempt + 1} failed: ${
+                waitErr instanceof Error ? waitErr.message : String(waitErr)
+              }`
             );
             break;
           }
@@ -661,14 +771,14 @@ export const startDebuggingAndWaitForStop = async (params: {
           path: string;
           line: number;
           variableFilter?: string[];
-          action?: 'break' | 'stopDebugging' | 'capture';
+          action?: "break" | "stopDebugging" | "capture";
           logMessage?: string;
           reasonCode?: string;
         }
       | undefined;
     const framePath = debugContext.frame?.source?.path;
     const frameLine = debugContext.frame?.line;
-    if (framePath && typeof frameLine === 'number') {
+    if (framePath && typeof frameLine === "number") {
       const normalizedFramePath = normalizeFsPath(framePath);
       for (const { bp } of validated) {
         const absPath = path.isAbsolute(bp.path)
@@ -698,7 +808,7 @@ export const startDebuggingAndWaitForStop = async (params: {
       }
     }
     let capturedLogMessages: string[] | undefined;
-    if (hitBreakpoint?.action === 'capture') {
+    if (hitBreakpoint?.action === "capture") {
       const interpolate = (msg: string) =>
         msg.replace(/\{([^{}]+)\}/g, (_m, name) => {
           const raw = variableLookup.get(name);
@@ -711,26 +821,30 @@ export const startDebuggingAndWaitForStop = async (params: {
         }
       }
     }
-    if (hitBreakpoint?.action === 'stopDebugging') {
+    if (hitBreakpoint?.action === "stopDebugging") {
       logger.info(`Terminating all debug sessions per breakpoint action.`);
       await vscode.debug.stopDebugging();
       const now = Date.now();
       while (vscode.debug.activeDebugSession) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
       const waitTime = Date.now() - now;
       logger.info(`All debug sessions terminated after ${waitTime}ms.`);
-    } else if (hitBreakpoint?.action === 'capture') {
+    } else if (hitBreakpoint?.action === "capture") {
       try {
         logger.debug(
           `Continuing debug session ${finalStop.session.id} after capture action.`
         );
-        await finalStop.session.customRequest('continue', {
+        await finalStop.session.customRequest("continue", {
           threadId: finalStop.threadId,
         });
       } catch (continueErr) {
         logger.warn(
-          `Failed to continue after capture action: ${continueErr instanceof Error ? continueErr.message : String(continueErr)}`
+          `Failed to continue after capture action: ${
+            continueErr instanceof Error
+              ? continueErr.message
+              : String(continueErr)
+          }`
         );
       }
     }
@@ -746,14 +860,14 @@ export const startDebuggingAndWaitForStop = async (params: {
     if (current.length) {
       // Remove only the breakpoints we added (avoid touching restored originals twice)
       const currentSource = current.filter(
-        bp => bp instanceof vscode.SourceBreakpoint
+        (bp) => bp instanceof vscode.SourceBreakpoint
       ) as vscode.SourceBreakpoint[];
       const addedKeys = new Set(
         validated.map(
-          v => `${v.sb.location.uri.fsPath}:${v.sb.location.range.start.line}`
+          (v) => `${v.sb.location.uri.fsPath}:${v.sb.location.range.start.line}`
         )
       );
-      const toRemove = currentSource.filter(sb =>
+      const toRemove = currentSource.filter((sb) =>
         addedKeys.has(
           `${sb.location.uri.fsPath}:${sb.location.range.start.line}`
         )
@@ -771,7 +885,7 @@ export const startDebuggingAndWaitForStop = async (params: {
         `Restored ${originalBreakpoints.length} original breakpoint(s).`
       );
     } else {
-      logger.debug('No original breakpoints to restore.');
+      logger.debug("No original breakpoints to restore.");
     }
   }
 };
@@ -821,19 +935,19 @@ export const resumeDebugSession = async (params: {
   const { sessionId, breakpointConfig } = params;
 
   // Find the session with the given ID
-  let session = activeSessions.find(s => s.id === sessionId);
+  let session = activeSessions.find((s) => s.id === sessionId);
 
   // If not found by ID, try to find by name pattern (VSCode creates child sessions with modified names)
   if (!session) {
     // Look for a session whose name contains the session ID
-    session = activeSessions.find(s => s.name.includes(sessionId));
+    session = activeSessions.find((s) => s.name.includes(sessionId));
   }
 
   if (!session) {
     return {
       content: [
         {
-          type: 'text',
+          type: "text",
           text: `No debug session found with ID '${sessionId}'.`,
         },
       ],
@@ -854,11 +968,11 @@ export const resumeDebugSession = async (params: {
         vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       if (!workspaceFolder) {
         throw new Error(
-          'Cannot determine workspace folder for breakpoint paths'
+          "Cannot determine workspace folder for breakpoint paths"
         );
       }
 
-      const newBreakpoints = breakpointConfig.breakpoints.map(bp => {
+      const newBreakpoints = breakpointConfig.breakpoints.map((bp) => {
         const absolutePath = path.isAbsolute(bp.path)
           ? bp.path
           : path.join(workspaceFolder, bp.path);
@@ -883,10 +997,10 @@ export const resumeDebugSession = async (params: {
   const stopPromise = waitForDebuggerStopBySessionId({
     sessionId: session.id,
   });
-  await session.customRequest('continue', { threadId: 0 }); // 0 means all threads
+  await session.customRequest("continue", { threadId: 0 }); // 0 means all threads
   const stopInfo = await stopPromise;
   // If session terminated without hitting breakpoint, return termination stopInfo
-  if (stopInfo.reason === 'terminated') {
+  if (stopInfo.reason === "terminated") {
     throw new Error(
       `Debug session '${session.name}' terminated before hitting a breakpoint.`
     );

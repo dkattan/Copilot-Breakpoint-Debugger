@@ -24,14 +24,48 @@ interface StoppedEventBody {
   description?: string;
   threadId: number;
   text?: string;
-  allThreadsStopped?: boolean;
-  preserveFocusHint?: boolean;
+}
+
+interface OutputEventBody {
+  category: "console" | "stdout" | "stderr" | "telemetry" | string;
+  output: string;
+  variablesReference?: number;
+  source?: { name?: string; path?: string };
+  line?: number;
+  column?: number;
+}
+
+interface ExitedEventBody {
+  exitCode: number;
+}
+
+export interface OutputLine {
+  category: string;
+  text: string;
+  timestamp: number;
+}
+
+export interface SessionExitInfo {
+  sessionId: string;
+  exitCode?: number;
+  signal?: string;
 }
 
 /** Event emitter for breakpoint hit notifications */
 export const breakpointEventEmitter =
   new vscode.EventEmitter<BreakpointHitInfo>();
 export const onBreakpointHit = breakpointEventEmitter.event;
+
+/** Event emitter for debug adapter exit notifications */
+export const sessionExitEventEmitter =
+  new vscode.EventEmitter<SessionExitInfo>();
+export const onSessionExit = sessionExitEventEmitter.event;
+
+// Per-session output buffers for DAP output events
+const sessionOutputBuffers = new Map<string, OutputLine[]>();
+
+// Per-session exit codes from DAP exited events
+const sessionExitCodes = new Map<string, number>();
 
 // Register debug adapter tracker to monitor debug events
 vscode.debug.registerDebugAdapterTrackerFactory("*", {
@@ -75,6 +109,39 @@ vscode.debug.registerDebugAdapterTrackerFactory("*", {
           return;
         }
         const event = message as DebugProtocolEvent;
+
+        // Handle output events for stderr/stdout capture
+        if (event.event === "output") {
+          const body = event.body as OutputEventBody;
+          const cfg = vscode.workspace.getConfiguration("copilot-debugger");
+          const maxLines = cfg.get<number>("maxOutputLines") ?? 50;
+
+          if (!sessionOutputBuffers.has(session.id)) {
+            sessionOutputBuffers.set(session.id, []);
+          }
+          const buffer = sessionOutputBuffers.get(session.id)!;
+          buffer.push({
+            category: body.category,
+            text: body.output,
+            timestamp: Date.now(),
+          });
+          // Circular buffer: drop oldest if exceeding max
+          while (buffer.length > maxLines) {
+            buffer.shift();
+          }
+          return;
+        }
+
+        // Handle exited events for process exit code capture
+        if (event.event === "exited") {
+          const body = event.body as ExitedEventBody;
+          sessionExitCodes.set(session.id, body.exitCode);
+          logger.debug(
+            `Process exited for session ${session.id}: exitCode=${body.exitCode}`
+          );
+          return;
+        }
+
         if (event.event !== "stopped") {
           return;
         }
@@ -216,12 +283,39 @@ vscode.debug.registerDebugAdapterTrackerFactory("*", {
 
       onExit?(code: number | undefined, signal: string | undefined): void {
         logger.info(`Debug adapter exited: code=${code}, signal=${signal}`);
+        sessionExitEventEmitter.fire({
+          sessionId: session.id,
+          exitCode: code,
+          signal,
+        });
       }
     }
 
     return new DebugAdapterTrackerImpl();
   },
 });
+
+/**
+ * Get captured output lines for a debug session
+ */
+export function getSessionOutput(sessionId: string): OutputLine[] {
+  return sessionOutputBuffers.get(sessionId) ?? [];
+}
+
+/**
+ * Get process exit code from DAP exited event for a session
+ */
+export function getSessionExitCode(sessionId: string): number | undefined {
+  return sessionExitCodes.get(sessionId);
+}
+
+/**
+ * Clear output buffer and exit code for a session (cleanup)
+ */
+export function clearSessionDiagnostics(sessionId: string): void {
+  sessionOutputBuffers.delete(sessionId);
+  sessionExitCodes.delete(sessionId);
+}
 
 // Legacy waitForDebuggerStop removed in favor of session id and entry specific helpers.
 

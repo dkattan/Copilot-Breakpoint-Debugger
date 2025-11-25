@@ -1,0 +1,21 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "tsc: build with errors",
+      "type": "shell",
+      "command": "${workspaceFolder}/../../node_modules/.bin/tsc",
+      "windows": {
+        "command": "${workspaceFolder}/../../node_modules/.bin/tsc.cmd"
+      },
+      "args": ["--noEmit"],
+      "problemMatcher": "$tsc",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      }
+    }
+  ]
+}

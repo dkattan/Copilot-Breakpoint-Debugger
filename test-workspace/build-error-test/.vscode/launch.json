@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Build Error Test",
+      "preLaunchTask": "tsc: build with errors",
+      "program": "${workspaceFolder}/broken.ts",
+      "outFiles": ["${workspaceFolder}/out/**/*.js"],
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ]
+}

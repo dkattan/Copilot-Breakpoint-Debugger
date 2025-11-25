@@ -2,16 +2,24 @@
   "folders": [
     {
       "name": "workspace-a",
-      "path": "a",
+      "path": "a"
     },
     {
       "name": "workspace-b",
-      "path": "b",
+      "path": "b"
     },
     {
       "name": "workspace-root",
-      "path": ".",
+      "path": "."
     },
+    {
+      "name": "build-error-test",
+      "path": "build-error-test"
+    },
+    {
+      "name": "runtime-error-test",
+      "path": "runtime-error-test"
+    }
   ],
   "settings": {
     "copilot-debugger.defaultLaunchConfiguration": "Run test.ps1",
@@ -21,6 +29,8 @@
     "git.autoRepositoryDetection": false,
     "chat.extensionUnification.enabled": false,
     "copilot-debugger.entryTimeoutSeconds": 60,
+    "copilot-debugger.maxOutputLines": 20,
+    "copilot-debugger.maxBuildErrors": 2
   },
   "launch": {
     "version": "0.2.0",
@@ -30,7 +40,7 @@
         "type": "PowerShell",
         "request": "launch",
         "script": "${workspaceFolder:workspace-a}/test.ps1",
-        "cwd": "${workspaceFolder:workspace-a}",
+        "cwd": "${workspaceFolder:workspace-a}"
       },
       {
         "name": "Run test.js",
@@ -38,14 +48,14 @@
         "request": "launch",
         "program": "${workspaceFolder:workspace-b}/test.js",
         "cwd": "${workspaceFolder:workspace-b}",
-        "console": "internalConsole",
+        "console": "internalConsole"
       },
       {
         "name": "Debug PowerShell (workspace a)",
         "type": "PowerShell",
         "request": "launch",
         "script": "${workspaceFolder:workspace-a}/test.ps1",
-        "cwd": "${workspaceFolder:workspace-a}",
+        "cwd": "${workspaceFolder:workspace-a}"
       },
       {
         "name": "Debug Node.js (workspace b)",
@@ -53,23 +63,23 @@
         "request": "launch",
         "program": "${workspaceFolder:workspace-b}/test.js",
         "cwd": "${workspaceFolder:workspace-b}",
-        "console": "internalConsole",
-      },
+        "console": "internalConsole"
+      }
     ],
     "compounds": [
       {
         "name": "Debug Both (Compound)",
         "configurations": [
           "Run test.js with preLaunchTask",
-          "Debug Node.js (workspace b)",
-        ],
-      },
-    ],
+          "Debug Node.js (workspace b)"
+        ]
+      }
+    ]
   },
   "extensions": {
     "recommendations": [
       "ms-vscode.powershell",
-      "dkattan.copilot-breakpoint-debugger",
-    ],
-  },
+      "dkattan.copilot-breakpoint-debugger"
+    ]
+  }
 }

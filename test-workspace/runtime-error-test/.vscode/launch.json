@@ -1,0 +1,20 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Node Crash Test",
+      "program": "${workspaceFolder}/crash.js",
+      "skipFiles": ["<node_internals>/**"],
+      "console": "integratedTerminal"
+    },
+    {
+      "type": "PowerShell",
+      "request": "launch",
+      "name": "PowerShell Crash Test",
+      "script": "${workspaceFolder}/crash.ps1",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

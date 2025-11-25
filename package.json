@@ -36,6 +36,9 @@
     "onLanguageModelTools",
     "onStartupFinished"
   ],
+  "enabledApiProposals": [
+    "terminalDataWriteEvent"
+  ],
   "contributes": {
     "commands": [
       {
@@ -82,6 +85,18 @@
           ],
           "default": "httpRequest",
           "description": "Preferred serverReady action type surfaced in samples and quick insert command."
+        },
+        "copilot-debugger.maxBuildErrors": {
+          "type": "integer",
+          "default": 5,
+          "description": "Maximum number of build diagnostics (from problem matchers) to include in error messages when debug session fails to start.",
+          "scope": "resource"
+        },
+        "copilot-debugger.maxOutputLines": {
+          "type": "integer",
+          "default": 50,
+          "description": "Maximum number of output lines (stderr/stdout) to buffer per debug session for runtime error reporting.",
+          "scope": "resource"
         }
       }
     },
@@ -461,7 +476,7 @@
     "compile-tests": "tsc -p ./",
     "pretest": "npm run lint && npm run compile-tests && npm run build:dist",
     "lint": "eslint",
-    "test": "node -e \"try{require('fs').rmSync('./.vscode-test/user-data/DIP',{recursive:true,force:true});}catch(e){}\" && npx vscode-test",
+    "test": "node -e \"try{require('fs').rmSync('./.vscode-test/user-data',{recursive:true,force:true});}catch(e){}\" && npx vscode-test",
     "test:coverage": "npm run compile-tests && npx vscode-test --coverage"
   },
   "dependencies": {
@@ -469,7 +484,8 @@
     "@actions/github": "^6.0.0",
     "@anthropic-ai/sdk": "^0.27.3",
     "@vscode/prompt-tsx": "^0.4.0-alpha.5",
-    "mocha": "^10.7.3"
+    "mocha": "^10.7.3",
+    "strip-ansi": "^7.1.2"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^3.0.0",

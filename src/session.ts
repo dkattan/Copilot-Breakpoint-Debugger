@@ -1,11 +1,28 @@
+import type { Buffer } from "node:buffer";
 import type { BreakpointHitInfo } from "./common";
+import { spawnSync } from "node:child_process";
+import * as fs from "node:fs";
 import * as path from "node:path";
 import * as process from "node:process";
+import stripAnsi from "strip-ansi";
 import * as vscode from "vscode";
 import { activeSessions } from "./common";
 import { DAPHelpers, type DebugContext, type VariableInfo } from "./debugUtils";
-import { waitForDebuggerStopBySessionId, waitForEntryStop } from "./events";
+import {
+  getSessionExitCode,
+  getSessionOutput,
+  waitForDebuggerStopBySessionId,
+  waitForEntryStop,
+} from "./events";
 import { logger } from "./logger";
+
+const typescriptCliPath = (() => {
+  try {
+    return require.resolve("typescript/lib/tsc.js");
+  } catch {
+    return undefined;
+  }
+})();
 
 const normalizeFsPath = (value: string) => {
   // Normalize path, convert backslashes, strip trailing slashes.
@@ -97,6 +114,644 @@ export const listDebugSessions = () => {
     ],
     isError: false,
   };
+};
+
+const collectBuildDiagnostics = (
+  workspaceUri: vscode.Uri,
+  maxErrors: number
+): vscode.Diagnostic[] => {
+  const allDiagnostics = vscode.languages.getDiagnostics();
+  const errors: vscode.Diagnostic[] = [];
+  for (const [uri, diagnostics] of allDiagnostics) {
+    if (!uri.fsPath.startsWith(workspaceUri.fsPath)) {
+      continue;
+    }
+    for (const diag of diagnostics) {
+      if (diag.severity === vscode.DiagnosticSeverity.Error) {
+        errors.push(diag);
+        if (errors.length >= maxErrors) {
+          return errors;
+        }
+      }
+    }
+  }
+  return errors;
+};
+
+const formatBuildErrors = (diagnostics: vscode.Diagnostic[]): string => {
+  if (diagnostics.length === 0) {
+    return "";
+  }
+  const formatted = diagnostics
+    .map((diag) => {
+      const line = diag.range.start.line + 1;
+      const msg =
+        diag.message.length > 80
+          ? `${diag.message.slice(0, 80)}...`
+          : diag.message;
+      return `Line ${line}: ${msg}`;
+    })
+    .join(", ");
+  return `Build errors: [${formatted}]. `;
+};
+
+const MAX_CAPTURED_TASK_OUTPUT_LINES = 200;
+
+const stripAnsiEscapeCodes = (value: string): string =>
+  value ? stripAnsi(value) : "";
+
+interface TaskCompletionResult {
+  name: string;
+  exitCode?: number;
+  outputLines: string[];
+}
+
+const missingCommandPatterns = [
+  /is not recognized as an internal or external command/i,
+  /command not found/i,
+];
+
+const formatTaskFailures = (tasks: TaskCompletionResult[]): string => {
+  const failed = tasks.filter(
+    (task) => typeof task.exitCode === "number" && task.exitCode !== 0
+  );
+  if (!failed.length) {
+    return "";
+  }
+  const [primary, ...rest] = failed;
+  const lines = primary.outputLines.slice(-5);
+  const details = lines.length
+    ? `\nLast ${lines.length} line(s):\n${lines
+        .map((line) => `  ${line}`)
+        .join("\n")}`
+    : "";
+  const additional = rest.length
+    ? `\nAdditional failed task(s): ${rest
+        .map((task) => `'${task.name}' (exit ${task.exitCode ?? "unknown"})`)
+        .join(", ")}`
+    : "";
+  return `Task '${primary.name}' exited with code ${
+    primary.exitCode ?? "unknown"
+  }.${details}${additional}\n`;
+};
+
+const sanitizeTaskOutput = (text: string): string[] =>
+  stripAnsiEscapeCodes(text)
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter((line) => line.length > 0);
+
+const DEBUG_TERMINAL_NAME_PATTERN = /\bdebug\b/i;
+const SERVER_READY_TERMINAL_PATTERN = /^serverReady-/i;
+
+const truncateLine = (line: string, maxLength = 160): string => {
+  if (line.length <= maxLength) {
+    return line;
+  }
+  return `${line.slice(0, maxLength - 1)}…`;
+};
+
+interface TerminalOutputCapture {
+  snapshot: () => string[];
+  dispose: () => void;
+}
+
+interface TerminalDataWriteEvent {
+  terminal: vscode.Terminal;
+  data: string;
+}
+
+type TerminalDataWindow = typeof vscode.window & {
+  onDidWriteTerminalData?: (
+    listener: (event: TerminalDataWriteEvent) => void,
+    thisArgs?: unknown,
+    disposables?: vscode.Disposable[]
+  ) => vscode.Disposable;
+};
+
+const createTerminalOutputCapture = (maxLines: number): TerminalOutputCapture => {
+  const terminalDataEmitter = (vscode.window as TerminalDataWindow)
+    .onDidWriteTerminalData;
+  if (maxLines <= 0 || typeof terminalDataEmitter !== "function") {
+    return { snapshot: () => [], dispose: () => undefined };
+  }
+  const lines: string[] = [];
+  const pendingByTerminal = new Map<vscode.Terminal, string>();
+  const trackedTerminals = new Set<vscode.Terminal>();
+  const initialTerminals = new Set(vscode.window.terminals);
+  const pushLine = (terminal: vscode.Terminal, raw: string) => {
+    const sanitized = stripAnsiEscapeCodes(raw).trim();
+    if (!sanitized) {
+      return;
+    }
+    lines.push(`${terminal.name}: ${truncateLine(sanitized)}`);
+    if (lines.length > maxLines) {
+      lines.shift();
+    }
+  };
+  const considerTerminal = (terminal: vscode.Terminal): boolean => {
+    if (trackedTerminals.has(terminal)) {
+      return true;
+    }
+    if (
+      !initialTerminals.has(terminal) ||
+      DEBUG_TERMINAL_NAME_PATTERN.test(terminal.name) ||
+      SERVER_READY_TERMINAL_PATTERN.test(terminal.name)
+    ) {
+      trackedTerminals.add(terminal);
+      return true;
+    }
+    return false;
+  };
+  const flushPending = () => {
+    for (const [terminal, remainder] of pendingByTerminal.entries()) {
+      if (remainder && remainder.trim()) {
+        pushLine(terminal, remainder);
+      }
+    }
+    pendingByTerminal.clear();
+  };
+  const disposables: vscode.Disposable[] = [];
+  disposables.push(
+    vscode.window.onDidOpenTerminal((terminal) => {
+      if (
+        !initialTerminals.has(terminal) ||
+        DEBUG_TERMINAL_NAME_PATTERN.test(terminal.name) ||
+        SERVER_READY_TERMINAL_PATTERN.test(terminal.name)
+      ) {
+        trackedTerminals.add(terminal);
+      }
+    })
+  );
+  disposables.push(
+    terminalDataEmitter((event: TerminalDataWriteEvent) => {
+      if (!considerTerminal(event.terminal)) {
+        return;
+      }
+      const combined = (pendingByTerminal.get(event.terminal) ?? "") + event.data;
+      const segments = combined.split(/\r?\n/);
+      pendingByTerminal.set(event.terminal, segments.pop() ?? "");
+      for (const segment of segments) {
+        pushLine(event.terminal, segment);
+      }
+    })
+  );
+  return {
+    snapshot: () => {
+      flushPending();
+      return [...lines];
+    },
+    dispose: () => {
+      flushPending();
+      while (disposables.length) {
+        disposables.pop()?.dispose();
+      }
+      trackedTerminals.clear();
+    },
+  };
+};
+
+const formatRuntimeDiagnosticsMessage = (
+  baseMessage: string,
+  options: { sessionId?: string; terminalLines: string[]; maxLines: number }
+): string => {
+  const { sessionId, terminalLines, maxLines } = options;
+  const sections: string[] = [];
+  if (sessionId) {
+    const exitCode = getSessionExitCode(sessionId);
+    if (typeof exitCode === "number") {
+      sections.push(`exit code: ${exitCode}`);
+    }
+    const sessionOutput = getSessionOutput(sessionId);
+    if (sessionOutput.length) {
+      const stderrLines = sessionOutput
+        .filter((line) => line.category === "stderr")
+        .slice(-maxLines)
+        .map((line) => truncateLine(stripAnsiEscapeCodes(line.text).trim()))
+        .filter((line) => line.length > 0);
+      if (stderrLines.length) {
+        sections.push(`stderr: ${stderrLines.join(" | ")}`);
+      } else {
+        const otherLines = sessionOutput
+          .slice(-maxLines)
+          .map(
+            (line) =>
+              `${line.category}: ${truncateLine(
+                stripAnsiEscapeCodes(line.text).trim()
+              )}`
+          )
+          .filter((line) => line.length > 0);
+        if (otherLines.length) {
+          sections.push(`output: ${otherLines.join(" | ")}`);
+        }
+      }
+    }
+  }
+  const sanitizedTerminal = terminalLines
+    .slice(-maxLines)
+    .map((line) => truncateLine(stripAnsiEscapeCodes(line).trim()))
+    .filter((line) => line.length > 0);
+  if (sanitizedTerminal.length) {
+    sections.push(`terminal: ${sanitizedTerminal.join(" | ")}`);
+  }
+  if (!sections.length) {
+    return baseMessage;
+  }
+  return `${baseMessage}\nRuntime diagnostics:\n- ${sections.join("\n- ")}`;
+};
+
+const resolveCwd = (cwd: string | undefined, baseDir: string) => {
+  if (!cwd) {
+    return baseDir;
+  }
+  return path.isAbsolute(cwd) ? cwd : path.join(baseDir, cwd);
+};
+
+const collectNodeBinDirs = (startDir: string) => {
+  const bins: string[] = [];
+  let current = startDir;
+  const seen = new Set<string>();
+  const parsed = path.parse(startDir);
+  while (!seen.has(current)) {
+    seen.add(current);
+    const candidate = path.join(current, "node_modules", ".bin");
+    if (fs.existsSync(candidate)) {
+      bins.push(candidate);
+    }
+    if (current === parsed.root) {
+      break;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      break;
+    }
+    current = parent;
+  }
+  return bins;
+};
+
+const mergeEnv = (
+  baseDir: string,
+  env?: Record<string, string>,
+  existingBins?: string[]
+): NodeJS.ProcessEnv => {
+  const merged: NodeJS.ProcessEnv = {
+    ...process.env,
+    ...env,
+  };
+  const binDirs = existingBins ?? collectNodeBinDirs(baseDir);
+  if (binDirs.length) {
+    const existingKey = Object.keys(merged).find(
+      (key) => key.toLowerCase() === "path"
+    );
+    const pathKey = existingKey || (process.platform === "win32" ? "Path" : "PATH");
+    const current = merged[pathKey] ?? "";
+    const segments = current
+      ? current.split(path.delimiter).filter((segment) => segment.length > 0)
+      : [];
+    for (let i = binDirs.length - 1; i >= 0; i -= 1) {
+      const dir = binDirs[i];
+      if (!segments.includes(dir)) {
+        segments.unshift(dir);
+      }
+    }
+    merged[pathKey] = segments.join(path.delimiter);
+    logger.debug(
+      `Augmented PATH for diagnostic capture with ${binDirs.length} node_modules/.bin directorie(s).`
+    );
+  }
+  return merged;
+};
+
+const coerceOutput = (value?: string | Buffer | null) => {
+  if (typeof value === "string") {
+    return value;
+  }
+  return value ? value.toString("utf-8") : "";
+};
+
+const resolveCommandFromBins = (command: string, binDirs: string[]) => {
+  if (/[\\/\s]/.test(command)) {
+    return undefined;
+  }
+  const extensions = process.platform === "win32"
+    ? [".cmd", ".bat", ".exe", ""]
+    : ["", ".sh"];
+  for (const dir of binDirs) {
+    for (const ext of extensions) {
+      const candidate = path.join(dir, `${command}${ext}`);
+      if (fs.existsSync(candidate)) {
+        return candidate;
+      }
+    }
+  }
+  return undefined;
+};
+
+const isTscCommand = (command: string) => {
+  const normalized = path.basename(command).toLowerCase();
+  return normalized === "tsc" || normalized === "tsc.cmd";
+};
+
+const trimWrappedQuotes = (value: string) => {
+  if (
+    (value.startsWith("\"") && value.endsWith("\"")) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    return value.slice(1, -1);
+  }
+  return value;
+};
+
+const parseShellCommandLine = (commandLine: string) => {
+  const tokens = commandLine.match(/"[^"]+"|'[^']+'|\S+/g);
+  if (!tokens || tokens.length === 0) {
+    return undefined;
+  }
+  const normalized = tokens.map((token) => trimWrappedQuotes(token));
+  return {
+    command: normalized[0],
+    args: normalized.slice(1),
+  };
+};
+
+const shouldRetryWithNpx = (
+  command: string,
+  result: ReturnType<typeof spawnSync>
+) => {
+  if (/[\\/\s]/.test(command)) {
+    return false;
+  }
+  const err = result.error as NodeJS.ErrnoException | undefined;
+  if (err && err.code === "ENOENT") {
+    return true;
+  }
+  const stderr = (result.stderr ?? "").toString();
+  return missingCommandPatterns.some((pattern) => pattern.test(stderr));
+};
+
+const runCommandForDiagnostics = (
+  command: string,
+  args: string[],
+  options: Parameters<typeof spawnSync>[2],
+  binDirs: string[]
+) => {
+  let resolvedCommand = command;
+  let resolvedArgs = args;
+  let routedToTypescript = false;
+  if (typescriptCliPath && isTscCommand(command)) {
+    resolvedCommand = process.execPath;
+    resolvedArgs = [typescriptCliPath, ...args];
+    routedToTypescript = true;
+  } else {
+    resolvedCommand = resolveCommandFromBins(command, binDirs) ?? command;
+  }
+  const direct = spawnSync(resolvedCommand, resolvedArgs, options);
+  if (routedToTypescript || !shouldRetryWithNpx(command, direct)) {
+    return direct;
+  }
+  logger.warn(
+    `Command '${command}' unavailable when capturing diagnostics. Retrying via npx.`
+  );
+  const npxExecutable = process.platform === "win32" ? "npx.cmd" : "npx";
+  return spawnSync(npxExecutable, [command, ...args], {
+    ...options,
+    shell: true,
+  });
+};
+
+const collectTypescriptCliOutput = (cwd: string) => {
+  if (!typescriptCliPath) {
+    return [];
+  }
+  try {
+    const result = spawnSync(
+      process.execPath,
+      [typescriptCliPath, "--noEmit", "--pretty", "false"],
+      {
+        cwd,
+        encoding: "utf-8",
+        maxBuffer: 1024 * 1024,
+      }
+    );
+    const lines = [
+      ...sanitizeTaskOutput(coerceOutput(result.stdout)),
+      ...sanitizeTaskOutput(coerceOutput(result.stderr)),
+    ];
+    return lines.slice(-MAX_CAPTURED_TASK_OUTPUT_LINES);
+  } catch (err) {
+    logger.warn(
+      `Failed to collect TypeScript CLI output: ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    );
+    return [];
+  }
+};
+
+const captureShellExecutionOutput = (
+  execution: vscode.ShellExecution,
+  baseCwd: string
+): string[] => {
+  const cwd = resolveCwd(execution.options?.cwd, baseCwd);
+  const binDirs = collectNodeBinDirs(baseCwd);
+  const env = mergeEnv(baseCwd, execution.options?.env, binDirs);
+  let result: ReturnType<typeof spawnSync> | undefined;
+  if (execution.command) {
+    const command =
+      typeof execution.command === "string"
+        ? execution.command
+        : execution.command.value;
+    const args = (execution.args || []).map((arg) =>
+      typeof arg === "string" ? arg : arg.value
+    );
+    result = runCommandForDiagnostics(
+      command,
+      args,
+      {
+        cwd,
+        env,
+        shell: process.platform === "win32",
+        encoding: "utf-8",
+        maxBuffer: 1024 * 1024,
+      },
+      binDirs
+    );
+  } else if (execution.commandLine) {
+    const parsed = parseShellCommandLine(execution.commandLine);
+    if (parsed) {
+      result = runCommandForDiagnostics(
+        parsed.command,
+        parsed.args,
+        {
+          cwd,
+          env,
+          shell: process.platform === "win32",
+          encoding: "utf-8",
+          maxBuffer: 1024 * 1024,
+        },
+        binDirs
+      );
+    } else {
+      result = spawnSync(execution.commandLine, {
+        cwd,
+        env,
+        shell: true,
+        encoding: "utf-8",
+        maxBuffer: 1024 * 1024,
+      });
+    }
+  }
+  if (!result) {
+    return [];
+  }
+  const lines = [
+    ...sanitizeTaskOutput(coerceOutput(result.stdout)),
+    ...sanitizeTaskOutput(coerceOutput(result.stderr)),
+  ];
+  return lines.slice(-MAX_CAPTURED_TASK_OUTPUT_LINES);
+};
+
+const captureProcessExecutionOutput = (
+  execution: vscode.ProcessExecution,
+  baseCwd: string
+): string[] => {
+  const cwd = resolveCwd(execution.options?.cwd, baseCwd);
+  const binDirs = collectNodeBinDirs(baseCwd);
+  const env = mergeEnv(baseCwd, execution.options?.env, binDirs);
+  const result = runCommandForDiagnostics(
+    execution.process,
+    execution.args || [],
+    {
+      cwd,
+      env,
+      shell: process.platform === "win32",
+      encoding: "utf-8",
+      maxBuffer: 1024 * 1024,
+    },
+    binDirs
+  );
+  const lines = [
+    ...sanitizeTaskOutput(coerceOutput(result.stdout)),
+    ...sanitizeTaskOutput(coerceOutput(result.stderr)),
+  ];
+  return lines.slice(-MAX_CAPTURED_TASK_OUTPUT_LINES);
+};
+
+const captureTaskOutputLines = (
+  taskExecution: vscode.TaskExecution,
+  baseCwd: string
+): string[] => {
+  const execution = taskExecution.task.execution;
+  if (!execution) {
+    logger.warn(
+      `Task ${taskExecution.task.name} does not expose execution details; unable to capture output.`
+    );
+    return [];
+  }
+  const isShellExecution = (
+    candidate: typeof execution
+  ): candidate is vscode.ShellExecution => {
+    const shellCandidate = candidate as vscode.ShellExecution;
+    return (
+      typeof shellCandidate.commandLine === "string" ||
+      typeof shellCandidate.command !== "undefined"
+    );
+  };
+  const isProcessExecution = (
+    candidate: typeof execution
+  ): candidate is vscode.ProcessExecution => {
+    return typeof (candidate as vscode.ProcessExecution).process === "string";
+  };
+  try {
+    if (isShellExecution(execution)) {
+      return captureShellExecutionOutput(execution, baseCwd);
+    }
+    if (isProcessExecution(execution)) {
+      return captureProcessExecutionOutput(execution, baseCwd);
+    }
+    logger.warn(
+      `Task ${taskExecution.task.name} uses unsupported execution type; unable to capture output.`
+    );
+  } catch (err) {
+    logger.warn(
+      `Failed to capture task output for ${taskExecution.task.name}: ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    );
+  }
+  return [];
+};
+
+const monitorTask = (
+  taskExecution: vscode.TaskExecution,
+  baseCwd: string
+): Promise<TaskCompletionResult> => {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const disposables: vscode.Disposable[] = [];
+    const cleanup = () => {
+      while (disposables.length) {
+        disposables.pop()?.dispose();
+      }
+    };
+    const complete = (result: TaskCompletionResult) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      resolve(result);
+    };
+    const fail = (error: Error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+
+    disposables.push(
+      vscode.tasks.onDidEndTaskProcess((event) => {
+        if (event.execution === taskExecution) {
+          const exitCode = event.exitCode ?? undefined;
+          complete({
+            name: taskExecution.task.name,
+            exitCode,
+            outputLines:
+              typeof exitCode === "number" && exitCode !== 0
+                ? captureTaskOutputLines(taskExecution, baseCwd)
+                : [],
+          });
+        }
+      })
+    );
+
+    disposables.push(
+      vscode.tasks.onDidEndTask((event) => {
+        if (event.execution === taskExecution) {
+          complete({
+            name: taskExecution.task.name,
+            exitCode: undefined,
+            outputLines: [],
+          });
+        }
+      })
+    );
+
+    disposables.push(
+      vscode.tasks.onDidStartTaskProcess((event) => {
+        if (event.execution === taskExecution && event.processId === undefined) {
+          fail(
+            new Error(
+              `Failed to start task ${taskExecution.task.name}. Terminal could not be created.`
+            )
+          );
+        }
+      })
+    );
+  });
 };
 
 /**
@@ -400,6 +1055,29 @@ export const startDebuggingAndWaitForStop = async (params: {
     );
   }
   const folderFsPath = folder.uri.fsPath;
+  const trackedTaskPromises: Promise<TaskCompletionResult>[] = [];
+  const trackedExecutions = new Set<vscode.TaskExecution>();
+  let taskTrackingArmed = false;
+  const shouldTrackTask = (task: vscode.Task) => {
+    const scope = task.scope;
+    if (!scope) {
+      return false;
+    }
+    if (scope === vscode.TaskScope.Global) {
+      return false;
+    }
+    if (scope === vscode.TaskScope.Workspace) {
+      return true;
+    }
+    if (typeof scope === "object" && "uri" in scope && scope.uri) {
+      const folderScope = scope as vscode.WorkspaceFolder;
+      return (
+        normalizeFsPath(folderScope.uri.fsPath) === normalizedRequestedFolder
+      );
+    }
+    return false;
+  };
+  let taskStartDisposable: vscode.Disposable | undefined;
   // Automatic backup & isolation of existing breakpoints (no extra params required)
   const originalBreakpoints = [...vscode.debug.breakpoints];
   if (originalBreakpoints.length) {
@@ -531,6 +1209,58 @@ export const startDebuggingAndWaitForStop = async (params: {
     folder.uri
   );
   const settingTimeout = settings.get<number>("entryTimeoutSeconds");
+  const settingMaxBuildErrors = settings.get<number>("maxBuildErrors");
+  const maxRuntimeOutputLines = settings.get<number>("maxOutputLines") ?? 50;
+  const terminalCapture = createTerminalOutputCapture(maxRuntimeOutputLines);
+  const withRuntimeDiagnostics = (message: string, sessionId?: string) =>
+    formatRuntimeDiagnosticsMessage(message, {
+      sessionId,
+      terminalLines: terminalCapture.snapshot(),
+      maxLines: maxRuntimeOutputLines,
+    });
+  const effectiveMaxBuildErrors =
+    typeof settingMaxBuildErrors === "number" && settingMaxBuildErrors > 0
+      ? settingMaxBuildErrors
+      : 5;
+  const buildFailureDetails = async (baseMessage: string) => {
+    const diagnostics = collectBuildDiagnostics(
+      folder.uri,
+      effectiveMaxBuildErrors
+    );
+    const taskResults = await Promise.all(trackedTaskPromises);
+    const shouldCaptureTypescriptCli =
+      !!typescriptCliPath &&
+      taskResults.some((result) =>
+        result.name.toLowerCase().includes("tsc")
+      ) &&
+      taskResults.every((result) => result.outputLines.length === 0);
+    const typescriptCliLines = shouldCaptureTypescriptCli
+      ? collectTypescriptCliOutput(folderFsPath)
+      : [];
+    const augmentedTaskResults = typescriptCliLines.length
+      ? [
+          {
+            name: "TypeScript CLI (--noEmit)",
+            exitCode: 1,
+            outputLines: typescriptCliLines,
+          } as TaskCompletionResult,
+          ...taskResults,
+        ]
+      : taskResults;
+    const trackedAnyTasks = trackedTaskPromises.length > 0;
+    const hasTaskFailures = augmentedTaskResults.some(
+      (result) => typeof result.exitCode === "number" && result.exitCode !== 0
+    );
+    const hasDiagnostics = trackedAnyTasks && diagnostics.length > 0;
+    if (!hasTaskFailures && !hasDiagnostics) {
+      return undefined;
+    }
+    const diagnosticText = formatBuildErrors(diagnostics);
+    const taskFailureText = formatTaskFailures(augmentedTaskResults);
+    return `${baseMessage}\n${diagnosticText}${taskFailureText}`
+      .trim()
+      .replace(/\n{3,}/g, "\n\n");
+  };
   const effectiveTimeoutSeconds =
     typeof timeoutOverride === "number" && timeoutOverride > 0
       ? timeoutOverride
@@ -585,9 +1315,43 @@ export const startDebuggingAndWaitForStop = async (params: {
   // Prevent unhandled rejection warning (error is rethrown via awaited path below)
   void entryStopPromise.catch(() => {});
 
+  if (!taskStartDisposable) {
+    taskStartDisposable = vscode.tasks.onDidStartTask((event) => {
+      if (!taskTrackingArmed) {
+        return;
+      }
+      if (trackedExecutions.has(event.execution)) {
+        return;
+      }
+      if (!shouldTrackTask(event.execution.task)) {
+        return;
+      }
+      trackedExecutions.add(event.execution);
+      const monitored = monitorTask(event.execution, folderFsPath).catch(
+        (err) => {
+          logger.warn(
+            `Task monitoring failed for ${event.execution.task.name}: ${
+              err instanceof Error ? err.message : String(err)
+            }`
+          );
+          return {
+            name: event.execution.task.name,
+            exitCode: undefined,
+            outputLines: [],
+          } as TaskCompletionResult;
+        }
+      );
+      trackedTaskPromises.push(monitored);
+    });
+  }
+
+  taskTrackingArmed = true;
   const success = await vscode.debug.startDebugging(folder, resolvedConfig);
+  taskTrackingArmed = false;
   if (!success) {
-    throw new Error(`Failed to start debug session '${effectiveSessionName}'.`);
+    const baseMessage = `Failed to start debug session '${effectiveSessionName}'.`;
+    const augmented = await buildFailureDetails(baseMessage);
+    throw new Error(augmented ?? baseMessage);
   }
   const startT = Date.now();
   let remainingMs = effectiveTimeoutSeconds * 1000;
@@ -602,7 +1366,10 @@ export const startDebuggingAndWaitForStop = async (params: {
     remainingMs = Math.max(0, remainingMs - (afterEntry - startT));
     if (entryStop.reason === "terminated") {
       throw new Error(
-        `Debug session '${effectiveSessionName}' terminated before hitting entry.`
+        withRuntimeDiagnostics(
+          `Debug session '${effectiveSessionName}' terminated before hitting entry.`,
+          entryStop.session.id
+        )
       );
     }
     const sessionId = entryStop.session.id;
@@ -655,7 +1422,10 @@ export const startDebuggingAndWaitForStop = async (params: {
     }
     if (finalStop.reason === "terminated") {
       throw new Error(
-        `Debug session '${effectiveSessionName}' terminated before hitting a user breakpoint.`
+        withRuntimeDiagnostics(
+          `Debug session '${effectiveSessionName}' terminated before hitting a user breakpoint.`,
+          finalStop.session.id
+        )
       );
     }
     // If serverReady was NOT the entry stop but becomes the first user stop, process it now then continue.
@@ -688,7 +1458,10 @@ export const startDebuggingAndWaitForStop = async (params: {
       });
       if (nextStop.reason === "terminated") {
         throw new Error(
-          `Debug session '${effectiveSessionName}' terminated after serverReady processing before hitting a user breakpoint.`
+          withRuntimeDiagnostics(
+            `Debug session '${effectiveSessionName}' terminated after serverReady processing before hitting a user breakpoint.`,
+            finalStop.session.id
+          )
         );
       }
       finalStop = nextStop;
@@ -854,7 +1627,19 @@ export const startDebuggingAndWaitForStop = async (params: {
       hitBreakpoint,
       capturedLogMessages,
     };
+  } catch (error) {
+    taskTrackingArmed = false;
+    const baseMessage =
+      error instanceof Error ? error.message : String(error);
+    const augmented = await buildFailureDetails(baseMessage);
+    if (augmented) {
+      throw new Error(augmented);
+    }
+    throw error;
   } finally {
+    taskTrackingArmed = false;
+    terminalCapture.dispose();
+    taskStartDisposable?.dispose();
     // Restore original breakpoints, removing any added ones first
     const current = vscode.debug.breakpoints;
     if (current.length) {

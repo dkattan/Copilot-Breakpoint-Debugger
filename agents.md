@@ -140,6 +140,12 @@ The debug tracker extension provides API services for monitoring debug sessions 
 - Always validate workspace folder exists before debugging operations
 - **NO FALLBACK CODE**: Never implement fallback code or fallback logic. Fallback code hides underlying issues and makes debugging harder. If something fails, it should fail explicitly with a clear error message.
 
+### Runtime Diagnostics Capture
+
+- `startDebuggingAndWaitForStop` now streams integrated-terminal output using `vscode.window.onDidWriteTerminalData` so crash diagnostics are available even when adapters bypass the Debug Console (e.g., configs with `console: "integratedTerminal"`).
+- The extension declares the `terminalDataWriteEvent` proposal via `enabledApiProposals` in `package.json` and tests pass `--enable-proposed-api dkattan.copilot-breakpoint-debugger` through `.vscode-test.mjs` launch args.
+- Runtime error messages automatically append exit codes, DAP stderr, and/or terminal lines (capped by `copilot-debugger.maxOutputLines`), keeping messaging concise while surfacing crash context for Copilot tools.
+
 ## External Dependencies
 
 ### debug-tracker-vscode Integration

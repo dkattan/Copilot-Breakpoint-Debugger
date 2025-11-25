@@ -28,6 +28,24 @@ async function collectAllVariables(
   return allVariables;
 }
 
+function flattenScopeVariables(
+  scopeVariables?: {
+    scopeName: string;
+    variables: { name: string; value: string }[];
+  }[]
+): { name: string; value: string }[] {
+  if (!scopeVariables?.length) {
+    return [];
+  }
+  const flattened: { name: string; value: string }[] = [];
+  for (const scope of scopeVariables) {
+    for (const variable of scope.variables) {
+      flattened.push({ name: variable.name, value: variable.value });
+    }
+  }
+  return flattened;
+}
+
 /**
  * Assert that specific variables are present in the collected variables
  */
@@ -135,10 +153,10 @@ describe('multi-Root Workspace Integration', () => {
     const activeSession = vscode.debug.activeDebugSession;
     assert.ok(activeSession, 'No active debug session after breakpoint hit');
 
-    const allVariables = await collectAllVariables(
-      activeSession,
-      context.scopes
-    );
+    const preCollected = flattenScopeVariables(context.scopeVariables);
+    const allVariables = preCollected.length
+      ? preCollected
+      : await collectAllVariables(activeSession, context.scopes);
 
     // Verify that we got the expected variables
     assertVariablesPresent(allVariables, ['i']);
@@ -189,10 +207,10 @@ describe('multi-Root Workspace Integration', () => {
     const activeSession = vscode.debug.activeDebugSession;
     assert.ok(activeSession, 'No active debug session after breakpoint hit');
 
-    const allVariables = await collectAllVariables(
-      activeSession,
-      context.scopes
-    );
+    const preCollected = flattenScopeVariables(context.scopeVariables);
+    const allVariables = preCollected.length
+      ? preCollected
+      : await collectAllVariables(activeSession, context.scopes);
 
     // Verify we got the variable 'i' and that its value is >= 3
     const iVariable = allVariables.find(v => v.name === 'i');

@@ -12,9 +12,10 @@
 ## User-Facing Commands Added
 
 - `copilotBreakpointDebugger.startAndWaitManual` now uses existing workspace breakpoints. It will:
-  2. Prompt only for a launch configuration and a comma-separated variable list (no file path / line prompts).
-  3. Derive a breakpoint configuration from all existing breakpoints and invoke the core start logic with `useExistingBreakpoints: true`.
-  4. Restore original breakpoints after session completes (unchanged core behavior).
+
+  1. Prompt only for a launch configuration and a comma-separated variable list (no file path / line prompts).
+  2. Derive a breakpoint configuration from all existing breakpoints and invoke the core start logic with `useExistingBreakpoints: true`.
+  3. Restore original breakpoints after session completes (unchanged core behavior).
 
 - `copilotBreakpointDebugger.setDefaultLaunchConfiguration` lets users set the workspace-scoped `copilot-debugger.defaultLaunchConfiguration` setting via a quick pick of launch configurations found in `.vscode/launch.json`.
 
@@ -112,7 +113,7 @@ Example workspace setting:
 
 ```jsonc
 {
-  "copilot-debugger.entryTimeoutSeconds": 180,
+  "copilot-debugger.entryTimeoutSeconds": 180
 }
 ```
 
@@ -143,7 +144,6 @@ The debug tracker extension provides API services for monitoring debug sessions 
 ### Runtime Diagnostics Capture
 
 - `startDebuggingAndWaitForStop` streams integrated-terminal output by subscribing to `window.onDidStartTerminalShellExecution` / `window.onDidEndTerminalShellExecution` and piping each `TerminalShellExecution.read()` stream into the runtime diagnostics buffer. This keeps crash context available even when adapters bypass the Debug Console (e.g., configs with `console: "integratedTerminal"`).
-- The capture path now relies solely on stable shell-integration APIs—no `--enable-proposed-api` or manifest `enabledApiProposals` entry is required.
 - Runtime error messages automatically append exit codes, DAP stderr, and/or terminal lines (capped by `copilot-debugger.maxOutputLines`), keeping messaging concise while surfacing crash context for Copilot tools.
 
 ## External Dependencies

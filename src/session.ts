@@ -220,12 +220,8 @@ export const createTerminalOutputCapture = (
   maxLines: number
 ): TerminalOutputCapture => {
   type TerminalShellWindow = typeof vscode.window & {
-    onDidStartTerminalShellExecution?: vscode.Event<
-      vscode.TerminalShellExecutionStartEvent
-    >;
-    onDidEndTerminalShellExecution?: vscode.Event<
-      vscode.TerminalShellExecutionEndEvent
-    >;
+    onDidStartTerminalShellExecution?: vscode.Event<vscode.TerminalShellExecutionStartEvent>;
+    onDidEndTerminalShellExecution?: vscode.Event<vscode.TerminalShellExecutionEndEvent>;
   };
   const terminalShellWindow = vscode.window as TerminalShellWindow;
   const startEvent = terminalShellWindow.onDidStartTerminalShellExecution;
@@ -460,7 +456,8 @@ const mergeEnv = (
     const existingKey = Object.keys(merged).find(
       (key) => key.toLowerCase() === "path"
     );
-    const pathKey = existingKey || (process.platform === "win32" ? "Path" : "PATH");
+    const pathKey =
+      existingKey || (process.platform === "win32" ? "Path" : "PATH");
     const current = merged[pathKey] ?? "";
     const segments = current
       ? current.split(path.delimiter).filter((segment) => segment.length > 0)
@@ -490,9 +487,8 @@ const resolveCommandFromBins = (command: string, binDirs: string[]) => {
   if (/[\\/\s]/.test(command)) {
     return undefined;
   }
-  const extensions = process.platform === "win32"
-    ? [".cmd", ".bat", ".exe", ""]
-    : ["", ".sh"];
+  const extensions =
+    process.platform === "win32" ? [".cmd", ".bat", ".exe", ""] : ["", ".sh"];
   for (const dir of binDirs) {
     for (const ext of extensions) {
       const candidate = path.join(dir, `${command}${ext}`);
@@ -511,7 +507,7 @@ const isTscCommand = (command: string) => {
 
 const trimWrappedQuotes = (value: string) => {
   if (
-    (value.startsWith("\"") && value.endsWith("\"")) ||
+    (value.startsWith('"') && value.endsWith('"')) ||
     (value.startsWith("'") && value.endsWith("'"))
   ) {
     return value.slice(1, -1);
@@ -798,7 +794,10 @@ const monitorTask = (
 
     disposables.push(
       vscode.tasks.onDidStartTaskProcess((event) => {
-        if (event.execution === taskExecution && event.processId === undefined) {
+        if (
+          event.execution === taskExecution &&
+          event.processId === undefined
+        ) {
           fail(
             new Error(
               `Failed to start task ${taskExecution.task.name}. Terminal could not be created.`
@@ -1286,9 +1285,7 @@ export const startDebuggingAndWaitForStop = async (params: {
     const taskResults = await Promise.all(trackedTaskPromises);
     const shouldCaptureTypescriptCli =
       !!typescriptCliPath &&
-      taskResults.some((result) =>
-        result.name.toLowerCase().includes("tsc")
-      ) &&
+      taskResults.some((result) => result.name.toLowerCase().includes("tsc")) &&
       taskResults.every((result) => result.outputLines.length === 0);
     const typescriptCliLines = shouldCaptureTypescriptCli
       ? collectTypescriptCliOutput(folderFsPath)
@@ -1685,8 +1682,7 @@ export const startDebuggingAndWaitForStop = async (params: {
     };
   } catch (error) {
     taskTrackingArmed = false;
-    const baseMessage =
-      error instanceof Error ? error.message : String(error);
+    const baseMessage = error instanceof Error ? error.message : String(error);
     const augmented = await buildFailureDetails(baseMessage);
     if (augmented) {
       throw new Error(augmented);

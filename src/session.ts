@@ -216,29 +216,36 @@ interface TerminalOutputCapture {
   dispose: () => void;
 }
 
-interface TerminalDataWriteEvent {
-  terminal: vscode.Terminal;
-  data: string;
-}
-
-type TerminalDataWindow = typeof vscode.window & {
-  onDidWriteTerminalData?: (
-    listener: (event: TerminalDataWriteEvent) => void,
-    thisArgs?: unknown,
-    disposables?: vscode.Disposable[]
-  ) => vscode.Disposable;
-};
-
-const createTerminalOutputCapture = (maxLines: number): TerminalOutputCapture => {
-  const terminalDataEmitter = (vscode.window as TerminalDataWindow)
-    .onDidWriteTerminalData;
-  if (maxLines <= 0 || typeof terminalDataEmitter !== "function") {
+export const createTerminalOutputCapture = (
+  maxLines: number
+): TerminalOutputCapture => {
+  type TerminalShellWindow = typeof vscode.window & {
+    onDidStartTerminalShellExecution?: vscode.Event<
+      vscode.TerminalShellExecutionStartEvent
+    >;
+    onDidEndTerminalShellExecution?: vscode.Event<
+      vscode.TerminalShellExecutionEndEvent
+    >;
+  };
+  const terminalShellWindow = vscode.window as TerminalShellWindow;
+  const startEvent = terminalShellWindow.onDidStartTerminalShellExecution;
+  const endEvent = terminalShellWindow.onDidEndTerminalShellExecution;
+  if (
+    maxLines <= 0 ||
+    typeof startEvent !== "function" ||
+    typeof endEvent !== "function"
+  ) {
     return { snapshot: () => [], dispose: () => undefined };
   }
   const lines: string[] = [];
   const pendingByTerminal = new Map<vscode.Terminal, string>();
   const trackedTerminals = new Set<vscode.Terminal>();
   const initialTerminals = new Set(vscode.window.terminals);
+  const activeExecutions = new Map<
+    vscode.TerminalShellExecution,
+    vscode.Terminal
+  >();
+  const pumpTasks = new Set<Promise<void>>();
   const pushLine = (terminal: vscode.Terminal, raw: string) => {
     const sanitized = stripAnsiEscapeCodes(raw).trim();
     if (!sanitized) {
@@ -247,6 +254,14 @@ const createTerminalOutputCapture = (maxLines: number): TerminalOutputCapture =>
     lines.push(`${terminal.name}: ${truncateLine(sanitized)}`);
     if (lines.length > maxLines) {
       lines.shift();
+    }
+  };
+  const appendChunk = (terminal: vscode.Terminal, chunk: string) => {
+    const combined = (pendingByTerminal.get(terminal) ?? "") + chunk;
+    const segments = combined.split(/\r?\n/);
+    pendingByTerminal.set(terminal, segments.pop() ?? "");
+    for (const segment of segments) {
+      pushLine(terminal, segment);
     }
   };
   const considerTerminal = (terminal: vscode.Terminal): boolean => {
@@ -263,13 +278,18 @@ const createTerminalOutputCapture = (maxLines: number): TerminalOutputCapture =>
     }
     return false;
   };
-  const flushPending = () => {
-    for (const [terminal, remainder] of pendingByTerminal.entries()) {
+  const flushPending = (terminal?: vscode.Terminal) => {
+    if (terminal) {
+      const remainder = pendingByTerminal.get(terminal);
       if (remainder && remainder.trim()) {
         pushLine(terminal, remainder);
       }
+      pendingByTerminal.delete(terminal);
+      return;
     }
-    pendingByTerminal.clear();
+    for (const tracked of Array.from(pendingByTerminal.keys())) {
+      flushPending(tracked);
+    }
   };
   const disposables: vscode.Disposable[] = [];
   disposables.push(
@@ -284,16 +304,51 @@ const createTerminalOutputCapture = (maxLines: number): TerminalOutputCapture =>
     })
   );
   disposables.push(
-    terminalDataEmitter((event: TerminalDataWriteEvent) => {
+    startEvent((event) => {
       if (!considerTerminal(event.terminal)) {
         return;
       }
-      const combined = (pendingByTerminal.get(event.terminal) ?? "") + event.data;
-      const segments = combined.split(/\r?\n/);
-      pendingByTerminal.set(event.terminal, segments.pop() ?? "");
-      for (const segment of segments) {
-        pushLine(event.terminal, segment);
+      let stream: AsyncIterable<string>;
+      try {
+        stream = event.execution.read();
+      } catch (err) {
+        logger.warn(
+          `Failed to read terminal shell execution data: ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        );
+        return;
       }
+      activeExecutions.set(event.execution, event.terminal);
+      const pump = (async () => {
+        try {
+          for await (const chunk of stream) {
+            if (!chunk) {
+              continue;
+            }
+            appendChunk(event.terminal, chunk);
+          }
+        } catch (streamErr) {
+          logger.warn(
+            `Terminal shell execution stream failed: ${
+              streamErr instanceof Error ? streamErr.message : String(streamErr)
+            }`
+          );
+        } finally {
+          activeExecutions.delete(event.execution);
+        }
+      })();
+      pumpTasks.add(pump);
+      void pump.finally(() => pumpTasks.delete(pump));
+    })
+  );
+  disposables.push(
+    endEvent((event) => {
+      const terminal = activeExecutions.get(event.execution) ?? event.terminal;
+      if (!terminal || !trackedTerminals.has(terminal)) {
+        return;
+      }
+      flushPending(terminal);
     })
   );
   return {
@@ -306,6 +361,7 @@ const createTerminalOutputCapture = (maxLines: number): TerminalOutputCapture =>
       while (disposables.length) {
         disposables.pop()?.dispose();
       }
+      pumpTasks.clear();
       trackedTerminals.clear();
     },
   };

@@ -142,8 +142,8 @@ The debug tracker extension provides API services for monitoring debug sessions 
 
 ### Runtime Diagnostics Capture
 
-- `startDebuggingAndWaitForStop` now streams integrated-terminal output using `vscode.window.onDidWriteTerminalData` so crash diagnostics are available even when adapters bypass the Debug Console (e.g., configs with `console: "integratedTerminal"`).
-- The extension declares the `terminalDataWriteEvent` proposal via `enabledApiProposals` in `package.json` and tests pass `--enable-proposed-api dkattan.copilot-breakpoint-debugger` through `.vscode-test.mjs` launch args.
+- `startDebuggingAndWaitForStop` streams integrated-terminal output by subscribing to `window.onDidStartTerminalShellExecution` / `window.onDidEndTerminalShellExecution` and piping each `TerminalShellExecution.read()` stream into the runtime diagnostics buffer. This keeps crash context available even when adapters bypass the Debug Console (e.g., configs with `console: "integratedTerminal"`).
+- The capture path now relies solely on stable shell-integration APIs—no `--enable-proposed-api` or manifest `enabledApiProposals` entry is required.
 - Runtime error messages automatically append exit codes, DAP stderr, and/or terminal lines (capped by `copilot-debugger.maxOutputLines`), keeping messaging concise while surfacing crash context for Copilot tools.
 
 ## External Dependencies

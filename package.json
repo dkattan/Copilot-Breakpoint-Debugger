@@ -36,9 +36,6 @@
     "onLanguageModelTools",
     "onStartupFinished"
   ],
-  "enabledApiProposals": [
-    "terminalDataWriteEvent"
-  ],
   "contributes": {
     "commands": [
       {

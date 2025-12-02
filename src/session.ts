@@ -1437,18 +1437,18 @@ export const startDebuggingAndWaitForStop = async (params: {
     const hasSessions = err.details.sessions.length > 0;
     const sessionLines = hasSessions
       ? err.details.sessions.map((session, index) => {
-      const status = session.stopped
-        ? "stopped after timeout"
-        : session.stopError
-        ? `could not stop (${session.stopError})`
-        : "still running when timeout fired";
-      const request = session.request ?? "unknown";
-      const cfgName = session.configurationName
-        ? ` launch='${session.configurationName}'`
-        : "";
-      const folder = session.workspaceFolder
-        ? ` workspace='${session.workspaceFolder}'`
-        : "";
+          const status = session.stopped
+            ? "stopped after timeout"
+            : session.stopError
+            ? `could not stop (${session.stopError})`
+            : "still running when timeout fired";
+          const request = session.request ?? "unknown";
+          const cfgName = session.configurationName
+            ? ` launch='${session.configurationName}'`
+            : "";
+          const folder = session.workspaceFolder
+            ? ` workspace='${session.workspaceFolder}'`
+            : "";
           return `${index + 1}. ${session.name} (id=${
             session.id
           }) [request=${request}${cfgName}${folder}] status=${status}`;

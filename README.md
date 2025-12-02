@@ -43,19 +43,68 @@ npm run compile
 
 ## 🔧 Configuration
 
-`copilot-debugger.defaultLaunchConfiguration` – The name of a `launch.json` configuration OR an inline JSON object (e.g. `{"type":"node","request":"launch","program":"${workspaceFolder}/index.js"}`).
+### Commands
 
-`copilot-debugger.entryTimeoutSeconds` – How long (in seconds) to wait for the initial _entry_ stop after launching (before continuing to user breakpoints). Increase this for large projects with long cold builds or container start times (e.g. 180). If the entry stop is not observed within the window a timeout error is returned.
+<!-- commands-list -->
 
-`copilot-debugger.captureMaxVariables` – Upper bound (# of variables) auto‑captured when a breakpoint uses `action: "capture"` but omits `variableFilter` (capture‑all mode). Defaults to 40 to keep responses concise.
+#### Copilot Breakpoint Debugger: Copilot Breakpoint Debugger: Manual Start &amp; Wait
+Command                                                     : `copilotBreakpointDebugger.startAndWaitManual`  
 
-`copilot-debugger.serverReadyEnabled` – Globally enable/disable serverReady automation. When false, any provided `serverReady` payload is ignored (useful for troubleshooting).
+#### Copilot Breakpoint Debugger: Copilot Breakpoint Debugger: Insert Sample Start Payload
+Command                                                     : `copilotBreakpointDebugger.insertSampleStartDebuggerPayload`  
 
-`copilot-debugger.serverReadyDefaultActionType` – Preferred action type surfaced in samples / quick insert command (httpRequest | shellCommand | vscodeCommand).
+<!-- commands-list -->
 
-`copilot-debugger.consoleLogLevel` – Minimum level mirrored to the developer console via `console.*` while the Output channel always records every log (`trace`, `debug`, `info`, `warn`, `error`, `off`). Changes take effect instantly without reloading VS Code.
+### Settings
 
-`copilot-debugger.enableTraceLogging` – When `true`, emit verbose Debug Adapter Protocol traces alongside normal logs for deep troubleshooting.
+<!-- configs-list -->
+
+#### `copilot-debugger.defaultLaunchConfiguration`
+Description                                                                                                                                                                                        : Name of the default launch configuration to use when starting the debugger  
+Type     : `string`  
+Default        : `""`  
+
+#### `copilot-debugger.entryTimeoutSeconds`
+Description                                                                                                                                                                                        : Timeout in seconds waiting for initial entry stop after launching (before first user breakpoint). Supports long startup/build times; must be &gt; 0.  
+Type     : `integer`  
+Default        : `60`  
+
+#### `copilot-debugger.captureMaxVariables`
+Description                                                                                                                                                                                        : Maximum number of variables auto-captured when a breakpoint action=capture omits variableFilter (capture-all mode).  
+Type     : `integer`  
+Default        : `40`  
+
+#### `copilot-debugger.serverReadyEnabled`
+Description                                                                                                                                                                                        : Enable serverReady automation (trigger + action). When disabled, provided serverReady payloads are ignored.  
+Type     : `boolean`  
+Default        : `true`  
+
+#### `copilot-debugger.serverReadyDefaultActionType`
+Description                                                                                                                                                                                        : Preferred serverReady action type surfaced in samples and quick insert command.  
+Type     : `string`  
+Default        : `"httpRequest"`  
+
+#### `copilot-debugger.maxBuildErrors`
+Description                                                                                                                                                                                        : Maximum number of build diagnostics (from problem matchers) to include in error messages when debug session fails to start.  
+Type     : `integer`  
+Default        : `5`  
+
+#### `copilot-debugger.maxOutputLines`
+Description                                                                                                                                                                                        : Maximum number of output lines (stderr/stdout) to buffer per debug session for runtime error reporting.  
+Type     : `integer`  
+Default        : `50`  
+
+#### `copilot-debugger.consoleLogLevel`
+Description                                                                                                                                                                                        : Controls how verbosely logs are mirrored to the developer console (Output panel always receives every log; this only gates console.* mirroring). Changes take effect immediately without reloading.  
+Type     : `string`  
+Default        : `"info"`  
+
+#### `copilot-debugger.enableTraceLogging`
+Description                                                                                                                                                                                        : Emit verbose Debug Adapter Protocol trace logs to the output channel for troubleshooting.  
+Type     : `boolean`  
+Default        : `false`  
+
+<!-- configs-list -->
 
 > **Important (updated):** `start_debugger_with_breakpoints` requires at least one breakpoint. `variableFilter` is **only required** when you want a _subset_ of variables for a `capture` action. If you set `action: "capture"` and omit `variableFilter`, the tool auto-captures the first `captureMaxVariables` locals (case‑sensitive exact names) to reduce friction. For `break` or `stopDebugging` actions, omit `variableFilter` for a pure pause without variable output.
 

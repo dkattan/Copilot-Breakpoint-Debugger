@@ -6,8 +6,10 @@ import * as path from "node:path";
 import * as process from "node:process";
 import stripAnsi from "strip-ansi";
 import * as vscode from "vscode";
+import { useTerminal } from "reactive-vscode";
 import { activeSessions } from "./common";
 import { DAPHelpers, type DebugContext, type VariableInfo } from "./debugUtils";
+import { config } from "./config";
 import {
   EntryStopTimeoutError,
   getSessionExitCode,
@@ -897,9 +899,17 @@ export const startDebuggingAndWaitForStop = async (params: {
     nameOrConfiguration,
     timeoutSeconds: timeoutOverride,
     breakpointConfig,
-    serverReady,
+    serverReady: serverReadyParam,
     useExistingBreakpoints: _useExistingBreakpoints = false,
   } = params;
+
+  const serverReadyEnabled = config.serverReadyEnabled !== false;
+  if (serverReadyParam && !serverReadyEnabled) {
+    logger.info(
+      "serverReady payload ignored because copilot-debugger.serverReadyEnabled is false."
+    );
+  }
+  const serverReady = serverReadyEnabled ? serverReadyParam : undefined;
 
   const copilotServerReadyTriggerMode:
     | "pattern"
@@ -972,9 +982,7 @@ export const startDebuggingAndWaitForStop = async (params: {
             logger.warn("serverReady shellCommand missing command text.");
             return;
           }
-          const terminal = vscode.window.createTerminal({
-            name: `serverReady-${phase}`,
-          });
+          const { terminal } = useTerminal({ name: `serverReady-${phase}` });
           terminal.sendText(cmd, true);
           logger.info(`Executed serverReady shellCommand (${phase}): ${cmd}`);
           break;
@@ -1276,13 +1284,9 @@ export const startDebuggingAndWaitForStop = async (params: {
 
   // Resolve launch configuration: always inject stopOnEntry=true to ensure early pause, but never synthesize a generic config.
   // Determine effective timeout
-  const settings = vscode.workspace.getConfiguration(
-    "copilot-debugger",
-    folder.uri
-  );
-  const settingTimeout = settings.get<number>("entryTimeoutSeconds");
-  const settingMaxBuildErrors = settings.get<number>("maxBuildErrors");
-  const maxRuntimeOutputLines = settings.get<number>("maxOutputLines") ?? 50;
+  const settingTimeout = config.entryTimeoutSeconds;
+  const settingMaxBuildErrors = config.maxBuildErrors;
+  const maxRuntimeOutputLines = config.maxOutputLines ?? 50;
   const terminalCapture = createTerminalOutputCapture(maxRuntimeOutputLines);
   const withRuntimeDiagnostics = (message: string, sessionId?: string) =>
     formatRuntimeDiagnosticsMessage(message, {
@@ -1575,8 +1579,7 @@ export const startDebuggingAndWaitForStop = async (params: {
   // Resolve launch configuration name: provided -> setting -> single config auto-select
   let effectiveLaunchName = nameOrConfiguration;
   if (!effectiveLaunchName) {
-    const settingDefault = settings.get<string>("defaultLaunchConfiguration");
-    effectiveLaunchName = settingDefault;
+    effectiveLaunchName = config.defaultLaunchConfiguration;
   }
   const launchConfig = vscode.workspace.getConfiguration("launch", folder.uri);
   const allConfigs =

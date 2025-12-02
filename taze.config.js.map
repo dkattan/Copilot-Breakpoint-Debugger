@@ -1,0 +1,1 @@
+{"version":3,"file":"taze.config.js","sourceRoot":"","sources":["taze.config.ts"],"names":[],"mappings":";;AAAA,+BAAmC;AAEnC,kBAAe,IAAA,mBAAY,EAAC;IAC1B,OAAO,EAAE,CAAC,eAAe,CAAC;CAC3B,CAAC,CAAA","sourcesContent":["import { defineConfig } from 'taze'\r\n\r\nexport default defineConfig({\r\n  exclude: ['@types/vscode'],\r\n})\r\n"]}

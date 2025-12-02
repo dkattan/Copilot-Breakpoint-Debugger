@@ -2,6 +2,7 @@ import * as assert from "node:assert";
 import { createRequire } from "node:module";
 import * as path from "node:path";
 import * as vscode from "vscode";
+import { config } from "../config";
 import { startDebuggingAndWaitForStop } from "../session";
 
 const testRequire = createRequire(__filename);
@@ -177,24 +178,24 @@ describe("build diagnostics integration tests", () => {
     }
 
     // Set maxBuildErrors to 2
-    const config = vscode.workspace.getConfiguration(
-      "copilot-debugger",
-      workspaceFolder.uri
-    );
-    await config.update(
+    const originalMaxBuildErrors = config.maxBuildErrors;
+    await config.$update(
       "maxBuildErrors",
       2,
-      vscode.ConfigurationTarget.WorkspaceFolder
+      vscode.ConfigurationTarget.Workspace
     );
 
-    const maxErrors = config.get<number>("maxBuildErrors");
-    assert.strictEqual(maxErrors, 2, "maxBuildErrors should be set to 2");
+    assert.strictEqual(
+      config.maxBuildErrors,
+      2,
+      "maxBuildErrors should be set to 2"
+    );
 
-    // Reset to default
-    await config.update(
+    // Reset to previous value
+    await config.$update(
       "maxBuildErrors",
-      undefined,
-      vscode.ConfigurationTarget.WorkspaceFolder
+      originalMaxBuildErrors,
+      vscode.ConfigurationTarget.Workspace
     );
   });
 

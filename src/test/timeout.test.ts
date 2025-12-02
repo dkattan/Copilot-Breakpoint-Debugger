@@ -1,5 +1,6 @@
 import * as assert from 'node:assert';
 import * as vscode from 'vscode';
+import { config } from '../config';
 import {
   invokeStartDebuggerTool,
   stopAllDebugSessions,
@@ -8,19 +9,16 @@ import {
 // Test that a very short configured timeout causes StartDebuggerTool to error
 // when the breakpoint line is only executed after a longer delay.
 describe('startDebuggerTool timeout behavior', () => {
-  const settingKey = 'entryTimeoutSeconds';
   let originalTimeout: number | undefined;
 
   before(async () => {
-    const config = vscode.workspace.getConfiguration('copilot-debugger');
-    originalTimeout = config.get<number>(settingKey);
-    await config.update(settingKey, 1, vscode.ConfigurationTarget.Workspace);
+    originalTimeout = config.entryTimeoutSeconds;
+    await config.$update('entryTimeoutSeconds', 1, vscode.ConfigurationTarget.Workspace);
   });
 
   after(async () => {
-    const config = vscode.workspace.getConfiguration('copilot-debugger');
-    await config.update(
-      settingKey,
+    await config.$update(
+      'entryTimeoutSeconds',
       originalTimeout ?? 60,
       vscode.ConfigurationTarget.Workspace
     );

@@ -1,9 +1,11 @@
+import { useDisposable, useEventEmitter } from "reactive-vscode";
 import * as vscode from "vscode";
 import {
   activeSessions,
   type BreakpointHitInfo,
   onSessionTerminate,
 } from "./common";
+import { config } from "./config";
 import { DAPHelpers, type DebugContext } from "./debugUtils";
 import { logger } from "./logger";
 
@@ -76,13 +78,11 @@ export class EntryStopTimeoutError extends Error {
 }
 
 /** Event emitter for breakpoint hit notifications */
-export const breakpointEventEmitter =
-  new vscode.EventEmitter<BreakpointHitInfo>();
+export const breakpointEventEmitter = useEventEmitter<BreakpointHitInfo>();
 export const onBreakpointHit = breakpointEventEmitter.event;
 
 /** Event emitter for debug adapter exit notifications */
-export const sessionExitEventEmitter =
-  new vscode.EventEmitter<SessionExitInfo>();
+export const sessionExitEventEmitter = useEventEmitter<SessionExitInfo>();
 export const onSessionExit = sessionExitEventEmitter.event;
 
 // Per-session output buffers for DAP output events
@@ -92,15 +92,15 @@ const sessionOutputBuffers = new Map<string, OutputLine[]>();
 const sessionExitCodes = new Map<string, number>();
 
 // Register debug adapter tracker to monitor debug events
-vscode.debug.registerDebugAdapterTrackerFactory("*", {
+useDisposable(vscode.debug.registerDebugAdapterTrackerFactory("*", {
   createDebugAdapterTracker: (
     session: vscode.DebugSession
   ): vscode.ProviderResult<vscode.DebugAdapterTracker> => {
     // Create a class that implements the DebugAdapterTracker interface
     class DebugAdapterTrackerImpl implements vscode.DebugAdapterTracker {
-      private readonly traceEnabled = vscode.workspace
-        .getConfiguration("copilot-debugger")
-        .get<boolean>("enableTraceLogging", false);
+      private get traceEnabled(): boolean {
+        return !!config.enableTraceLogging;
+      }
 
       private safeStringify(obj: unknown, maxLength = 1000): string {
         let str: string;
@@ -137,8 +137,7 @@ vscode.debug.registerDebugAdapterTrackerFactory("*", {
         // Handle output events for stderr/stdout capture
         if (event.event === "output") {
           const body = event.body as OutputEventBody;
-          const cfg = vscode.workspace.getConfiguration("copilot-debugger");
-          const maxLines = cfg.get<number>("maxOutputLines") ?? 50;
+          const maxLines = config.maxOutputLines ?? 50;
 
           if (!sessionOutputBuffers.has(session.id)) {
             sessionOutputBuffers.set(session.id, []);
@@ -317,7 +316,7 @@ vscode.debug.registerDebugAdapterTrackerFactory("*", {
 
     return new DebugAdapterTrackerImpl();
   },
-});
+}));
 
 /**
  * Get captured output lines for a debug session

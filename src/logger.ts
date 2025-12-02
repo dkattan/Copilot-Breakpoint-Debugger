@@ -1,100 +1,84 @@
 /* eslint-disable no-console */
-import * as vscode from "vscode";
+import { computed, useLogger } from "reactive-vscode";
+import type { LogOutputChannel } from "vscode";
+import { config } from "./config";
 
-// Log levels (ordered by verbosity)
-export enum LogLevel {
-  Trace = 0,
-  Debug = 1,
-  Info = 2,
-  Warn = 3,
-  Error = 4,
-  Off = 5,
-}
+type ConsoleLogLevel = "trace" | "debug" | "info" | "warn" | "error" | "off";
+type LogLevel = Exclude<ConsoleLogLevel, "off">;
 
-// Shared log output channel for the extension
-export const logChannel = vscode.window.createOutputChannel(
-  "Copilot Breakpoint Debugger",
-  { log: true }
+const levelOrder: Record<ConsoleLogLevel, number> = {
+  trace: 0,
+  debug: 1,
+  info: 2,
+  warn: 3,
+  error: 4,
+  off: 5,
+};
+
+const baseLogger = useLogger("Copilot Breakpoint Debugger", { toConsole: [] });
+export const logChannel: LogOutputChannel = baseLogger.outputChannel;
+
+const consoleLevel = computed<ConsoleLogLevel>(
+  () => config.consoleLogLevel || "info"
 );
 
-function parseLogLevel(raw: string | undefined): LogLevel {
-  if (!raw) {
-    return LogLevel.Info;
+const shouldMirror = (level: LogLevel): boolean => {
+  const current = consoleLevel.value;
+  if (current === "off") {
+    return false;
   }
-  switch (raw.toLowerCase()) {
+  return levelOrder[level] >= levelOrder[current];
+};
+
+const emitConsole = (level: LogLevel, message: string, extra: unknown[]) => {
+  if (!shouldMirror(level)) {
+    return;
+  }
+  const prefix = `[${level.toUpperCase()}]`;
+  switch (level) {
     case "trace":
-      return LogLevel.Trace;
+      console.trace(`${prefix} ${message}`, ...extra);
+      break;
     case "debug":
-      return LogLevel.Debug;
+      console.debug(`${prefix} ${message}`, ...extra);
+      break;
     case "info":
-      return LogLevel.Info;
+      console.info(`${prefix} ${message}`, ...extra);
+      break;
     case "warn":
-    case "warning":
-      return LogLevel.Warn;
+      console.warn(`${prefix} ${message}`, ...extra);
+      break;
     case "error":
-      return LogLevel.Error;
-    case "off":
-      return LogLevel.Off;
-    default:
-      throw new Error(`Unsupported log level: ${raw}`);
+      console.error(`${prefix} ${message}`, ...extra);
+      break;
   }
-}
+};
 
-export class Logger {
-  private level: LogLevel;
+const infoWriter = baseLogger.info;
+const warnWriter = baseLogger.warn;
+const errorWriter = baseLogger.error;
 
-  constructor(private channel: vscode.LogOutputChannel) {
-    this.level = this.resolveLevel();
-    vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration("copilot-debugger.consoleLogLevel")) {
-        this.level = this.resolveLevel();
-        this.debug(`Log level updated to ${LogLevel[this.level]}`);
-      }
-    });
-  }
-
-  private resolveLevel(): LogLevel {
-    const cfg = vscode.workspace.getConfiguration("copilot-debugger");
-    const raw = cfg.get<string>("consoleLogLevel");
-    return parseLogLevel(raw);
-  }
-
-  private enabled(level: LogLevel): boolean {
-    return level >= this.level && this.level !== LogLevel.Off;
-  }
-
+export const logger = {
   trace(message: string, ...extra: unknown[]): void {
-    this.channel.trace(message);
-    if (this.enabled(LogLevel.Trace)) {
-      console.trace(`[TRACE] ${message}`, ...extra);
-    }
-  }
+    logChannel.trace(message);
+    emitConsole("trace", message, extra);
+  },
   debug(message: string, ...extra: unknown[]): void {
-    this.channel.debug(message);
-    if (this.enabled(LogLevel.Debug)) {
-      console.debug(`[DEBUG] ${message}`, ...extra);
-    }
-  }
+    logChannel.debug(message);
+    emitConsole("debug", message, extra);
+  },
   info(message: string, ...extra: unknown[]): void {
-    this.channel.info(message);
-    if (this.enabled(LogLevel.Info)) {
-      console.info(`[INFO] ${message}`, ...extra);
-    }
-  }
+    infoWriter(message, ...extra);
+    emitConsole("info", message, extra);
+  },
   warn(message: string, ...extra: unknown[]): void {
-    this.channel.warn(message);
-    if (this.enabled(LogLevel.Warn)) {
-      console.warn(message, ...extra);
-    }
-  }
+    warnWriter(message, ...extra);
+    emitConsole("warn", message, extra);
+  },
   error(message: string, ...extra: unknown[]): void {
-    this.channel.error(message);
-    if (this.enabled(LogLevel.Error)) {
-      console.error(message, ...extra);
-    }
-  }
-}
-
-export const logger = new Logger(logChannel);
+    errorWriter(message, ...extra);
+    emitConsole("error", message, extra);
+  },
+};
 
 export const logging = { logger, logChannel };

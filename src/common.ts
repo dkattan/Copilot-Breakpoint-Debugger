@@ -1,11 +1,12 @@
-import type { Variable } from './debugUtils';
-import * as vscode from 'vscode';
+import { useEvent, useEventEmitter, useOutputChannel } from "reactive-vscode";
+import * as vscode from "vscode";
+import type { Variable } from "./debugUtils";
 
 // Re-export types for convenience
 export type { Variable };
 
 // Create an output channel for debugging
-export const outputChannel = vscode.window.createOutputChannel('Debug Tools');
+export const outputChannel = useOutputChannel("Debug Tools");
 
 export interface ThreadData {
   threadId: number;
@@ -22,15 +23,14 @@ export interface ThreadData {
   }>;
 }
 /** Event emitter for debug session start notifications */
-export const sessionStartEventEmitter =
-  new vscode.EventEmitter<vscode.DebugSession>();
+export const sessionStartEventEmitter = useEventEmitter<vscode.DebugSession>();
 export const onSessionStart = sessionStartEventEmitter.event;
 
 /** Maintain a list of active debug sessions. */
 export const activeSessions: vscode.DebugSession[] = [];
 
 /** Event emitter for debug session termination notifications */
-export const sessionTerminateEventEmitter = new vscode.EventEmitter<{
+export const sessionTerminateEventEmitter = useEventEmitter<{
   session: vscode.DebugSession;
 }>();
 export const onSessionTerminate = sessionTerminateEventEmitter.event;
@@ -57,7 +57,8 @@ export interface BreakpointHitInfo {
  */
 
 // Track new debug sessions as they start.
-vscode.debug.onDidStartDebugSession(session => {
+const addStartListener = useEvent(vscode.debug.onDidStartDebugSession);
+addStartListener((session) => {
   activeSessions.push(session);
   outputChannel.appendLine(
     `Debug session started: ${session.name} (ID: ${session.id})`
@@ -67,7 +68,8 @@ vscode.debug.onDidStartDebugSession(session => {
 });
 
 // Remove debug sessions as they terminate.
-vscode.debug.onDidTerminateDebugSession(session => {
+const addTerminateListener = useEvent(vscode.debug.onDidTerminateDebugSession);
+addTerminateListener((session) => {
   const index = activeSessions.indexOf(session);
   if (index >= 0) {
     activeSessions.splice(index, 1);
@@ -82,8 +84,9 @@ vscode.debug.onDidTerminateDebugSession(session => {
   }
 });
 
-vscode.debug.onDidChangeActiveDebugSession(session => {
+const addChangeListener = useEvent(vscode.debug.onDidChangeActiveDebugSession);
+addChangeListener((session) => {
   outputChannel.appendLine(
-    `Active debug session changed: ${session ? session.name : 'None'}`
+    `Active debug session changed: ${session ? session.name : "None"}`
   );
 });

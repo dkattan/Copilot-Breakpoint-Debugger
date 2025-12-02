@@ -4,6 +4,7 @@ import type {
 } from "vscode";
 import * as vscode from "vscode";
 import { LanguageModelTextPart, LanguageModelToolResult } from "vscode";
+import { config } from "./config";
 import { logger } from "./logger";
 import { startDebuggingAndWaitForStop } from "./session";
 
@@ -99,8 +100,7 @@ export class StartDebuggerTool
       const action = stopInfo.hitBreakpoint.action ?? "break";
       let activeFilters: string[] = stopInfo.hitBreakpoint.variableFilter || [];
       const captureAll = action === "capture" && activeFilters.length === 0;
-      const wsConfig = vscode.workspace.getConfiguration("copilot-debugger");
-      const maxAuto = wsConfig.get<number>("captureMaxVariables") ?? 40;
+      const maxAuto = config.captureMaxVariables ?? 40;
       const capturedLogs = stopInfo.capturedLogMessages ?? [];
       // Build list of variables: explicit filters OR auto-capture OR none.
       if (captureAll) {

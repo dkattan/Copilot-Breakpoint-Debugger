@@ -494,7 +494,8 @@
     "pretest": "npm run lint && npm run compile-tests && npm run build:dist",
     "lint": "eslint",
     "test": "node -e \"try{require('fs').rmSync('./.vscode-test/user-data',{recursive:true,force:true});}catch(e){}\" && npx vscode-test",
-    "test:coverage": "npm run compile-tests && npx vscode-test --coverage"
+    "test:coverage": "npm run compile-tests && npx vscode-test --coverage",
+    "deps": "taze"
   },
   "dependencies": {
     "@actions/core": "^1.11.1",
@@ -502,6 +503,7 @@
     "@anthropic-ai/sdk": "^0.27.3",
     "@vscode/prompt-tsx": "^0.4.0-alpha.5",
     "mocha": "^10.7.3",
+    "reactive-vscode": "^0.4.1",
     "strip-ansi": "^7.1.2"
   },
   "devDependencies": {
@@ -519,6 +521,7 @@
     "esbuild-register": "^3.6.0",
     "eslint": "^9.25.1",
     "npm-run-all": "^4.1.5",
+    "taze": "^19.9.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3",
     "vscode-ext-gen": "^1.4.0"

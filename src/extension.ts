@@ -1,6 +1,6 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
+import { defineExtension, useWorkspaceFolders } from "reactive-vscode";
 import * as vscode from "vscode";
+import { config } from "./config";
 import { EvaluateExpressionTool } from "./evaluateExpressionTool";
 import { ExpandVariableTool } from "./expandVariableTool";
 import { GetVariablesTool } from "./getVariablesTool";
@@ -9,11 +9,14 @@ import { startDebuggingAndWaitForStop } from "./session";
 import { StartDebuggerTool } from "./startDebuggerTool";
 import { StopDebugSessionTool } from "./stopDebugSessionTool";
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
-export function activate(context: vscode.ExtensionContext) {
+const workspaceFoldersRef = useWorkspaceFolders();
+
+const extension = defineExtension((context) => {
   registerTools(context);
-}
+});
+
+export const activate = extension.activate;
+export const deactivate = extension.deactivate;
 
 function registerTools(context: vscode.ExtensionContext) {
   context.subscriptions.push(
@@ -33,7 +36,7 @@ function registerTools(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand(
       "copilotBreakpointDebugger.startAndWaitManual",
       async () => {
-        const workspaceFolders = vscode.workspace.workspaceFolders;
+        const workspaceFolders = workspaceFoldersRef.value;
         if (!workspaceFolders?.length) {
           vscode.window.showErrorMessage("No workspace folder open.");
           return;
@@ -159,7 +162,7 @@ function registerTools(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand(
       "copilotBreakpointDebugger.setDefaultLaunchConfiguration",
       async () => {
-        const workspaceFolders = vscode.workspace.workspaceFolders;
+        const workspaceFolders = workspaceFoldersRef.value;
         if (!workspaceFolders?.length) {
           vscode.window.showErrorMessage("No workspace folder open.");
           return;
@@ -190,11 +193,7 @@ function registerTools(context: vscode.ExtensionContext) {
           vscode.window.showInformationMessage("Selection canceled.");
           return;
         }
-        const cfg = vscode.workspace.getConfiguration(
-          "copilot-debugger",
-          folderUri
-        );
-        await cfg.update(
+        await config.$update(
           "defaultLaunchConfiguration",
           picked.label,
           vscode.ConfigurationTarget.Workspace
@@ -211,6 +210,27 @@ function registerTools(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand(
       "copilotBreakpointDebugger.insertSampleStartDebuggerPayload",
       async () => {
+        const serverReadySampleAction = (() => {
+          switch (config.serverReadyDefaultActionType) {
+            case "shellCommand":
+              return {
+                type: "shellCommand" as const,
+                shellCommand: "curl http://localhost:%PORT%/healthz",
+              };
+            case "vscodeCommand":
+              return {
+                type: "vscodeCommand" as const,
+                command: "workbench.action.tasks.reloadTasks",
+                args: [],
+              };
+            case "httpRequest":
+            default:
+              return {
+                type: "httpRequest" as const,
+                url: "http://localhost:%PORT%/swagger",
+              };
+          }
+        })();
         const sample = {
           workspaceFolder: "/abs/path/project",
           configurationName: "Run test.js",
@@ -227,10 +247,7 @@ function registerTools(context: vscode.ExtensionContext) {
           },
           serverReady: {
             trigger: { pattern: "listening on .*:(\\d+)" },
-            action: {
-              type: "httpRequest",
-              url: "http://localhost:%PORT%/swagger",
-            },
+            action: serverReadySampleAction,
           },
         };
         const doc = await vscode.workspace.openTextDocument({
@@ -243,5 +260,4 @@ function registerTools(context: vscode.ExtensionContext) {
   );
 }
 
-// This method is called when your extension is deactivated
-export function deactivate() {}
+export { deactivate as defaultDeactivated };

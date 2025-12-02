@@ -79,10 +79,14 @@ Description                                                                     
 Type     : `boolean`  
 Default        : `true`  
 
+> When this flag is `false`, the Start Debugger tool logs the attempted payload and skips all serverReady processing, ensuring automation never runs accidentally.
+
 #### `copilot-debugger.serverReadyDefaultActionType`
 Description                                                                                                                                                                                        : Preferred serverReady action type surfaced in samples and quick insert command.  
 Type     : `string`  
 Default        : `"httpRequest"`  
+
+> The `copilotBreakpointDebugger.insertSampleStartDebuggerPayload` command reads this value every time it runs so you can get sample JSON pre-filled with your preferred action style (HTTP request, shell command, or VS Code command).
 
 #### `copilot-debugger.maxBuildErrors`
 Description                                                                                                                                                                                        : Maximum number of build diagnostics (from problem matchers) to include in error messages when debug session fails to start.  

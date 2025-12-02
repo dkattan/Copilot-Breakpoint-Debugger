@@ -1,6 +1,7 @@
 import * as assert from "node:assert";
 import * as path from "node:path";
 import * as vscode from "vscode";
+import { config } from "../config";
 import { getSessionExitCode, getSessionOutput } from "../events";
 import { startDebuggingAndWaitForStop } from "../session";
 
@@ -84,24 +85,24 @@ describe("runtime error diagnostics tests", () => {
     }
 
     // Set maxOutputLines to a small value
-    const config = vscode.workspace.getConfiguration(
-      "copilot-debugger",
-      workspaceFolder.uri
-    );
-    await config.update(
+    const originalMaxOutputLines = config.maxOutputLines;
+    await config.$update(
       "maxOutputLines",
       20,
-      vscode.ConfigurationTarget.WorkspaceFolder
+      vscode.ConfigurationTarget.Workspace
     );
 
-    const maxLines = config.get<number>("maxOutputLines");
-    assert.strictEqual(maxLines, 20, "maxOutputLines should be set to 20");
+    assert.strictEqual(
+      config.maxOutputLines,
+      20,
+      "maxOutputLines should be set to 20"
+    );
 
-    // Reset to default
-    await config.update(
+    // Reset to previous value
+    await config.$update(
       "maxOutputLines",
-      undefined,
-      vscode.ConfigurationTarget.WorkspaceFolder
+      originalMaxOutputLines,
+      vscode.ConfigurationTarget.Workspace
     );
   });
 

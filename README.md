@@ -6,7 +6,7 @@ Use GitHub Copilot (or any LM-enabled workflow in VS Code) to start, inspect, an
 
 The extension contributes Language Model Tools that Copilot can invoke:
 
-1. **Start Debugger** (`start_debugger_with_breakpoints`) – Launch a configured debug session and wait for the first breakpoint. You must supply at least one breakpoint, but `variableFilter` is now optional: include it to narrow captured variables, omit it for a pure pause (`break` / `stopDebugging`) or automatic capture-all (`capture` action).
+1. **Start Debugger** (`start_debugger_with_breakpoints`) – Launch a configured debug session and wait for the first breakpoint. You must supply at least one breakpoint, but `variableFilter` is optional: include it to narrow captured variables, omit it for a pure pause (`break` / `stopDebugging`) or automatic capture-all (`capture` action).
 2. **Resume Debug Session** (`resume_debug_session`) – Continue execution of an existing paused session and optionally wait for the next stop (new breakpoints added during resume may omit `variableFilter` if you only need a pause, but include it for scoped variable output or interpolation).
 3. **Get Variables** (`get_variables`) – Retrieve all variables in the current top stack frame scopes.
 4. **Expand Variable** (`expand_variable`) – Drill into a single variable to inspect its immediate children.
@@ -39,7 +39,7 @@ npm run compile
 }
 ```
 
-1. Start interacting with Copilot Chat. It can now reference the tools by name.
+1. Start interacting with Copilot Chat. It can reference the tools by name.
 
 ## 🔧 Configuration
 
@@ -53,7 +53,22 @@ npm run compile
 
 `copilot-debugger.serverReadyDefaultActionType` – Preferred action type surfaced in samples / quick insert command (httpRequest | shellCommand | vscodeCommand).
 
+`copilot-debugger.consoleLogLevel` – Minimum level mirrored to the developer console via `console.*` while the Output channel always records every log (`trace`, `debug`, `info`, `warn`, `error`, `off`). Changes take effect instantly without reloading VS Code.
+
+`copilot-debugger.enableTraceLogging` – When `true`, emit verbose Debug Adapter Protocol traces alongside normal logs for deep troubleshooting.
+
 > **Important (updated):** `start_debugger_with_breakpoints` requires at least one breakpoint. `variableFilter` is **only required** when you want a _subset_ of variables for a `capture` action. If you set `action: "capture"` and omit `variableFilter`, the tool auto-captures the first `captureMaxVariables` locals (case‑sensitive exact names) to reduce friction. For `break` or `stopDebugging` actions, omit `variableFilter` for a pure pause without variable output.
+
+### Entry Timeout Diagnostics
+
+When the debugger fails to pause before `copilot-debugger.entryTimeoutSeconds` elapses, the tool:
+
+- Lists every new debug session (name, id, request) and whether it was forcibly stopped after diagnostics were captured
+- Produces a state-machine style analysis covering `serverReadyAction` (pattern hits, capture groups, resolved `uriFormat`, and the action that should launch your browser), Copilot `serverReady` triggers, and the missing entry stop
+- Appends truncated Debug Console + terminal output so you can confirm whether the expected "listening on..." line actually appeared
+- Reminds you to verify those readiness signals before simply bumping the timeout
+
+In other words, the timeout is actionable guidance rather than a suggestion to "try again with a larger number".
 
 Example settings snippet:
 
@@ -106,7 +121,7 @@ Modes (decided by `trigger`):
 Actions:
 
 - `shellCommand` – Runs in a new terminal named `serverReady-<phase>` (phase is `entry`, `late`, or `immediate`).
-- `httpRequest` – Issues a fetch; now dispatched fire‑and‑forget so a slow service cannot block debugger continuation.
+- `httpRequest` – Issues a fetch; dispatched fire‑and‑forget so a slow service cannot block debugger continuation.
 - `vscodeCommand` – Invokes a VS Code command (e.g. telemetry-free internal toggles or extension commands) with optional `args`.
 
 Examples:
@@ -278,7 +293,7 @@ Tool responses are rendered with `@vscode/prompt-tsx`, the same priority-aware p
 - Medium priority → thread + frame metadata
 - Low priority → filtered scope snapshots (pruned first)
 
-Because variable filters are mandatory and the prompt is minified before returning, typical tool output is now only a few thousand characters instead of tens of thousands.
+Because variable filters are mandatory and the prompt is minified before returning, typical tool output is only a few thousand characters instead of tens of thousands.
 
 ## 🐞 Debug Info Returned
 

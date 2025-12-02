@@ -106,6 +106,10 @@ Default        : `false`
 
 <!-- configs-list -->
 
+#### Keeping the tables fresh automatically
+
+The repo already ships with a workspace-level Run on Save configuration (see `.vscode/settings.json`) that fires `npm run update` any time `package.json` is saved. Just install the [Run on Save](https://marketplace.visualstudio.com/items?itemName=emeraldwalk.RunOnSave) extension when VS Code recommends it and the tables will stay in sync automatically.
+
 > **Important (updated):** `start_debugger_with_breakpoints` requires at least one breakpoint. `variableFilter` is **only required** when you want a _subset_ of variables for a `capture` action. If you set `action: "capture"` and omit `variableFilter`, the tool auto-captures the first `captureMaxVariables` locals (case‑sensitive exact names) to reduce friction. For `break` or `stopDebugging` actions, omit `variableFilter` for a pure pause without variable output.
 
 ### Entry Timeout Diagnostics

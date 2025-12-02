@@ -9,6 +9,7 @@ import * as vscode from "vscode";
 import { activeSessions } from "./common";
 import { DAPHelpers, type DebugContext, type VariableInfo } from "./debugUtils";
 import {
+  EntryStopTimeoutError,
   getSessionExitCode,
   getSessionOutput,
   waitForDebuggerStopBySessionId,
@@ -900,6 +901,21 @@ export const startDebuggingAndWaitForStop = async (params: {
     useExistingBreakpoints: _useExistingBreakpoints = false,
   } = params;
 
+  const copilotServerReadyTriggerMode:
+    | "pattern"
+    | "breakpoint"
+    | "immediate"
+    | "disabled" = !serverReady
+    ? "disabled"
+    : serverReady.trigger?.pattern
+    ? "pattern"
+    : serverReady.trigger?.path && typeof serverReady.trigger.line === "number"
+    ? "breakpoint"
+    : "immediate";
+  const serverReadyPhaseExecutions: Array<{
+    phase: "entry" | "late" | "immediate";
+    when: number;
+  }> = [];
   // Helper to execute configured serverReady action
   const executeServerReadyAction = async (
     phase: "entry" | "late" | "immediate"
@@ -907,6 +923,7 @@ export const startDebuggingAndWaitForStop = async (params: {
     if (!serverReady) {
       return;
     }
+    serverReadyPhaseExecutions.push({ phase, when: Date.now() });
     try {
       // Determine action shape (new flat with type discriminator OR legacy union)
       type FlatAction =
@@ -1273,6 +1290,240 @@ export const startDebuggingAndWaitForStop = async (params: {
       terminalLines: terminalCapture.snapshot(),
       maxLines: maxRuntimeOutputLines,
     });
+  type ServerReadyMatchSource = "debugOutput" | "terminal";
+  interface ServerReadyMatch {
+    source: ServerReadyMatchSource;
+    sample: string;
+    captureGroups: string[];
+    formattedUri?: string;
+  }
+  interface ServerReadyActionAnalysis {
+    configured: boolean;
+    actionKind?: string;
+    pattern?: string;
+    patternError?: string;
+    uriFormat?: string;
+    match?: ServerReadyMatch;
+  }
+  interface EntryTimeoutContext {
+    launchRequest?: { type?: string; request?: string; name?: string };
+    serverReadyAction?: ServerReadyActionAnalysis;
+    copilotServerReady?: {
+      triggerMode: "pattern" | "breakpoint" | "immediate" | "disabled";
+      executedPhases: Array<"entry" | "late" | "immediate">;
+    };
+  }
+  const analyzeServerReadyAction = (
+    actionConfig: unknown,
+    sessionId: string | undefined,
+    terminalLines: string[]
+  ): ServerReadyActionAnalysis => {
+    const analysis: ServerReadyActionAnalysis = {
+      configured: !!actionConfig,
+    };
+    if (!actionConfig || typeof actionConfig !== "object") {
+      return analysis;
+    }
+    const record = actionConfig as Record<string, unknown>;
+    if (typeof record.action === "string") {
+      analysis.actionKind = record.action;
+    }
+    if (typeof record.pattern === "string") {
+      analysis.pattern = record.pattern;
+    }
+    if (typeof record.uriFormat === "string") {
+      analysis.uriFormat = record.uriFormat;
+    }
+    if (!analysis.pattern) {
+      return analysis;
+    }
+    let regex: RegExp;
+    try {
+      regex = new RegExp(analysis.pattern);
+    } catch (err) {
+      analysis.patternError = err instanceof Error ? err.message : String(err);
+      return analysis;
+    }
+    const sanitize = (value: string | undefined) =>
+      value ? stripAnsiEscapeCodes(value).trim() : "";
+    const sessionLines = sessionId
+      ? getSessionOutput(sessionId).map((line) => sanitize(line.text))
+      : [];
+    const searchLines = (
+      lines: string[],
+      source: ServerReadyMatchSource
+    ): ServerReadyMatch | undefined => {
+      for (const raw of lines) {
+        if (!raw) {
+          continue;
+        }
+        regex.lastIndex = 0;
+        const match = regex.exec(raw);
+        if (match) {
+          return {
+            source,
+            sample: truncateLine(raw),
+            captureGroups: match.slice(1),
+          };
+        }
+      }
+      return undefined;
+    };
+    const terminalCandidates = terminalLines.flatMap((line) => {
+      const trimmed = line.trim();
+      const colonIndex = trimmed.indexOf(": ");
+      if (colonIndex >= 0) {
+        const withoutPrefix = trimmed.slice(colonIndex + 2).trim();
+        return withoutPrefix && withoutPrefix !== trimmed
+          ? [withoutPrefix, trimmed]
+          : [trimmed];
+      }
+      return [trimmed];
+    });
+    const debugMatch = searchLines(sessionLines, "debugOutput");
+    const terminalMatch = debugMatch
+      ? undefined
+      : searchLines(terminalCandidates, "terminal");
+    const match = debugMatch ?? terminalMatch;
+    if (match) {
+      if (analysis.uriFormat) {
+        let index = 0;
+        const groups = match.captureGroups;
+        match.formattedUri = analysis.uriFormat.replace(
+          /%s/g,
+          () => groups[index++] ?? ""
+        );
+      }
+      analysis.match = match;
+    }
+    return analysis;
+  };
+  const describeEntryTimeout = (
+    err: EntryStopTimeoutError,
+    context?: EntryTimeoutContext
+  ) => {
+    const seconds = (err.details.timeoutMs / 1000)
+      .toFixed(1)
+      .replace(/\.0$/, "");
+    const header = `Timed out waiting ${seconds}s for the debugger to report its first stop.`;
+    if (!err.details.sessions.length) {
+      return {
+        message: `${header}\nNo new debug sessions were detected before the timeout fired.`,
+        sessionId: undefined,
+      };
+    }
+    const sessionLines = err.details.sessions.map((session, index) => {
+      const status = session.stopped
+        ? "stopped after timeout"
+        : session.stopError
+        ? `could not stop (${session.stopError})`
+        : "still running when timeout fired";
+      const request = session.request ?? "unknown";
+      const cfgName = session.configurationName
+        ? ` launch='${session.configurationName}'`
+        : "";
+      const folder = session.workspaceFolder
+        ? ` workspace='${session.workspaceFolder}'`
+        : "";
+      return `${index + 1}. ${session.name} (id=${
+        session.id
+      }) [request=${request}${cfgName}${folder}] status=${status}`;
+    });
+    const stoppedAny = err.details.sessions.some((session) => session.stopped);
+    const footer = stoppedAny
+      ? "Observed session(s) were stopped after diagnostics were collected."
+      : "Unable to stop the new session before returning diagnostics.";
+    const stateLines: string[] = [];
+    if (context?.launchRequest) {
+      const { type, request, name } = context.launchRequest;
+      stateLines.push(
+        `Launch configuration '${name ?? "<unnamed>"}' (type=${
+          type ?? "unknown"
+        }, request=${request ?? "unknown"}) resolved before timeout.`
+      );
+    }
+    stateLines.push(
+      "Entry stop observed: NO (debug adapter never paused before timeout)."
+    );
+    if (context?.serverReadyAction) {
+      const diag = context.serverReadyAction;
+      stateLines.push(
+        `serverReadyAction configured: ${diag.configured ? "yes" : "no"}.`
+      );
+      if (diag.configured) {
+        if (diag.patternError) {
+          stateLines.push(
+            `serverReadyAction.pattern error: ${diag.patternError} (pattern='${
+              diag.pattern ?? "<unset>"
+            }').`
+          );
+        } else if (diag.pattern) {
+          if (diag.match) {
+            const captureSummary = diag.match.captureGroups.length
+              ? `captures=${JSON.stringify(diag.match.captureGroups)}`
+              : "no capture groups";
+            stateLines.push(
+              `serverReadyAction.pattern '${diag.pattern}' matched ${diag.match.source} output (${captureSummary}). Sample: ${diag.match.sample}`
+            );
+            if (diag.uriFormat) {
+              stateLines.push(
+                `serverReadyAction.uriFormat '${diag.uriFormat}' => '${
+                  diag.match.formattedUri ?? "<unresolved>"
+                }'.`
+              );
+            }
+          } else {
+            stateLines.push(
+              `serverReadyAction.pattern '${diag.pattern}' has NOT appeared in debug/task output yet. Confirm your app logs this line (case-sensitive) before increasing the timeout.`
+            );
+            if (diag.uriFormat) {
+              stateLines.push(
+                `serverReadyAction.uriFormat '${diag.uriFormat}' cannot be resolved until the pattern captures a value. Double-check the capture group in your log output.`
+              );
+            }
+          }
+        } else {
+          stateLines.push(
+            "serverReadyAction.pattern not provided; VS Code will only run the action when tasks report readiness manually."
+          );
+        }
+        if (diag.actionKind) {
+          stateLines.push(
+            `serverReadyAction.action=${diag.actionKind}${
+              diag.match?.formattedUri
+                ? ` (verify the browser/command opened '${diag.match.formattedUri}')`
+                : ""
+            }`
+          );
+        }
+      }
+    }
+    if (context?.copilotServerReady) {
+      const { triggerMode, executedPhases } = context.copilotServerReady;
+      stateLines.push(
+        `Copilot serverReady trigger: ${triggerMode}. Phases executed: ${
+          executedPhases.length ? executedPhases.join(", ") : "<none>"
+        }.`
+      );
+      if (triggerMode === "pattern" && executedPhases.length === 0) {
+        stateLines.push(
+          "serverReady trigger pattern was not hit before timeout; ensure the monitored log line is emitted."
+        );
+      }
+    }
+    stateLines.push(
+      "Only raise 'copilot-debugger.entryTimeoutSeconds' after confirming the above readiness signals are working."
+    );
+    const analysisBlock = stateLines.length
+      ? `\nTimeout state analysis:\n- ${stateLines.join("\n- ")}`
+      : "";
+    return {
+      message: `${header}\n${sessionLines.join(
+        "\n"
+      )}\n${footer}${analysisBlock}`,
+      sessionId: err.details.sessions[0]?.id,
+    };
+  };
   const effectiveMaxBuildErrors =
     typeof settingMaxBuildErrors === "number" && settingMaxBuildErrors > 0
       ? settingMaxBuildErrors
@@ -1682,6 +1933,39 @@ export const startDebuggingAndWaitForStop = async (params: {
     };
   } catch (error) {
     taskTrackingArmed = false;
+    if (error instanceof EntryStopTimeoutError) {
+      const terminalLinesForAnalysis = terminalCapture.snapshot();
+      const firstSessionId = error.details.sessions[0]?.id;
+      const serverReadyActionAnalysis = analyzeServerReadyAction(
+        (resolvedConfig as Record<string, unknown>).serverReadyAction,
+        firstSessionId,
+        terminalLinesForAnalysis
+      );
+      const summary = describeEntryTimeout(error, {
+        launchRequest: {
+          type: (resolvedConfig as Record<string, unknown>).type as
+            | string
+            | undefined,
+          request: (resolvedConfig as Record<string, unknown>).request as
+            | string
+            | undefined,
+          name: resolvedConfig.name,
+        },
+        serverReadyAction: serverReadyActionAnalysis,
+        copilotServerReady: {
+          triggerMode: copilotServerReadyTriggerMode,
+          executedPhases: serverReadyPhaseExecutions.map(
+            (entry) => entry.phase
+          ),
+        },
+      });
+      const enriched = formatRuntimeDiagnosticsMessage(summary.message, {
+        sessionId: summary.sessionId,
+        terminalLines: terminalLinesForAnalysis,
+        maxLines: maxRuntimeOutputLines,
+      });
+      throw new Error(enriched);
+    }
     const baseMessage = error instanceof Error ? error.message : String(error);
     const augmented = await buildFailureDetails(baseMessage);
     if (augmented) {

@@ -51,6 +51,30 @@ export interface SessionExitInfo {
   signal?: string;
 }
 
+export interface TimeoutSessionSnapshot {
+  id: string;
+  name: string;
+  type?: string;
+  workspaceFolder?: string;
+  configurationName?: string;
+  request?: string;
+  serverReadyAction?: unknown;
+  stopped: boolean;
+  stopError?: string;
+}
+
+export interface EntryStopTimeoutDetails {
+  timeoutMs: number;
+  sessions: TimeoutSessionSnapshot[];
+}
+
+export class EntryStopTimeoutError extends Error {
+  constructor(message: string, public readonly details: EntryStopTimeoutDetails) {
+    super(message);
+    this.name = "EntryStopTimeoutError";
+  }
+}
+
 /** Event emitter for breakpoint hit notifications */
 export const breakpointEventEmitter =
   new vscode.EventEmitter<BreakpointHitInfo>();
@@ -75,7 +99,7 @@ vscode.debug.registerDebugAdapterTrackerFactory("*", {
     // Create a class that implements the DebugAdapterTracker interface
     class DebugAdapterTrackerImpl implements vscode.DebugAdapterTracker {
       private readonly traceEnabled = vscode.workspace
-        .getConfiguration("copilotBreakpointDebugger")
+        .getConfiguration("copilot-debugger")
         .get<boolean>("enableTraceLogging", false);
 
       private safeStringify(obj: unknown, maxLength = 1000): string {
@@ -446,11 +470,48 @@ export const waitForEntryStop = async (params: {
       listener.dispose();
       terminateListener?.dispose();
       timeoutHandle = undefined;
-      reject(
-        new Error(
-          `Timed out waiting for initial stopped event (${timeout}ms). Debug adapter did not pause (no entry/breakpoint/step/exception). If you need more time you can override this value in .vscode/settings.json: 'copilot-debugger.entryTimeoutSeconds'.`
-        )
+      const candidateSessions = activeSessions.filter(
+        (session) => !excludeSet.has(session.id)
       );
+      void (async () => {
+        const snapshots: TimeoutSessionSnapshot[] = [];
+        for (const session of candidateSessions) {
+          const snapshot: TimeoutSessionSnapshot = {
+            id: session.id,
+            name: session.name,
+            type: session.type,
+            workspaceFolder: session.workspaceFolder?.uri.fsPath,
+            configurationName: session.configuration?.name,
+            request: session.configuration?.request,
+            serverReadyAction: session.configuration?.serverReadyAction,
+            stopped: false,
+          };
+          try {
+            const stopped = await vscode.debug.stopDebugging(session);
+            snapshot.stopped = stopped ?? false;
+            if (snapshot.stopped) {
+              logger.warn(
+                `Stopped debug session '${session.name}' (${session.id}) after entry timeout.`
+              );
+            }
+          } catch (stopErr) {
+            snapshot.stopError =
+              stopErr instanceof Error ? stopErr.message : String(stopErr);
+            logger.warn(
+              `Failed to stop session '${session.name}' (${session.id}) after entry timeout: ${snapshot.stopError}`
+            );
+          }
+          snapshots.push(snapshot);
+        }
+        const timeoutError = new EntryStopTimeoutError(
+          `Timed out waiting for initial stopped event (${timeout}ms). Debug adapter did not pause (no entry/breakpoint/step/exception).`,
+          {
+            timeoutMs: timeout,
+            sessions: snapshots,
+          }
+        );
+        reject(timeoutError);
+      })();
     }, timeout);
   });
 };

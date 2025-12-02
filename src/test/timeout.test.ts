@@ -46,5 +46,25 @@ describe('startDebuggerTool timeout behavior', () => {
       /Timed out|timeout/i,
       'Expected timeout indication in tool output'
     );
+    assert.match(
+      text,
+      /Timeout state analysis:/,
+      'Expected timeout state analysis block'
+    );
+    assert.match(
+      text,
+      /Entry stop observed: NO/i,
+      'Timeout report should mention missing entry stop'
+    );
+    assert.match(
+      text,
+      /serverReadyAction configured: no/i,
+      'Report should include serverReadyAction configuration status'
+    );
+    assert.match(
+      text,
+      /Only raise 'copilot-debugger\.entryTimeoutSeconds'/,
+      'Report should recommend checking readiness signals before increasing timeout'
+    );
   });
 });

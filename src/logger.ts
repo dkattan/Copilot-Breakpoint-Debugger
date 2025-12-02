@@ -1,6 +1,5 @@
 /* eslint-disable no-console */
 import { computed, useLogger } from "reactive-vscode";
-import type { LogOutputChannel } from "vscode";
 import { config } from "./config";
 
 type ConsoleLogLevel = "trace" | "debug" | "info" | "warn" | "error" | "off";
@@ -16,7 +15,7 @@ const levelOrder: Record<ConsoleLogLevel, number> = {
 };
 
 const baseLogger = useLogger("Copilot Breakpoint Debugger", { toConsole: [] });
-export const logChannel: LogOutputChannel = baseLogger.outputChannel;
+export const logChannel = baseLogger;
 
 const consoleLevel = computed<ConsoleLogLevel>(
   () => config.consoleLogLevel || "info"
@@ -60,11 +59,11 @@ const errorWriter = baseLogger.error;
 
 export const logger = {
   trace(message: string, ...extra: unknown[]): void {
-    logChannel.trace(message);
+    logChannel.info(message);
     emitConsole("trace", message, extra);
   },
   debug(message: string, ...extra: unknown[]): void {
-    logChannel.debug(message);
+    logChannel.info(message);
     emitConsole("debug", message, extra);
   },
   info(message: string, ...extra: unknown[]): void {

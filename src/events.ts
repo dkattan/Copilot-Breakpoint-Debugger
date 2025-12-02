@@ -1,12 +1,10 @@
 import { useDisposable, useEventEmitter } from "reactive-vscode";
-import { useDisposable, useEventEmitter } from "reactive-vscode";
 import * as vscode from "vscode";
 import {
   activeSessions,
   type BreakpointHitInfo,
   onSessionTerminate,
 } from "./common";
-import { config } from "./config";
 import { config } from "./config";
 import { DAPHelpers, type DebugContext } from "./debugUtils";
 import { logger } from "./logger";

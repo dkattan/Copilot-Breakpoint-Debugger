@@ -4,12 +4,12 @@ import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as process from "node:process";
+import { useTerminal } from "reactive-vscode";
 import stripAnsi from "strip-ansi";
 import * as vscode from "vscode";
-import { useTerminal } from "reactive-vscode";
 import { activeSessions } from "./common";
-import { DAPHelpers, type DebugContext, type VariableInfo } from "./debugUtils";
 import { config } from "./config";
+import { DAPHelpers, type DebugContext, type VariableInfo } from "./debugUtils";
 import {
   EntryStopTimeoutError,
   getSessionExitCode,

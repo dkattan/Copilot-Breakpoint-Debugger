@@ -93,6 +93,26 @@
           "default": 50,
           "description": "Maximum number of output lines (stderr/stdout) to buffer per debug session for runtime error reporting.",
           "scope": "resource"
+        },
+        "copilot-debugger.consoleLogLevel": {
+          "type": "string",
+          "enum": [
+            "trace",
+            "debug",
+            "info",
+            "warn",
+            "error",
+            "off"
+          ],
+          "default": "info",
+          "description": "Controls how verbosely logs are mirrored to the developer console (Output panel always receives every log; this only gates console.* mirroring). Changes take effect immediately without reloading.",
+          "scope": "window"
+        },
+        "copilot-debugger.enableTraceLogging": {
+          "type": "boolean",
+          "default": false,
+          "description": "Emit verbose Debug Adapter Protocol trace logs to the output channel for troubleshooting.",
+          "scope": "window"
         }
       }
     },

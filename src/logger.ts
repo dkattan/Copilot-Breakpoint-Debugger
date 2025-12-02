@@ -1,4 +1,5 @@
-import * as vscode from 'vscode';
+/* eslint-disable no-console */
+import * as vscode from "vscode";
 
 // Log levels (ordered by verbosity)
 export enum LogLevel {
@@ -12,7 +13,7 @@ export enum LogLevel {
 
 // Shared log output channel for the extension
 export const logChannel = vscode.window.createOutputChannel(
-  'Copilot Breakpoint Debugger',
+  "Copilot Breakpoint Debugger",
   { log: true }
 );
 
@@ -21,18 +22,18 @@ function parseLogLevel(raw: string | undefined): LogLevel {
     return LogLevel.Info;
   }
   switch (raw.toLowerCase()) {
-    case 'trace':
+    case "trace":
       return LogLevel.Trace;
-    case 'debug':
+    case "debug":
       return LogLevel.Debug;
-    case 'info':
+    case "info":
       return LogLevel.Info;
-    case 'warn':
-    case 'warning':
+    case "warn":
+    case "warning":
       return LogLevel.Warn;
-    case 'error':
+    case "error":
       return LogLevel.Error;
-    case 'off':
+    case "off":
       return LogLevel.Off;
     default:
       throw new Error(`Unsupported log level: ${raw}`);
@@ -44,8 +45,8 @@ export class Logger {
 
   constructor(private channel: vscode.LogOutputChannel) {
     this.level = this.resolveLevel();
-    vscode.workspace.onDidChangeConfiguration(e => {
-      if (e.affectsConfiguration('copilotBreakpointDebugger.logLevel')) {
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration("copilot-debugger.consoleLogLevel")) {
         this.level = this.resolveLevel();
         this.debug(`Log level updated to ${LogLevel[this.level]}`);
       }
@@ -53,8 +54,8 @@ export class Logger {
   }
 
   private resolveLevel(): LogLevel {
-    const cfg = vscode.workspace.getConfiguration('copilotBreakpointDebugger');
-    const raw = cfg.get<string>('logLevel');
+    const cfg = vscode.workspace.getConfiguration("copilot-debugger");
+    const raw = cfg.get<string>("consoleLogLevel");
     return parseLogLevel(raw);
   }
 
@@ -63,39 +64,34 @@ export class Logger {
   }
 
   trace(message: string, ...extra: unknown[]): void {
-    if (!this.enabled(LogLevel.Trace)) {
-      return;
-    }
     this.channel.trace(message);
-    console.warn(`[TRACE] ${message}`, ...extra);
+    if (this.enabled(LogLevel.Trace)) {
+      console.trace(`[TRACE] ${message}`, ...extra);
+    }
   }
   debug(message: string, ...extra: unknown[]): void {
-    if (!this.enabled(LogLevel.Debug)) {
-      return;
-    }
     this.channel.debug(message);
-    console.warn(`[DEBUG] ${message}`, ...extra);
+    if (this.enabled(LogLevel.Debug)) {
+      console.debug(`[DEBUG] ${message}`, ...extra);
+    }
   }
   info(message: string, ...extra: unknown[]): void {
-    if (!this.enabled(LogLevel.Info)) {
-      return;
-    }
     this.channel.info(message);
-    console.warn(`[INFO] ${message}`, ...extra);
+    if (this.enabled(LogLevel.Info)) {
+      console.info(`[INFO] ${message}`, ...extra);
+    }
   }
   warn(message: string, ...extra: unknown[]): void {
-    if (!this.enabled(LogLevel.Warn)) {
-      return;
-    }
     this.channel.warn(message);
-    console.warn(message, ...extra);
+    if (this.enabled(LogLevel.Warn)) {
+      console.warn(message, ...extra);
+    }
   }
   error(message: string, ...extra: unknown[]): void {
-    if (!this.enabled(LogLevel.Error)) {
-      return;
-    }
     this.channel.error(message);
-    console.error(message, ...extra);
+    if (this.enabled(LogLevel.Error)) {
+      console.error(message, ...extra);
+    }
   }
 }
 

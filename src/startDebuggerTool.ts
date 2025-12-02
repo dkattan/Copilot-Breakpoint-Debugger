@@ -2,7 +2,6 @@ import type {
   LanguageModelTool,
   LanguageModelToolInvocationOptions,
 } from "vscode";
-import * as vscode from "vscode";
 import { LanguageModelTextPart, LanguageModelToolResult } from "vscode";
 import { config } from "./config";
 import { logger } from "./logger";
@@ -28,6 +27,27 @@ export interface BreakpointConfiguration {
   breakpoints: BreakpointDefinition[];
 }
 
+type ServerReadyAction =
+  | { shellCommand: string }
+  | {
+      httpRequest: {
+        url: string;
+        method?: string;
+        headers?: Record<string, string>;
+        body?: string;
+      };
+    }
+  | { vscodeCommand: { command: string; args?: unknown[] } }
+  | {
+      type: "httpRequest";
+      url: string;
+      method?: string;
+      headers?: Record<string, string>;
+      body?: string;
+    }
+  | { type: "shellCommand"; shellCommand: string }
+  | { type: "vscodeCommand"; command: string; args?: unknown[] };
+
 export interface StartDebuggerToolParameters {
   workspaceFolder: string;
   configurationName?: string;
@@ -43,17 +63,7 @@ export interface StartDebuggerToolParameters {
       line?: number;
       pattern?: string;
     };
-    action:
-      | { shellCommand: string }
-      | {
-          httpRequest: {
-            url: string;
-            method?: string;
-            headers?: Record<string, string>;
-            body?: string;
-          };
-        }
-      | { vscodeCommand: { command: string; args?: unknown[] } };
+    action: ServerReadyAction;
   };
 }
 

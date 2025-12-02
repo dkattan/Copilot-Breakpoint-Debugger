@@ -4,7 +4,6 @@ import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as process from "node:process";
-import { useTerminal } from "reactive-vscode";
 import stripAnsi from "strip-ansi";
 import * as vscode from "vscode";
 import { activeSessions } from "./common";
@@ -982,7 +981,32 @@ export const startDebuggingAndWaitForStop = async (params: {
             logger.warn("serverReady shellCommand missing command text.");
             return;
           }
-          const { terminal } = useTerminal({ name: `serverReady-${phase}` });
+          const terminal = vscode.window.createTerminal({
+            name: `serverReady-${phase}`,
+            isTransient: true,
+            hideFromUser: true,
+          });
+          const autoDisposeTimer = setTimeout(() => {
+            try {
+              terminal.dispose();
+            } catch (disposeErr) {
+              logger.debug(
+                `serverReady shellCommand auto-dispose failed: ${
+                  disposeErr instanceof Error
+                    ? disposeErr.message
+                    : String(disposeErr)
+                }`
+              );
+            }
+          }, 60_000);
+          const closeListener = vscode.window.onDidCloseTerminal(
+            (closedTerminal) => {
+              if (closedTerminal === terminal) {
+                clearTimeout(autoDisposeTimer);
+                closeListener.dispose();
+              }
+            }
+          );
           terminal.sendText(cmd, true);
           logger.info(`Executed serverReady shellCommand (${phase}): ${cmd}`);
           break;
@@ -1410,13 +1434,9 @@ export const startDebuggingAndWaitForStop = async (params: {
       .toFixed(1)
       .replace(/\.0$/, "");
     const header = `Timed out waiting ${seconds}s for the debugger to report its first stop.`;
-    if (!err.details.sessions.length) {
-      return {
-        message: `${header}\nNo new debug sessions were detected before the timeout fired.`,
-        sessionId: undefined,
-      };
-    }
-    const sessionLines = err.details.sessions.map((session, index) => {
+    const hasSessions = err.details.sessions.length > 0;
+    const sessionLines = hasSessions
+      ? err.details.sessions.map((session, index) => {
       const status = session.stopped
         ? "stopped after timeout"
         : session.stopError
@@ -1429,14 +1449,19 @@ export const startDebuggingAndWaitForStop = async (params: {
       const folder = session.workspaceFolder
         ? ` workspace='${session.workspaceFolder}'`
         : "";
-      return `${index + 1}. ${session.name} (id=${
-        session.id
-      }) [request=${request}${cfgName}${folder}] status=${status}`;
-    });
-    const stoppedAny = err.details.sessions.some((session) => session.stopped);
-    const footer = stoppedAny
-      ? "Observed session(s) were stopped after diagnostics were collected."
-      : "Unable to stop the new session before returning diagnostics.";
+          return `${index + 1}. ${session.name} (id=${
+            session.id
+          }) [request=${request}${cfgName}${folder}] status=${status}`;
+        })
+      : [];
+    const stoppedAny = hasSessions
+      ? err.details.sessions.some((session) => session.stopped)
+      : false;
+    const footer = hasSessions
+      ? stoppedAny
+        ? "Observed session(s) were stopped after diagnostics were collected."
+        : "Unable to stop the new session before returning diagnostics."
+      : "No new debug sessions were detected before the timeout fired.";
     const stateLines: string[] = [];
     if (context?.launchRequest) {
       const { type, request, name } = context.launchRequest;

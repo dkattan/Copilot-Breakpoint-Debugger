@@ -501,6 +501,7 @@
     "@actions/core": "^1.11.1",
     "@actions/github": "^6.0.0",
     "@anthropic-ai/sdk": "^0.27.3",
+    "@reactive-vscode/reactivity": "^0.4.1",
     "@vscode/prompt-tsx": "^0.4.0-alpha.5",
     "mocha": "^10.7.3",
     "reactive-vscode": "^0.4.1",

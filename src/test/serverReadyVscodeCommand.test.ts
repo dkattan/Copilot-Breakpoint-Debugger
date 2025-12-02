@@ -48,7 +48,10 @@ describe('serverReady vscodeCommand action', () => {
       },
       serverReady: {
         trigger: { path: serverPath, line: readyLine },
-        action: { vscodeCommand: { command: 'workbench.action.closePanel' } },
+        action: {
+          type: 'vscodeCommand',
+          command: 'workbench.action.closePanel',
+        },
       },
     });
 

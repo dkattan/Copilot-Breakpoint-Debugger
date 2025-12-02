@@ -55,6 +55,7 @@ describe('serverReady breakpoint', () => {
       serverReady: {
         trigger: { path: serverPath, line: readyLine },
         action: {
+          type: 'shellCommand',
           shellCommand:
             "node -e \"require('node:http').get('http://localhost:31337/health', r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>console.log('health='+d));});\"",
         },
@@ -124,7 +125,7 @@ describe('serverReady breakpoint', () => {
       },
       serverReady: {
         trigger: { path: serverPath, line: readyLine },
-        action: { httpRequest: { url: 'http://localhost:31337/health' } },
+        action: { type: 'httpRequest', url: 'http://localhost:31337/health' },
       },
     });
     assert.strictEqual(

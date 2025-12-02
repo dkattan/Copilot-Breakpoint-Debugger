@@ -1,6 +1,6 @@
+import type { Variable } from "./debugUtils";
 import { useEvent, useEventEmitter, useOutputChannel } from "reactive-vscode";
 import * as vscode from "vscode";
-import type { Variable } from "./debugUtils";
 
 // Re-export types for convenience
 export type { Variable };

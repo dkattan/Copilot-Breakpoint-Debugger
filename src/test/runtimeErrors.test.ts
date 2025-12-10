@@ -35,6 +35,7 @@ describe("runtime error diagnostics tests", () => {
             {
               path: "crash.js",
               line: 16, // Line after the crash
+              action: "break",
               variableFilter: ["_nonexistent"],
             },
           ],
@@ -210,6 +211,7 @@ describe("runtime error diagnostics tests", () => {
             {
               path: "crash.js",
               line: 13,
+              action: "break",
               variableFilter: ["_test"],
             },
           ],

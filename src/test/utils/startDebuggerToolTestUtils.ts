@@ -1,21 +1,21 @@
-import type { StartDebuggerInvocationOptions } from '../../testTypes';
-import * as path from 'node:path';
-import * as vscode from 'vscode';
-import { activeSessions } from '../../common';
-import { StartDebuggerTool } from '../../startDebuggerTool';
+import type { StartDebuggerInvocationOptions } from "../../testTypes";
+import * as path from "node:path";
+import * as vscode from "vscode";
+import { activeSessions } from "../../common";
+import { StartDebuggerTool } from "../../startDebuggerTool";
 
 /** Resolve extension root path. */
 export function getExtensionRoot(): string {
   return (
-    vscode.extensions.getExtension('dkattan.copilot-breakpoint-debugger')
-      ?.extensionPath || path.resolve(__dirname, '../../..')
+    vscode.extensions.getExtension("dkattan.copilot-breakpoint-debugger")
+      ?.extensionPath || path.resolve(__dirname, "../../..")
   );
 }
 
 /** Activate our extension under test. */
 export async function activateCopilotDebugger(): Promise<void> {
   await vscode.extensions
-    .getExtension('dkattan.copilot-breakpoint-debugger')
+    .getExtension("dkattan.copilot-breakpoint-debugger")
     ?.activate();
 }
 
@@ -37,7 +37,7 @@ export async function invokeStartDebuggerTool(
   // Get the first workspace folder from VS Code - should be set from test-workspace.code-workspace
   if (!vscode.workspace.workspaceFolders?.length) {
     throw new Error(
-      'No workspace folders found. Ensure test-workspace.code-workspace is loaded.'
+      "No workspace folders found. Ensure test-workspace.code-workspace is loaded."
     );
   }
   const workspaceFolder = opts.workspaceFolder?.trim()
@@ -57,7 +57,8 @@ export async function invokeStartDebuggerTool(
   const breakpoints = breakpointLines.map((line: number) => ({
     path: scriptUri.fsPath,
     line,
-    variableFilter: opts.variableFilter ?? ['PWD', 'HOME'],
+    action: "break" as const,
+    variableFilter: opts.variableFilter ?? ["PWD", "HOME"],
   }));
 
   const result = await tool.invoke({
@@ -76,15 +77,15 @@ export async function invokeStartDebuggerTool(
       let rawValue: string;
       // Use indexed access via casting to loose object type
       const loose = firstPart as { [k: string]: unknown };
-      if (typeof loose.value === 'string') {
+      if (typeof loose.value === "string") {
         rawValue = loose.value;
-      } else if (typeof loose.text === 'string') {
+      } else if (typeof loose.text === "string") {
         rawValue = loose.text;
       } else {
         rawValue = JSON.stringify(firstPart);
       }
 
-      console.log('[invokeStartDebuggerTool] raw output:', rawValue);
+      console.log("[invokeStartDebuggerTool] raw output:", rawValue);
     }
   } catch {
     /* ignore */
@@ -98,16 +99,16 @@ export function assertStartDebuggerOutput(textOutput: string): void {
   const timedOut = /timed out/i.test(textOutput);
   const startError = /Error starting debug session/i.test(textOutput);
   if (timedOut) {
-    throw new Error('Debug session timed out waiting for breakpoint');
+    throw new Error("Debug session timed out waiting for breakpoint");
   }
   if (startError) {
-    throw new Error('Encountered error starting debug session');
+    throw new Error("Encountered error starting debug session");
   }
   if (!/Debug session .* stopped|breakpoint/i.test(textOutput)) {
-    throw new Error('Missing stopped-session or breakpoint descriptor');
+    throw new Error("Missing stopped-session or breakpoint descriptor");
   }
   if (!/\\?"breakpoint\\?"|breakpoint\s*:/i.test(textOutput)) {
-    throw new Error('Missing breakpoint JSON info');
+    throw new Error("Missing breakpoint JSON info");
   }
   if (
     !(
@@ -115,7 +116,7 @@ export function assertStartDebuggerOutput(textOutput: string): void {
       /test\.ps1|test\.js/i.test(textOutput)
     )
   ) {
-    throw new Error('Missing line number or script reference in debug info');
+    throw new Error("Missing line number or script reference in debug info");
   }
 }
 
@@ -127,7 +128,9 @@ export async function stopAllDebugSessions(): Promise<void> {
       await vscode.debug.stopDebugging(session);
     } catch (error) {
       console.warn(
-        `Failed to stop debug session ${session.name}: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to stop debug session ${session.name}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
       );
     }
   }

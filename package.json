@@ -167,7 +167,7 @@
                           "capture",
                           "stopDebugging"
                         ],
-                        "description": "Breakpoint action: break pauses and returns; capture collects variables & interpolated log messages then resumes (non-blocking); stopDebugging terminates session after hit. Default is break."
+                        "description": "Breakpoint action: break pauses and returns; capture collects variables & interpolated log messages then resumes (non-blocking); stopDebugging terminates session after hit."
                       },
                       "condition": {
                         "type": "string",
@@ -188,7 +188,8 @@
                     },
                     "required": [
                       "path",
-                      "line"
+                      "line",
+                      "action"
                     ]
                   },
                   "description": "Breakpoints to add before starting session."

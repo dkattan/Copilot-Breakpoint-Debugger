@@ -909,7 +909,7 @@ export interface StartDebuggingAndWaitForStopParams {
       hitCount?: number; // numeric hit count (exact)
       logMessage?: string;
       variableFilter?: string[]; // optional; when capture and omitted we auto-capture all locals (bounded in StartDebuggerTool)
-      action?: "break" | "stopDebugging" | "capture"; // 'capture' collects data + log messages then continues
+      action: "break" | "stopDebugging" | "capture"; // 'capture' collects data + log messages then continues
       reasonCode?: string; // internal telemetry tag
     }>;
   };

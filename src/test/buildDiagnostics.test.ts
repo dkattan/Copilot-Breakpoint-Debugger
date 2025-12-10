@@ -44,6 +44,7 @@ describe("build diagnostics integration tests", () => {
             {
               path: "broken.ts",
               line: 4,
+              action: "break",
               variableFilter: ["x"],
             },
           ],

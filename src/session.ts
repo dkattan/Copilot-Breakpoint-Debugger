@@ -896,7 +896,7 @@ const monitorTask = (
  * @param params.serverReady.action - Action executed when ready (one of: { shellCommand }, { httpRequest }, { vscodeCommand }).
  * @param params.useExistingBreakpoints - When true, caller intends to use already-set workspace breakpoints (manual command).
  */
-export const startDebuggingAndWaitForStop = async (params: {
+export interface StartDebuggingAndWaitForStopParams {
   sessionName: string;
   workspaceFolder: string; // absolute path to open workspace folder
   nameOrConfiguration?: string; // may be omitted; auto-selection logic will attempt resolution
@@ -944,7 +944,11 @@ export const startDebuggingAndWaitForStop = async (params: {
    * Defaults to false.
    */
   useExistingBreakpoints?: boolean;
-}): Promise<StartDebuggerStopInfo> => {
+}
+
+export const startDebuggingAndWaitForStop = async (
+  params: StartDebuggingAndWaitForStopParams
+): Promise<StartDebuggerStopInfo> => {
   const {
     sessionName,
     workspaceFolder,
@@ -954,6 +958,8 @@ export const startDebuggingAndWaitForStop = async (params: {
     serverReady: serverReadyParam,
     useExistingBreakpoints: _useExistingBreakpoints = false,
   } = params;
+
+  logger.debug("startDebuggingAndWaitForStop params", params);
 
   const serverReadyEnabled = config.serverReadyEnabled !== false;
   if (serverReadyParam && !serverReadyEnabled) {

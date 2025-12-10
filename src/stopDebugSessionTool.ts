@@ -20,9 +20,11 @@ export class StopDebugSessionTool
   ): Promise<LanguageModelToolResult> {
     const { sessionName } = options.input;
     try {
-      const raw = await stopDebugSession({ sessionName });
+      await stopDebugSession({ sessionName });
       return new LanguageModelToolResult([
-        new LanguageModelTextPart(JSON.stringify(raw)),
+        new LanguageModelTextPart(
+          `Stopped debug session(s) named '${sessionName}'.`
+        ),
       ]);
     } catch (error) {
       return new LanguageModelToolResult([

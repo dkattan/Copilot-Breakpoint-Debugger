@@ -538,7 +538,7 @@ const mergeEnv = (
     }
     merged[pathKey] = segments.join(path.delimiter);
     logger.debug(
-      `Augmented PATH for diagnostic capture with ${binDirs.length} node_modules/.bin directorie(s).`
+      `Augmented PATH for diagnostic capture with ${binDirs.length} node_modules/.bin directories(s).`
     );
   }
   return merged;
@@ -1274,6 +1274,7 @@ export const startDebuggingAndWaitForStop = async (
   const validated: Array<{
     bp: (typeof breakpointConfig.breakpoints)[number];
     sb: vscode.SourceBreakpoint;
+    resolvedLine: number;
   }> = [];
   for (const bp of breakpointConfig.breakpoints) {
     const absolutePath = path.isAbsolute(bp.path)
@@ -1312,7 +1313,7 @@ export const startDebuggingAndWaitForStop = async (
         effectiveHitCondition,
         adapterLogMessage
       );
-      validated.push({ bp, sb: sourceBp });
+      validated.push({ bp, sb: sourceBp, resolvedLine: bp.line });
     } catch (e) {
       logger.error(
         `Failed to open file for breakpoint path ${absolutePath}: ${
@@ -1320,6 +1321,34 @@ export const startDebuggingAndWaitForStop = async (
         }`
       );
     }
+  }
+  const updateResolvedBreakpointLine = (source: vscode.SourceBreakpoint) => {
+    const match = validated.find((entry) => entry.sb === source);
+    if (!match) {
+      return;
+    }
+    const nextResolvedLine = source.location.range.start.line + 1;
+    if (match.resolvedLine === nextResolvedLine) {
+      return;
+    }
+    logger.debug(
+      `Breakpoint ${source.location.uri.fsPath} resolved line changed from ${match.resolvedLine} to ${nextResolvedLine}.`
+    );
+    match.resolvedLine = nextResolvedLine;
+  };
+  let breakpointChangeDisposable: vscode.Disposable | undefined;
+  if (validated.length) {
+    breakpointChangeDisposable = vscode.debug.onDidChangeBreakpoints(
+      (event) => {
+        const candidates = [...event.added, ...event.changed].filter(
+          (bp): bp is vscode.SourceBreakpoint =>
+            bp instanceof vscode.SourceBreakpoint
+        );
+        for (const bp of candidates) {
+          updateResolvedBreakpointLine(bp);
+        }
+      }
+    );
   }
   // Optional serverReady breakpoint (declare early so scope is available later)
   let serverReadySource: vscode.SourceBreakpoint | undefined;
@@ -1898,10 +1927,10 @@ export const startDebuggingAndWaitForStop = async (
     const isServerReadyHit =
       !!serverReadySource && entryStop.line === serverReady?.trigger?.line;
     // Decide whether to continue immediately (entry not at user breakpoint OR serverReady hit)
-    const entryLineZeroBased = entryStop.line ? entryStop.line - 1 : -1;
-    const hitRequestedBreakpoint = validated.some(
-      (v) => v.sb.location.range.start.line === entryLineZeroBased
-    );
+    const entryLineOneBased = entryStop.line ?? -1;
+    const hitRequestedBreakpoint =
+      entryLineOneBased > 0 &&
+      validated.some((v) => v.resolvedLine === entryLineOneBased);
     logger.info(
       `EntryStop diagnostics: line=${entryStop.line} serverReadyLine=${serverReady?.trigger?.line} isServerReadyHit=${isServerReadyHit} hitRequestedBreakpoint=${hitRequestedBreakpoint}`
     );
@@ -2081,24 +2110,26 @@ export const startDebuggingAndWaitForStop = async (
     const frameLine = debugContext.frame?.line;
     if (framePath && typeof frameLine === "number") {
       const normalizedFramePath = normalizeFsPath(framePath);
-      for (const { bp } of validated) {
+      for (const { bp, resolvedLine } of validated) {
         const absPath = path.isAbsolute(bp.path)
           ? bp.path
           : path.join(folderFsPath, bp.path);
-        if (
-          normalizeFsPath(absPath) === normalizedFramePath &&
-          bp.line === frameLine
-        ) {
-          hitBreakpoint = {
-            path: absPath,
-            line: bp.line,
-            variableFilter: bp.variableFilter,
-            action: bp.action,
-            logMessage: bp.logMessage,
-            reasonCode: bp.reasonCode,
-          };
-          break;
+        if (normalizeFsPath(absPath) !== normalizedFramePath) {
+          continue;
         }
+        const matchesLine = frameLine === bp.line || frameLine === resolvedLine;
+        if (!matchesLine) {
+          continue;
+        }
+        hitBreakpoint = {
+          path: absPath,
+          line: frameLine,
+          variableFilter: bp.variableFilter,
+          action: bp.action,
+          logMessage: bp.logMessage,
+          reasonCode: bp.reasonCode,
+        };
+        break;
       }
     }
     // Build variable lookup for interpolation (for capture action log message expansion)
@@ -2251,6 +2282,7 @@ export const startDebuggingAndWaitForStop = async (
     activeDebugPatternScan = undefined;
     terminalCapture.dispose();
     taskStartDisposable?.dispose();
+    breakpointChangeDisposable?.dispose();
     // Restore original breakpoints, removing any added ones first
     const current = vscode.debug.breakpoints;
     if (current.length) {

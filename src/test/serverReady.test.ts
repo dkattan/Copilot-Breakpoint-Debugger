@@ -140,4 +140,69 @@ describe("serverReady breakpoint", () => {
       "hitBreakpoint line mismatch (httpRequest)"
     );
   });
+
+  it("runs action when serverReady pattern matches output", async () => {
+    await activateCopilotDebugger();
+    const extensionRoot = getExtensionRoot();
+    const workspaceFolder = path.join(extensionRoot, "test-workspace", "b");
+    const serverPath = path.join(workspaceFolder, "serverPattern.js");
+    const serverDoc = await vscode.workspace.openTextDocument(serverPath);
+    await openScriptDocument(serverDoc.uri);
+    const lines = serverDoc.getText().split(/\r?\n/);
+    const patternLine =
+      lines.findIndex((l) => l.includes("PATTERN_READY_LINE")) + 1;
+    const userBreakpointLine =
+      lines.findIndex((l) => l.includes("USER_BREAKPOINT_TARGET")) + 1;
+    assert.ok(patternLine > 0, "Did not find pattern trigger line");
+    assert.ok(
+      userBreakpointLine > patternLine,
+      "Unexpected user breakpoint line ordering"
+    );
+    const context = await startDebuggingAndWaitForStop({
+      sessionName: "",
+      workspaceFolder,
+      nameOrConfiguration: "Run b/serverPattern.js",
+      breakpointConfig: {
+        breakpoints: [
+          {
+            path: serverPath,
+            line: userBreakpointLine,
+            variableFilter: ["readyHits"],
+            action: "break",
+          },
+        ],
+      },
+      serverReady: {
+        trigger: {
+          pattern: "Pattern server listening on http://localhost:31338",
+        },
+        action: { type: "httpRequest", url: "http://localhost:31338/health" },
+      },
+    });
+    assert.strictEqual(
+      context.frame.line,
+      userBreakpointLine,
+      "Did not pause at expected user breakpoint line after serverReady pattern"
+    );
+    assert.strictEqual(
+      context.serverReadyInfo.triggerMode,
+      "pattern",
+      "serverReady trigger mode should be pattern"
+    );
+    assert.ok(
+      context.serverReadyInfo.phases.some(
+        (phase) => phase.phase === "immediate"
+      ),
+      "serverReady pattern should execute immediate phase"
+    );
+    assert.ok(
+      context.serverReadyInfo.triggerSummary
+        ?.toLowerCase()
+        .includes("debug output") ||
+        context.serverReadyInfo.triggerSummary
+          ?.toLowerCase()
+          .includes("terminal"),
+      "serverReady trigger summary should describe pattern hit source"
+    );
+  });
 });

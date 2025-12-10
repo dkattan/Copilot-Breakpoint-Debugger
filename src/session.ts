@@ -45,6 +45,36 @@ export interface ScopeVariables {
   error?: string;
 }
 
+export type ServerReadyPhase = "entry" | "late" | "immediate";
+
+export type ServerReadyPatternSource = "debugOutput" | "terminal";
+
+export interface ServerReadyPhaseInfo {
+  phase: ServerReadyPhase;
+  timestamp: number;
+}
+
+export interface ServerReadyInfo {
+  configured: boolean;
+  triggerMode: "pattern" | "breakpoint" | "immediate" | "disabled";
+  phases: ServerReadyPhaseInfo[];
+  triggerSummary?: string;
+}
+
+export type DebuggerStateStatus = "paused" | "running" | "terminated";
+
+export interface DebuggerStateSnapshot {
+  status: DebuggerStateStatus;
+  sessionId?: string;
+  sessionName?: string;
+}
+
+export interface RuntimeOutputPreview {
+  lines: string[];
+  totalLines: number;
+  truncated: boolean;
+}
+
 /**
  * Call stack information for a debug session
  */
@@ -91,6 +121,22 @@ export interface StartDebugSessionResult {
     json?: DebugInfo;
   }>;
   isError: boolean;
+}
+
+export interface StartDebuggerStopInfo extends DebugContext {
+  scopeVariables: ScopeVariables[];
+  hitBreakpoint?: {
+    path: string;
+    line: number;
+    variableFilter?: string[];
+    action?: "break" | "stopDebugging" | "capture";
+    logMessage?: string;
+    reasonCode?: string;
+  };
+  capturedLogMessages?: string[];
+  serverReadyInfo: ServerReadyInfo;
+  debuggerState: DebuggerStateSnapshot;
+  runtimeOutput: RuntimeOutputPreview;
 }
 
 /**
@@ -158,6 +204,7 @@ const formatBuildErrors = (diagnostics: vscode.Diagnostic[]): string => {
 };
 
 const MAX_CAPTURED_TASK_OUTPUT_LINES = 200;
+const MAX_RETURNED_DEBUG_OUTPUT_LINES = 10;
 
 const stripAnsiEscapeCodes = (value: string): string =>
   value ? stripAnsi(value) : "";
@@ -218,8 +265,13 @@ interface TerminalOutputCapture {
   dispose: () => void;
 }
 
+interface TerminalOutputCaptureOptions {
+  onLine?: (line: string) => void;
+}
+
 export const createTerminalOutputCapture = (
-  maxLines: number
+  maxLines: number,
+  options?: TerminalOutputCaptureOptions
 ): TerminalOutputCapture => {
   type TerminalShellWindow = typeof vscode.window & {
     onDidStartTerminalShellExecution?: vscode.Event<vscode.TerminalShellExecutionStartEvent>;
@@ -249,7 +301,21 @@ export const createTerminalOutputCapture = (
     if (!sanitized) {
       return;
     }
-    lines.push(`${terminal.name}: ${truncateLine(sanitized)}`);
+    const formatted = `${terminal.name}: ${truncateLine(sanitized)}`;
+    lines.push(formatted);
+    if (options?.onLine) {
+      try {
+        options.onLine(sanitized);
+      } catch (callbackErr) {
+        logger.warn(
+          `terminal capture onLine callback failed: ${
+            callbackErr instanceof Error
+              ? callbackErr.message
+              : String(callbackErr)
+          }`
+        );
+      }
+    }
     if (lines.length > maxLines) {
       lines.shift();
     }
@@ -878,20 +944,7 @@ export const startDebuggingAndWaitForStop = async (params: {
    * Defaults to false.
    */
   useExistingBreakpoints?: boolean;
-}): Promise<
-  DebugContext & {
-    scopeVariables: ScopeVariables[];
-    hitBreakpoint?: {
-      path: string;
-      line: number;
-      variableFilter?: string[];
-      action?: "break" | "stopDebugging" | "capture";
-      logMessage?: string;
-      reasonCode?: string;
-    };
-    capturedLogMessages?: string[];
-  }
-> => {
+}): Promise<StartDebuggerStopInfo> => {
   const {
     sessionName,
     workspaceFolder,
@@ -910,13 +963,32 @@ export const startDebuggingAndWaitForStop = async (params: {
   }
   const serverReady = serverReadyEnabled ? serverReadyParam : undefined;
 
+  let serverReadyPatternRegex: RegExp | undefined;
+  if (serverReady?.trigger?.pattern) {
+    try {
+      serverReadyPatternRegex = new RegExp(serverReady.trigger.pattern);
+    } catch (err) {
+      throw new Error(
+        `Invalid serverReady trigger pattern '${
+          serverReady.trigger.pattern
+        }': ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+  let serverReadyTriggerSummary: string | undefined;
+  let serverReadyPatternMatched = false;
+  let serverReadyPatternScanTimer: ReturnType<typeof setInterval> | undefined;
+  const pendingTerminalPatternLines: string[] = [];
+  let terminalPatternEvaluationEnabled = false;
+  let activeDebugPatternScan: (() => void) | undefined;
+
   const copilotServerReadyTriggerMode:
     | "pattern"
     | "breakpoint"
     | "immediate"
     | "disabled" = !serverReady
     ? "disabled"
-    : serverReady.trigger?.pattern
+    : serverReadyPatternRegex
     ? "pattern"
     : serverReady.trigger?.path && typeof serverReady.trigger.line === "number"
     ? "breakpoint"
@@ -1311,16 +1383,110 @@ export const startDebuggingAndWaitForStop = async (params: {
   const settingTimeout = config.entryTimeoutSeconds;
   const settingMaxBuildErrors = config.maxBuildErrors;
   const maxRuntimeOutputLines = config.maxOutputLines ?? 50;
-  const terminalCapture = createTerminalOutputCapture(maxRuntimeOutputLines);
+  const stopServerReadyPatternTimer = () => {
+    if (serverReadyPatternScanTimer) {
+      clearInterval(serverReadyPatternScanTimer);
+      serverReadyPatternScanTimer = undefined;
+    }
+  };
+  const evaluateServerReadyPatternCandidate = (
+    source: ServerReadyPatternSource,
+    line: string
+  ) => {
+    if (!serverReady || !serverReadyPatternRegex || serverReadyPatternMatched) {
+      return;
+    }
+    const normalized = stripAnsiEscapeCodes(line).trim();
+    if (!normalized) {
+      return;
+    }
+    serverReadyPatternRegex.lastIndex = 0;
+    if (!serverReadyPatternRegex.test(normalized)) {
+      return;
+    }
+    serverReadyPatternMatched = true;
+    serverReadyTriggerSummary = `${
+      source === "terminal" ? "Terminal" : "Debug output"
+    } matched: ${truncateLine(normalized)}`;
+    logger.info(
+      `serverReady trigger pattern matched via ${source}: ${normalized}`
+    );
+    stopServerReadyPatternTimer();
+    pendingTerminalPatternLines.length = 0;
+    void executeServerReadyAction("immediate");
+  };
+  const pendingTerminalPatternLinesMax = maxRuntimeOutputLines;
+  const enqueueTerminalPatternLine = (line: string) => {
+    if (!serverReadyPatternRegex || serverReadyPatternMatched) {
+      return;
+    }
+    if (!terminalPatternEvaluationEnabled) {
+      if (pendingTerminalPatternLinesMax > 0) {
+        pendingTerminalPatternLines.push(line);
+        if (
+          pendingTerminalPatternLines.length > pendingTerminalPatternLinesMax
+        ) {
+          pendingTerminalPatternLines.shift();
+        }
+      }
+      return;
+    }
+    evaluateServerReadyPatternCandidate("terminal", line);
+  };
+  const enableTerminalPatternEvaluation = () => {
+    if (!serverReadyPatternRegex || terminalPatternEvaluationEnabled) {
+      return;
+    }
+    terminalPatternEvaluationEnabled = true;
+    if (!pendingTerminalPatternLines.length) {
+      return;
+    }
+    const buffered = [...pendingTerminalPatternLines];
+    pendingTerminalPatternLines.length = 0;
+    for (const line of buffered) {
+      evaluateServerReadyPatternCandidate("terminal", line);
+      if (serverReadyPatternMatched) {
+        break;
+      }
+    }
+  };
+  const scheduleDebugPatternScan = (sessionId: string) => {
+    if (!serverReadyPatternRegex || serverReadyPatternMatched) {
+      return undefined;
+    }
+    const scan = () => {
+      if (serverReadyPatternMatched) {
+        stopServerReadyPatternTimer();
+        return;
+      }
+      const lines = getSessionOutput(sessionId);
+      for (const entry of lines) {
+        if (!entry?.text) {
+          continue;
+        }
+        evaluateServerReadyPatternCandidate("debugOutput", entry.text);
+        if (serverReadyPatternMatched) {
+          break;
+        }
+      }
+    };
+    scan();
+    if (!serverReadyPatternMatched) {
+      serverReadyPatternScanTimer = setInterval(scan, 250);
+    }
+    return scan;
+  };
+  const terminalCapture = createTerminalOutputCapture(maxRuntimeOutputLines, {
+    onLine: (line) => enqueueTerminalPatternLine(line),
+  });
   const withRuntimeDiagnostics = (message: string, sessionId?: string) =>
     formatRuntimeDiagnosticsMessage(message, {
       sessionId,
       terminalLines: terminalCapture.snapshot(),
       maxLines: maxRuntimeOutputLines,
     });
-  type ServerReadyMatchSource = "debugOutput" | "terminal";
   interface ServerReadyMatch {
-    source: ServerReadyMatchSource;
+    source: ServerReadyPatternSource;
     sample: string;
     captureGroups: string[];
     formattedUri?: string;
@@ -1379,7 +1545,7 @@ export const startDebuggingAndWaitForStop = async (params: {
       : [];
     const searchLines = (
       lines: string[],
-      source: ServerReadyMatchSource
+      source: ServerReadyPatternSource
     ): ServerReadyMatch | undefined => {
       for (const raw of lines) {
         if (!raw) {
@@ -1685,6 +1851,17 @@ export const startDebuggingAndWaitForStop = async (params: {
     const augmented = await buildFailureDetails(baseMessage);
     throw new Error(augmented ?? baseMessage);
   }
+  if (
+    serverReady &&
+    copilotServerReadyTriggerMode === "immediate" &&
+    (!resolvedConfig.request || resolvedConfig.request === "attach")
+  ) {
+    if (!serverReadyTriggerSummary) {
+      serverReadyTriggerSummary = "Immediate trigger invoked (attach request).";
+    }
+    logger.info("Executing immediate serverReady action for attach request.");
+    void executeServerReadyAction("immediate");
+  }
   const startT = Date.now();
   let remainingMs = effectiveTimeoutSeconds * 1000;
   let entryStop: BreakpointHitInfo | undefined;
@@ -1704,6 +1881,8 @@ export const startDebuggingAndWaitForStop = async (params: {
         )
       );
     }
+    enableTerminalPatternEvaluation();
+    activeDebugPatternScan = scheduleDebugPatternScan(entryStop.session.id);
     const sessionId = entryStop.session.id;
     // Determine if entry stop is serverReady breakpoint
     // Tolerate serverReady breakpoint being the first ("entry") stop even if a user breakpoint
@@ -1727,6 +1906,11 @@ export const startDebuggingAndWaitForStop = async (params: {
           : `Entry stop for session ${sessionId} not at requested breakpoint; continuing to first user breakpoint.`
       );
       if (isServerReadyHit && serverReady) {
+        if (!serverReadyTriggerSummary) {
+          serverReadyTriggerSummary = serverReady.trigger?.path
+            ? `Breakpoint ${serverReady.trigger.path}:${serverReady.trigger.line}`
+            : "serverReady breakpoint hit";
+        }
         await executeServerReadyAction("entry");
       }
       try {
@@ -1763,12 +1947,18 @@ export const startDebuggingAndWaitForStop = async (params: {
     // If serverReady was NOT the entry stop but becomes the first user stop, process it now then continue.
     if (
       !isServerReadyHit &&
+      serverReady &&
       serverReadySource &&
-      finalStop.line === serverReady?.trigger?.line
+      finalStop.line === serverReady.trigger?.line
     ) {
       logger.info(
         `Processing serverReady breakpoint post-entry at line ${finalStop.line}. Executing serverReady action then continuing to user breakpoint.`
       );
+      if (!serverReadyTriggerSummary) {
+        serverReadyTriggerSummary = serverReady.trigger?.path
+          ? `Breakpoint ${serverReady.trigger.path}:${serverReady.trigger.line}`
+          : "serverReady breakpoint hit";
+      }
       await executeServerReadyAction("late");
       // Remove serverReady breakpoint to avoid re-trigger
       vscode.debug.removeBreakpoints([serverReadySource]);
@@ -1953,11 +2143,60 @@ export const startDebuggingAndWaitForStop = async (params: {
         );
       }
     }
+    activeDebugPatternScan?.();
+    const serverReadyInfo: ServerReadyInfo = {
+      configured: !!serverReady,
+      triggerMode: copilotServerReadyTriggerMode,
+      phases: serverReadyPhaseExecutions.map((entry) => ({
+        phase: entry.phase,
+        timestamp: entry.when,
+      })),
+      triggerSummary: serverReadyTriggerSummary,
+    };
+    let debuggerState: DebuggerStateSnapshot;
+    if (hitBreakpoint?.action === "stopDebugging") {
+      debuggerState = { status: "terminated" };
+    } else if (hitBreakpoint?.action === "capture") {
+      debuggerState = {
+        status: "running",
+        sessionId: finalStop.session.id,
+        sessionName: finalStop.session.name,
+      };
+    } else {
+      debuggerState = {
+        status: "paused",
+        sessionId: finalStop.session.id,
+        sessionName: finalStop.session.name,
+      };
+    }
+    const formattedOutput = getSessionOutput(finalStop.session.id)
+      .map((line) => {
+        const category = line.category || "output";
+        const sanitized = truncateLine(stripAnsiEscapeCodes(line.text).trim());
+        if (!sanitized) {
+          return undefined;
+        }
+        return `[${category}] ${sanitized}`;
+      })
+      .filter((line): line is string => typeof line === "string");
+    const totalLines = formattedOutput.length;
+    const previewCount = Math.min(MAX_RETURNED_DEBUG_OUTPUT_LINES, totalLines);
+    const runtimeOutput: RuntimeOutputPreview = {
+      lines:
+        previewCount > 0
+          ? formattedOutput.slice(totalLines - previewCount)
+          : [],
+      totalLines,
+      truncated: previewCount < totalLines,
+    };
     return {
       ...debugContext,
       scopeVariables,
       hitBreakpoint,
       capturedLogMessages,
+      serverReadyInfo,
+      debuggerState,
+      runtimeOutput,
     };
   } catch (error) {
     taskTrackingArmed = false;
@@ -2002,6 +2241,8 @@ export const startDebuggingAndWaitForStop = async (params: {
     throw error;
   } finally {
     taskTrackingArmed = false;
+    stopServerReadyPatternTimer();
+    activeDebugPatternScan = undefined;
     terminalCapture.dispose();
     taskStartDisposable?.dispose();
     // Restore original breakpoints, removing any added ones first

@@ -25,6 +25,14 @@
       "program": "${workspaceFolder}/server.js",
       "cwd": "${workspaceFolder}",
       "console": "internalConsole"
+    },
+    {
+      "name": "Run b/serverPattern.js",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/serverPattern.js",
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole"
     }
   ]
 }

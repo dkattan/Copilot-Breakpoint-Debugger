@@ -183,9 +183,58 @@ export class StartDebuggerTool
             .map((l) => (l.length > 120 ? `${l.slice(0, 120)}…` : l))
             .join(" | ")}`
         : "";
-      const textOutput = `${header}\n${bodyVars}${
-        bodyLogs ? `\n${bodyLogs}` : ""
-      }`;
+      const timestampLine = `Timestamp: ${new Date().toISOString()}`;
+      const debuggerStateLine = (() => {
+        const state = stopInfo.debuggerState;
+        const sessionLabel = state.sessionName ?? state.sessionId ?? "unknown";
+        switch (state.status) {
+          case "paused":
+            return `Debugger State: paused on '${sessionLabel}'. Recommended tools: resume_debug_session, get_variables, expand_variable, evaluate_expression, stop_debug_session.`;
+          case "terminated":
+            return "Debugger State: terminated. Recommended tool: start_debugger_with_breakpoints to begin a new session.";
+          case "running":
+          default:
+            return `Debugger State: running (capture action continued session '${sessionLabel}'). Recommended tools: wait_for_breakpoint or resume_debug_session with new breakpoints.`;
+        }
+      })();
+      const serverReadySection = (() => {
+        const info = stopInfo.serverReadyInfo;
+        if (!info?.configured) {
+          return "Server Ready Trigger: Not configured";
+        }
+        if (!info.phases.length) {
+          return `Server Ready Trigger: Not Hit (mode=${info.triggerMode})`;
+        }
+        const hits = info.phases
+          .map(
+            (entry) =>
+              `${entry.phase}@${new Date(entry.timestamp).toISOString()}`
+          )
+          .join(", ");
+        const detail = info.triggerSummary ? ` | ${info.triggerSummary}` : "";
+        return `Server Ready Trigger: Hit (mode=${info.triggerMode}) ${hits}${detail}`;
+      })();
+      const runtimeOutputSection = (() => {
+        const preview = stopInfo.runtimeOutput;
+        if (!preview || preview.lines.length === 0) {
+          return "Runtime Output: <none>";
+        }
+        const qualifier = preview.truncated
+          ? `showing last ${preview.lines.length} of ${preview.totalLines} line(s)`
+          : `last ${preview.lines.length} line(s)`;
+        const body = preview.lines.map((line) => `- ${line}`).join("\n");
+        return `Runtime Output (${qualifier}):\n${body}`;
+      })();
+      const sections = [
+        timestampLine,
+        header,
+        bodyVars,
+        bodyLogs,
+        debuggerStateLine,
+        serverReadySection,
+        runtimeOutputSection,
+      ].filter((section) => section && section.trim().length > 0);
+      const textOutput = sections.join("\n");
 
       logger.info(`[StartDebuggerTool] textOutput ${textOutput}`);
       return new LanguageModelToolResult([

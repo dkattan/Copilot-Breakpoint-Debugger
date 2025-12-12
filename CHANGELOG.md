@@ -82,7 +82,7 @@ serverReady: {
 
 ## [0.0.16] - 2025-11-20
 
-**Documentation:** Clarified that `variableFilter` values are exact, case-sensitive variable names (no regex support). Removed prior regex-style examples (`^(user|session)$`, `^order_`) from README and replaced with explicit name lists. Added note that `resume_debug_session` breakpoints may omit `variableFilter` (optional) while `start_debugger_with_breakpoints` requires it per breakpoint to keep responses compact.
+**Documentation:** Clarified that `variableFilter` values are exact, case-sensitive variable names (no regex support). Removed prior regex-style examples (`^(user|session)$`, `^order_`) from README and replaced with explicit name lists. Added note that `resumeDebugSession` breakpoints may omit `variableFilter` (optional) while `startDebugSessionWithBreakpoints` requires it per breakpoint to keep responses compact.
 
 **Added:** Expanded README action guidance (difference between `break`, `capture`, `stopDebugging`), release workflow steps, and improved examples for capture interpolation.
 

@@ -232,6 +232,40 @@ describe("debugUtils - DAPHelpers", () => {
     assert.strictEqual(found, null, "Should not find non-existent variable");
   });
 
+  it("filters function-typed variables from capture", async () => {
+    const functionBlockLine = 28; // console.log after numberVar/fnVar definitions
+    const context = await startDebuggingAndWaitForStop(
+      Object.assign({}, baseParams, {
+        sessionName: "",
+        breakpointConfig: {
+          breakpoints: [
+            {
+              path: scriptPath,
+              line: functionBlockLine,
+              action: "break" as const,
+              variableFilter: ["numberVar", "fnVar"],
+            },
+          ],
+        },
+      })
+    );
+
+    const activeSession = vscode.debug.activeDebugSession;
+    assert.ok(activeSession, "No active debug session");
+
+    const capturedNames = context.scopeVariables.flatMap((scope) =>
+      scope.variables.map((v) => v.name)
+    );
+    assert.ok(
+      capturedNames.includes("numberVar"),
+      "Expected numberVar to be captured"
+    );
+    assert.ok(
+      !capturedNames.includes("fnVar"),
+      "Function-typed variable fnVar should be filtered out"
+    );
+  });
+
   it("getDebugContext works in active session", async () => {
     await startDebuggingAndWaitForStop(
       Object.assign({}, baseParams, {

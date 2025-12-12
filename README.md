@@ -6,12 +6,12 @@ Use GitHub Copilot (or any LM-enabled workflow in VS Code) to start, inspect, an
 
 The extension contributes Language Model Tools that Copilot can invoke:
 
-1. **Start Debugger** (`start_debugger_with_breakpoints`) – Launch a configured debug session and wait for the first breakpoint. You must supply at least one breakpoint, but `variableFilter` is optional: include it to narrow captured variables, omit it for a pure pause (`break` / `stopDebugging`) or automatic capture-all (`capture` action).
-2. **Resume Debug Session** (`resume_debug_session`) – Continue execution of an existing paused session and optionally wait for the next stop (new breakpoints added during resume may omit `variableFilter` if you only need a pause, but include it for scoped variable output or interpolation).
-3. **Get Variables** (`get_variables`) – Retrieve all variables in the current top stack frame scopes.
-4. **Expand Variable** (`expand_variable`) – Drill into a single variable to inspect its immediate children.
-5. **Evaluate Expression** (`evaluate_expression`) – Run an arbitrary expression (like the Debug Console) in the paused stack frame.
-6. **Stop Debug Session** (`stop_debug_session`) – Terminate matching debug sessions when you’re done.
+1. **Start Debugger** (`startDebugSessionWithBreakpoints`) – Launch a configured debug session and wait for the first breakpoint. You must supply at least one breakpoint, but `variableFilter` is optional: include it to narrow captured variables, omit it for a pure pause (`break` / `stopDebugging`) or automatic capture-all (`capture` action).
+2. **Resume Debug Session** (`resumeDebugSession`) – Continue execution of an existing paused session and optionally wait for the next stop (new breakpoints added during resume may omit `variableFilter` if you only need a pause, but include it for scoped variable output or interpolation).
+3. **Get Variables** (`getVariables`) – Retrieve all variables in the current top stack frame scopes.
+4. **Expand Variable** (`expandVariable`) – Drill into a single variable to inspect its immediate children.
+5. **Evaluate Expression** (`evaluateExpression`) – Run an arbitrary expression (like the Debug Console) in the paused stack frame.
+6. **Stop Debug Session** (`stopDebugSession`) – Terminate matching debug sessions when you’re done.
 
 All tools return structured data that Copilot can reason over (JSON-like text parts containing call stacks, variables, and metadata).
 
@@ -110,7 +110,7 @@ Default        : `false`
 
 The repo already ships with a workspace-level Run on Save configuration (see `.vscode/settings.json`) that fires `npm run update` any time `package.json` is saved. Just install the [Run on Save](https://marketplace.visualstudio.com/items?itemName=emeraldwalk.RunOnSave) extension when VS Code recommends it and the tables will stay in sync automatically.
 
-> **Important (updated):** `start_debugger_with_breakpoints` requires at least one breakpoint. `variableFilter` is **only required** when you want a _subset_ of variables for a `capture` action. If you set `action: "capture"` and omit `variableFilter`, the tool auto-captures the first `captureMaxVariables` locals (case‑sensitive exact names) to reduce friction. For `break` or `stopDebugging` actions, omit `variableFilter` for a pure pause without variable output.
+> **Important (updated):** `startDebugSessionWithBreakpoints` requires at least one breakpoint. `variableFilter` is **only required** when you want a _subset_ of variables for a `capture` action. If you set `action: "capture"` and omit `variableFilter`, the tool auto-captures the first `captureMaxVariables` locals (case‑sensitive exact names) to reduce friction. For `break` or `stopDebugging` actions, omit `variableFilter` for a pure pause without variable output.
 
 ### Entry Timeout Diagnostics
 

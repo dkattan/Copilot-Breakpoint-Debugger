@@ -21,3 +21,8 @@ console.log('Completed loop');
 setTimeout(() => {
   console.log('Exiting after idle wait.');
 }, 3000);
+
+// Function-type variable for filtering behavior tests
+const numberVar = 42;
+const fnVar = () => numberVar;
+console.log('Function var test', numberVar, typeof fnVar);

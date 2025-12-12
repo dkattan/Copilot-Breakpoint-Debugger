@@ -19,19 +19,19 @@ export const activate = extension.activate;
 export const deactivate = extension.deactivate;
 
 function registerTools(context: vscode.ExtensionContext) {
-  context.subscriptions.push(
-    vscode.lm.registerTool(
-      "start_debugger_with_breakpoints",
-      new StartDebuggerTool()
-    ),
-    vscode.lm.registerTool(
-      "resume_debug_session",
-      new ResumeDebugSessionTool()
-    ),
-    vscode.lm.registerTool("get_variables", new GetVariablesTool()),
-    vscode.lm.registerTool("expand_variable", new ExpandVariableTool()),
-    vscode.lm.registerTool("evaluate_expression", new EvaluateExpressionTool()),
-    vscode.lm.registerTool("stop_debug_session", new StopDebugSessionTool()),
+    context.subscriptions.push(
+      vscode.lm.registerTool(
+        "startDebugSessionWithBreakpoints",
+        new StartDebuggerTool()
+      ),
+      vscode.lm.registerTool(
+        "resumeDebugSession",
+        new ResumeDebugSessionTool()
+      ),
+      vscode.lm.registerTool("getVariables", new GetVariablesTool()),
+      vscode.lm.registerTool("expandVariable", new ExpandVariableTool()),
+      vscode.lm.registerTool("evaluateExpression", new EvaluateExpressionTool()),
+      vscode.lm.registerTool("stopDebugSession", new StopDebugSessionTool()),
 
     vscode.commands.registerCommand(
       "copilotBreakpointDebugger.startAndWaitManual",

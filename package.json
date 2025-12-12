@@ -14,7 +14,7 @@
   "bugs": {
     "url": "https://github.com/dkattan/Copilot-Breakpoint-Debugger/issues"
   },
-        "when": "debugState == 'running'",
+  "when": "debugState == 'running'",
   "keywords": [
     "copilot",
     "debug",
@@ -118,8 +118,8 @@
       }
     },
     "languageModelTools": [
-        {
-          "name": "startDebugSessionWithBreakpoints",
+      {
+        "name": "startDebugSessionWithBreakpoints",
         "displayName": "Start Debugger",
         "toolReferenceName": "startDebugSessionWithBreakpoints",
         "canBeReferencedInPrompt": true,
@@ -328,8 +328,8 @@
           ]
         }
       },
-        {
-          "name": "resumeDebugSession",
+      {
+        "name": "resumeDebugSession",
         "displayName": "Resume Debug Session",
         "toolReferenceName": "resumeDebugSession",
         "canBeReferencedInPrompt": true,
@@ -404,8 +404,8 @@
           ]
         }
       },
-        {
-          "name": "getVariables",
+      {
+        "name": "getVariables",
         "displayName": "Get Variables",
         "toolReferenceName": "getVariables",
         "canBeReferencedInPrompt": true,
@@ -416,8 +416,8 @@
           "properties": {}
         }
       },
-        {
-          "name": "expandVariable",
+      {
+        "name": "expandVariable",
         "displayName": "Expand Variable",
         "toolReferenceName": "expandVariable",
         "canBeReferencedInPrompt": true,
@@ -436,8 +436,8 @@
           ]
         }
       },
-        {
-          "name": "evaluateExpression",
+      {
+        "name": "evaluateExpression",
         "displayName": "Evaluate Expression",
         "toolReferenceName": "evaluateExpression",
         "canBeReferencedInPrompt": true,
@@ -460,8 +460,8 @@
           ]
         }
       },
-        {
-          "name": "stopDebugSession",
+      {
+        "name": "stopDebugSession",
         "displayName": "Stop Debug Session",
         "toolReferenceName": "stopDebugSession",
         "canBeReferencedInPrompt": true,

@@ -115,7 +115,18 @@ export class DAPHelpers {
     if (!variablesResponse?.variables) {
       return [];
     }
-    return variablesResponse.variables.map((v: Variable) => ({
+    const filtered = variablesResponse.variables.filter((v: Variable) => {
+      const type = v.type?.toLowerCase();
+      if (type === "function") {
+        return false;
+      }
+      if (!type && typeof v.value === "string") {
+        // Some adapters omit type but include a "function ..." value string.
+        return !v.value.startsWith("function");
+      }
+      return true;
+    });
+    return filtered.map((v: Variable) => ({
       name: v.evaluateName || v.name,
       value: v.value,
       type: v.type,

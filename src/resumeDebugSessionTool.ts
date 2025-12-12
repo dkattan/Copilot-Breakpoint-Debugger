@@ -5,6 +5,7 @@ import type {
   LanguageModelToolInvocationPrepareOptions,
   ProviderResult,
 } from "vscode";
+import type { BreakpointDefinition } from "./BreakpointDefinition";
 import { LanguageModelTextPart, LanguageModelToolResult } from "vscode";
 import { resumeDebugSession } from "./session";
 
@@ -12,15 +13,7 @@ export interface ResumeDebugSessionToolParameters {
   sessionId: string; // ID of the debug session to resume
   waitForStop?: boolean; // Wait for next breakpoint after resume
   breakpointConfig?: {
-    breakpoints?: Array<{
-      path: string;
-      line: number;
-      variableFilter?: string[]; // optional (ignored unless future capture-on-resume implemented)
-      action?: "break" | "capture" | "stopDebugging"; // accepted for schema parity; core resume flow currently treats all as 'break'
-      condition?: string;
-      hitCount?: number;
-      logMessage?: string;
-    }>;
+    breakpoints?: Array<BreakpointDefinition>;
   };
 }
 

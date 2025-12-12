@@ -1,4 +1,5 @@
 import type { Buffer } from "node:buffer";
+import type { BreakpointDefinition } from "./BreakpointDefinition";
 import type { BreakpointHitInfo } from "./common";
 import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
@@ -125,14 +126,7 @@ export interface StartDebugSessionResult {
 
 export interface StartDebuggerStopInfo extends DebugContext {
   scopeVariables: ScopeVariables[];
-  hitBreakpoint?: {
-    path: string;
-    line: number;
-    variableFilter?: string[];
-    action?: "break" | "stopDebugging" | "capture";
-    logMessage?: string;
-    reasonCode?: string;
-  };
+  hitBreakpoint?: BreakpointDefinition;
   capturedLogMessages?: string[];
   serverReadyInfo: ServerReadyInfo;
   debuggerState: DebuggerStateSnapshot;
@@ -902,16 +896,7 @@ export interface StartDebuggingAndWaitForStopParams {
   nameOrConfiguration?: string; // may be omitted; auto-selection logic will attempt resolution
   timeoutSeconds?: number; // optional override; falls back to workspace setting copilot-debugger.entryTimeoutSeconds
   breakpointConfig: {
-    breakpoints: Array<{
-      path: string;
-      line: number;
-      condition?: string;
-      hitCount?: number; // numeric hit count (exact)
-      logMessage?: string;
-      variableFilter?: string[]; // optional; when capture and omitted we auto-capture all locals (bounded in StartDebuggerTool)
-      action: "break" | "stopDebugging" | "capture"; // 'capture' collects data + log messages then continues
-      reasonCode?: string; // internal telemetry tag
-    }>;
+    breakpoints: Array<BreakpointDefinition>;
   };
   serverReady?: {
     trigger?: { path?: string; line?: number; pattern?: string };
@@ -1190,7 +1175,7 @@ export const startDebuggingAndWaitForStop = async (
   }
   for (const bp of breakpointConfig.breakpoints) {
     if (
-      bp.action === "capture" &&
+      bp.onHit === "captureAndContinue" &&
       bp.variableFilter &&
       bp.variableFilter.length === 0
     ) {
@@ -1301,11 +1286,11 @@ export const startDebuggingAndWaitForStop = async (
       const location = new vscode.Position(bp.line - 1, 0);
       const effectiveHitCondition =
         bp.hitCount !== undefined ? String(bp.hitCount) : undefined;
-      // For 'capture' action we intentionally do NOT pass bp.logMessage to SourceBreakpoint.
+      // For onHit 'captureAndContinue' we intentionally do NOT pass bp.logMessage to SourceBreakpoint.
       // Passing a logMessage turns the breakpoint into a logpoint (non-pausing) in many adapters.
-      // Capture semantics require a real pause to gather variables, then we auto-continue.
+      // captureAndContinue semantics require a real pause to gather variables, then we auto-continue.
       const adapterLogMessage =
-        bp.action === "capture" ? undefined : bp.logMessage;
+        bp.onHit === "captureAndContinue" ? undefined : bp.logMessage;
       const sourceBp = new vscode.SourceBreakpoint(
         new vscode.Location(uri, location),
         true,
@@ -2096,16 +2081,7 @@ export const startDebuggingAndWaitForStop = async (
       scopeVariables.push({ scopeName: scope.name, variables });
     }
     // Determine which breakpoint was actually hit (exact file + line match)
-    let hitBreakpoint:
-      | {
-          path: string;
-          line: number;
-          variableFilter?: string[];
-          action?: "break" | "stopDebugging" | "capture";
-          logMessage?: string;
-          reasonCode?: string;
-        }
-      | undefined;
+    let hitBreakpoint: BreakpointDefinition | undefined;
     const framePath = debugContext.frame?.source?.path;
     const frameLine = debugContext.frame?.line;
     if (framePath && typeof frameLine === "number") {
@@ -2125,7 +2101,7 @@ export const startDebuggingAndWaitForStop = async (
           path: absPath,
           line: frameLine,
           variableFilter: bp.variableFilter,
-          action: bp.action,
+          onHit: bp.onHit,
           logMessage: bp.logMessage,
           reasonCode: bp.reasonCode,
         };
@@ -2140,7 +2116,7 @@ export const startDebuggingAndWaitForStop = async (
       }
     }
     let capturedLogMessages: string[] | undefined;
-    if (hitBreakpoint?.action === "capture") {
+    if (hitBreakpoint?.onHit === "captureAndContinue") {
       const interpolate = (msg: string) =>
         msg.replace(/\{([^{}]+)\}/g, (_m, name) => {
           const raw = variableLookup.get(name);
@@ -2153,7 +2129,7 @@ export const startDebuggingAndWaitForStop = async (
         }
       }
     }
-    if (hitBreakpoint?.action === "stopDebugging") {
+    if (hitBreakpoint?.onHit === "stopDebugging") {
       logger.info(`Terminating all debug sessions per breakpoint action.`);
       await vscode.debug.stopDebugging();
       const now = Date.now();
@@ -2162,7 +2138,7 @@ export const startDebuggingAndWaitForStop = async (
       }
       const waitTime = Date.now() - now;
       logger.info(`All debug sessions terminated after ${waitTime}ms.`);
-    } else if (hitBreakpoint?.action === "capture") {
+    } else if (hitBreakpoint?.onHit === "captureAndContinue") {
       try {
         logger.debug(
           `Continuing debug session ${finalStop.session.id} after capture action.`
@@ -2191,9 +2167,9 @@ export const startDebuggingAndWaitForStop = async (
       triggerSummary: serverReadyTriggerSummary,
     };
     let debuggerState: DebuggerStateSnapshot;
-    if (hitBreakpoint?.action === "stopDebugging") {
+    if (hitBreakpoint?.onHit === "stopDebugging") {
       debuggerState = { status: "terminated" };
-    } else if (hitBreakpoint?.action === "capture") {
+    } else if (hitBreakpoint?.onHit === "captureAndContinue") {
       debuggerState = {
         status: "running",
         sessionId: finalStop.session.id,
@@ -2229,7 +2205,7 @@ export const startDebuggingAndWaitForStop = async (
     return {
       ...debugContext,
       scopeVariables,
-      hitBreakpoint,
+      hitBreakpoint: hitBreakpoint ?? undefined,
       capturedLogMessages,
       serverReadyInfo,
       debuggerState,

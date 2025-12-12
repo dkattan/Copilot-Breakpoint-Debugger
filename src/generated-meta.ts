@@ -113,7 +113,7 @@ export const configs = {
     default: 60,
   } as ConfigItem<"copilot-debugger.entryTimeoutSeconds">,
   /**
-   * Maximum number of variables auto-captured when a breakpoint action=capture omits variableFilter (capture-all mode).
+   * Maximum number of variables auto-captured when a breakpoint onHit=captureAndContinue omits variableFilter (capture-all mode).
    * @key `copilot-debugger.captureMaxVariables`
    * @default `40`
    * @type `integer`

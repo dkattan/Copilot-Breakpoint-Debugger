@@ -141,7 +141,7 @@ describe("debugUtils - DAPHelpers", () => {
             {
               path: scriptPath,
               line: 5,
-              action: "break" as const,
+              onHit: "break" as const,
               variableFilter: ["i"],
             },
           ],
@@ -272,7 +272,7 @@ describe("debugUtils - DAPHelpers", () => {
               path: scriptPath,
               line: targetLine,
               variableFilter: ["i"],
-              action: "stopDebugging" as const,
+              onHit: "stopDebugging" as const,
             },
           ],
         },

@@ -42,7 +42,7 @@ describe("serverReady vscodeCommand action", () => {
             path: serverPath,
             line: userBreakpointLine,
             variableFilter: ["started"],
-            action: "break",
+            onHit: "break",
           },
         ],
       },

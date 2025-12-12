@@ -239,7 +239,7 @@ function registerTools(context: vscode.ExtensionContext) {
               {
                 path: "src/server.ts",
                 line: 27,
-                action: "capture",
+                onHit: "captureAndContinue",
                 logMessage: "port={PORT}",
                 variableFilter: ["PORT"],
               },

@@ -65,7 +65,7 @@
         "copilot-debugger.captureMaxVariables": {
           "type": "integer",
           "default": 40,
-          "description": "Maximum number of variables auto-captured when a breakpoint action=capture omits variableFilter (capture-all mode)."
+          "description": "Maximum number of variables auto-captured when a breakpoint onHit=captureAndContinue omits variableFilter (capture-all mode)."
         },
         "copilot-debugger.serverReadyEnabled": {
           "type": "boolean",
@@ -122,8 +122,8 @@
         "displayName": "Start Debugger",
         "toolReferenceName": "startDebugger",
         "canBeReferencedInPrompt": true,
-        "userDescription": "Start a debug session, set breakpoints, and wait until a breakpoint is hit. Supports actions: break (pause & return), capture (collect variables & interpolated log messages then resume automatically; non-blocking), stopDebugging (terminate after hit). Supports serverReady.action types: httpRequest | shellCommand | vscodeCommand (auto-run after readiness trigger). Exact numeric hitCount pauses on that occurrence.",
-        "modelDescription": "Start a debug session using the configured default launch configuration or an explicitly provided configurationName. Auto-selects sole launch config when none specified and no default setting is present. Each breakpoint can specify an action: break (pause), capture (non-blocking gather of variables & interpolation of {var} placeholders in logMessage then continue), or stopDebugging (terminate immediately after hit). Supports serverReady with trigger {path+line | pattern | omitted attach} and action.type httpRequest | shellCommand | vscodeCommand. Conditional expressions and exact numeric hitCount only. variableFilter required only for capture; omit to capture all locals up to captureMaxVariables.",
+        "userDescription": "Start a debug session, set breakpoints, and wait until a breakpoint is hit. Supports onHit behaviors: break (pause & return), captureAndContinue (collect variables & interpolated log messages then resume automatically), stopDebugging (terminate after hit). Supports serverReady.action types: httpRequest | shellCommand | vscodeCommand (auto-run after readiness trigger). Exact numeric hitCount pauses on that occurrence.",
+        "modelDescription": "Start a debug session using the configured default launch configuration or an explicitly provided configurationName. Auto-selects sole launch config when none specified and no default setting is present. Each breakpoint can specify an onHit: break (pause), captureAndContinue (non-blocking gather of variables & interpolation of {var} placeholders in logMessage then continue), or stopDebugging (terminate immediately after hit). Supports serverReady with trigger {path+line | pattern | omitted attach} and action.type httpRequest | shellCommand | vscodeCommand. Conditional expressions and exact numeric hitCount only. variableFilter required only for captureAndContinue; omit to capture all locals up to captureMaxVariables.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -158,16 +158,16 @@
                           "type": "string"
                         },
                         "minItems": 1,
-                        "description": "List of exact variable names to include when reporting variables for this breakpoint or for interpolation in capture action. Required only if action=capture and you want a subset; when omitted for capture all locals (up to captureMaxVariables) are auto-collected. Ignored for break/stopDebugging. Case-sensitive."
+                        "description": "List of exact variable names to include when reporting variables for this breakpoint or for interpolation in captureAndContinue onHit. Required only if onHit=captureAndContinue and you want a subset; when omitted for captureAndContinue all locals (up to captureMaxVariables) are auto-collected. Ignored for break/stopDebugging. Case-sensitive."
                       },
-                      "action": {
+                      "onHit": {
                         "type": "string",
                         "enum": [
                           "break",
-                          "capture",
+                          "captureAndContinue",
                           "stopDebugging"
                         ],
-                        "description": "Breakpoint action: break pauses and returns; capture collects variables & interpolated log messages then resumes (non-blocking); stopDebugging terminates session after hit."
+                        "description": "Breakpoint onHit: break pauses and returns; captureAndContinue collects variables & interpolated log messages then resumes; stopDebugging terminates session after hit."
                       },
                       "condition": {
                         "type": "string",
@@ -189,7 +189,7 @@
                     "required": [
                       "path",
                       "line",
-                      "action"
+                      "onHit"
                     ]
                   },
                   "description": "Breakpoints to add before starting session."

@@ -2,26 +2,11 @@ import type {
   LanguageModelTool,
   LanguageModelToolInvocationOptions,
 } from "vscode";
+import type { BreakpointDefinition } from "./BreakpointDefinition";
 import { LanguageModelTextPart, LanguageModelToolResult } from "vscode";
 import { config } from "./config";
 import { logger } from "./logger";
 import { startDebuggingAndWaitForStop } from "./session";
-
-// Parameters for starting a debug session. The tool starts a debugger using the
-// configured default launch configuration and waits for the first breakpoint hit,
-// returning call stack and (optionally) filtered variables.
-// Individual breakpoint definition now includes a required variableFilter so
-// each breakpoint can specify its own variable name patterns (regex fragments).
-export interface BreakpointDefinition {
-  path: string;
-  line: number;
-  variableFilter?: string[]; // Optional: when action=capture and omitted we auto-capture all locals (bounded by captureMaxVariables setting)
-  action: "break" | "stopDebugging" | "capture"; // 'capture' returns data then continues (non-blocking)
-  condition?: string; // Expression evaluated at breakpoint; stop only if true
-  hitCount?: number; // Exact numeric hit count (3 means pause on 3rd hit)
-  logMessage?: string; // Logpoint style message with {var} interpolation
-  reasonCode?: string; // Internal telemetry tag (not surfaced)
-}
 
 export interface BreakpointConfiguration {
   breakpoints: BreakpointDefinition[];
@@ -75,12 +60,14 @@ export class StartDebuggerTool
   async invoke(
     options: LanguageModelToolInvocationOptions<StartDebuggerToolParameters>
   ): Promise<LanguageModelToolResult> {
+    let result: LanguageModelToolResult;
     const {
       workspaceFolder,
       configurationName,
       breakpointConfig,
       serverReady,
     } = options.input;
+
     try {
       // Direct invocation with new serverReady structure
       const stopInfo = await startDebuggingAndWaitForStop({
@@ -107,29 +94,45 @@ export class StartDebuggerTool
           "Hit breakpoint not identifiable; no frame/line correlation."
         );
       }
-      const action = stopInfo.hitBreakpoint.action ?? "break";
-      let activeFilters: string[] = stopInfo.hitBreakpoint.variableFilter || [];
-      const captureAll = action === "capture" && activeFilters.length === 0;
+
+      const onHit = stopInfo.hitBreakpoint.onHit ?? "stopDebugging";
+      const providedFilters = stopInfo.hitBreakpoint.variableFilter ?? [];
+      let activeFilters: string[] = [...providedFilters];
       const maxAuto = config.captureMaxVariables ?? 40;
       const capturedLogs = stopInfo.capturedLogMessages ?? [];
-      // Build list of variables: explicit filters OR auto-capture OR none.
-      if (captureAll) {
-        const names: string[] = [];
-        for (const scope of stopInfo.scopeVariables ?? []) {
-          for (const variable of scope.variables) {
+      let autoCapturedScope:
+        | {
+            name?: string;
+            count: number;
+          }
+        | undefined;
+
+      // Build list of variables: explicit filters OR auto-capture from nearest scope.
+      if (activeFilters.length === 0) {
+        const scopes = stopInfo.scopeVariables ?? [];
+        const isTrivial = (name: string) => name === "this";
+        // Choose the first scope that has at least one non-trivial variable.
+        const candidateScope = scopes.find((scope) =>
+          scope.variables?.some((variable) => !isTrivial(variable.name))
+        );
+        if (candidateScope) {
+          const names: string[] = [];
+          for (const variable of candidateScope.variables) {
             if (!names.includes(variable.name)) {
               names.push(variable.name);
               if (names.length >= maxAuto) {
-                break; // inner break
+                break;
               }
             }
           }
-          if (names.length >= maxAuto) {
-            break; // outer break
-          }
+          activeFilters = names;
+          autoCapturedScope = {
+            name: candidateScope.scopeName,
+            count: names.length,
+          };
         }
-        activeFilters = names;
       }
+
       const filterSet = new Set(activeFilters);
       const flattened: Array<{
         name: string;
@@ -153,6 +156,7 @@ export class StartDebuggerTool
           }
         }
       }
+
       const truncate = (val: string) => {
         const max = 120;
         return val.length > max ? `${val.slice(0, max)}…(${val.length})` : val;
@@ -166,21 +170,30 @@ export class StartDebuggerTool
       const fileName = summary.file
         ? summary.file.split(/[/\\]/).pop()
         : "unknown";
-      const header = `Breakpoint ${fileName}:${summary.line} action=${action}`;
+      const header = `Breakpoint ${fileName}:${summary.line} onHit=${onHit}`;
       let bodyVars: string;
       if (flattened.length) {
         bodyVars = `Vars: ${variableStr}`;
+        if (autoCapturedScope) {
+          bodyVars += ` (auto-captured ${
+            autoCapturedScope.count
+          } variable(s) from scope '${
+            autoCapturedScope.name ?? "unknown"
+          }', cap=${maxAuto})`;
+        }
+      } else if (autoCapturedScope) {
+        bodyVars = `Vars: <none> (auto-capture attempted from scope '${
+          autoCapturedScope.name ?? "unknown"
+        }', cap=${maxAuto})`;
       } else if (filterSet.size === 0) {
         bodyVars = "Vars: <none> (no filter provided)";
       } else {
         bodyVars = `Vars: <none> (filters: ${activeFilters.join(", ")})`;
       }
-      if (captureAll) {
-        bodyVars += ` (auto-captured ${activeFilters.length} variable(s), cap=${maxAuto})`;
-      }
+
       const bodyLogs = capturedLogs.length
         ? `Logs: ${capturedLogs
-            .map((l) => (l.length > 120 ? `${l.slice(0, 120)}…` : l))
+            .map((log) => (log.length > 120 ? `${log.slice(0, 120)}…` : log))
             .join(" | ")}`
         : "";
       const timestampLine = `Timestamp: ${new Date().toISOString()}`;
@@ -193,10 +206,37 @@ export class StartDebuggerTool
           case "terminated":
             return "Debugger State: terminated. Recommended tool: start_debugger_with_breakpoints to begin a new session.";
           case "running":
-          default:
-            return `Debugger State: running (capture action continued session '${sessionLabel}'). Recommended tools: wait_for_breakpoint or resume_debug_session with new breakpoints.`;
+            return `Debugger State: running. (onHit 'captureAndContinue' continued session '${sessionLabel}'). Recommended tools: wait_for_breakpoint or resume_debug_session with new breakpoints.`;
         }
       })();
+
+      const hasConfiguredOnHit = breakpointConfig.breakpoints.some(
+        (bp) => !!bp.onHit
+      );
+      const multipleBreakpoints = breakpointConfig.breakpoints.length > 1;
+      const guidance: string[] = [];
+
+      if (
+        stopInfo.debuggerState.status === "terminated" &&
+        !hasConfiguredOnHit
+      ) {
+        guidance.push(
+          "Tip: No onHit behavior was set; consider onHit 'captureAndContinue' to keep the session alive and still collect data."
+        );
+      }
+
+      if (!multipleBreakpoints) {
+        guidance.push(
+          "Tip: You can supply multiple breakpoints, each with its own onHit (e.g., trace with captureAndContinue, then stopDebugging at a later line)."
+        );
+      }
+
+      if (onHit === "captureAndContinue" && activeFilters.length === 0) {
+        guidance.push(
+          `Tip: captureAndContinue auto-captured ${flattened.length} variable(s); set variableFilter to focus only the names you care about.`
+        );
+      }
+
       const serverReadySection = (() => {
         const info = stopInfo.serverReadyInfo;
         if (!info?.configured) {
@@ -214,6 +254,7 @@ export class StartDebuggerTool
         const detail = info.triggerSummary ? ` | ${info.triggerSummary}` : "";
         return `Server Ready Trigger: Hit (mode=${info.triggerMode}) ${hits}${detail}`;
       })();
+
       const runtimeOutputSection = (() => {
         const preview = stopInfo.runtimeOutput;
         if (!preview || preview.lines.length === 0) {
@@ -225,6 +266,10 @@ export class StartDebuggerTool
         const body = preview.lines.map((line) => `- ${line}`).join("\n");
         return `Runtime Output (${qualifier}):\n${body}`;
       })();
+
+      const guidanceSection =
+        guidance.length > 0 ? `Guidance:\n- ${guidance.join("\n- ")}` : "";
+
       const sections = [
         timestampLine,
         header,
@@ -233,18 +278,21 @@ export class StartDebuggerTool
         debuggerStateLine,
         serverReadySection,
         runtimeOutputSection,
+        guidanceSection,
       ].filter((section) => section && section.trim().length > 0);
       const textOutput = sections.join("\n");
 
       logger.info(`[StartDebuggerTool] textOutput ${textOutput}`);
-      return new LanguageModelToolResult([
+      result = new LanguageModelToolResult([
         new LanguageModelTextPart(textOutput),
       ]);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      return new LanguageModelToolResult([
+      result = new LanguageModelToolResult([
         new LanguageModelTextPart(`Error: ${message}`),
       ]);
     }
+    logger.debug(`[StartDebuggerTool] result ${result}`);
+    return result;
   }
 }

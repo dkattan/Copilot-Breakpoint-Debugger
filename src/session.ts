@@ -2311,23 +2311,21 @@ export const startDebuggingAndWaitForStop = async (
 };
 
 /**
- * Stop debug sessions that match the provided session name.
+ * Stop debug sessions that match the provided session id.
  *
- * @param params - Object containing the sessionName to stop.
- * @param params.sessionName - Name of the debug session(s) to stop.
+ * @param params - Object containing the sessionId to stop.
+ * @param params.sessionId - ID of the debug session(s) to stop.
  */
-export const stopDebugSession = async (params: { sessionName: string }) => {
-  const { sessionName } = params;
-  // Filter active sessions to find matching sessions.
+export const stopDebugSession = async (params: { sessionId: string }) => {
+  const { sessionId } = params;
   const matchingSessions = activeSessions.filter(
-    (session: vscode.DebugSession) => session.name === sessionName
+    (session: vscode.DebugSession) => session.id === sessionId
   );
 
   if (matchingSessions.length === 0) {
-    throw new Error(`No debug session(s) found with name '${sessionName}'.`);
+    throw new Error(`No debug session(s) found with id '${sessionId}'.`);
   }
 
-  // Stop each matching debug session.
   for (const session of matchingSessions) {
     await vscode.debug.stopDebugging(session);
   }

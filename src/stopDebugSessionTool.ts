@@ -9,7 +9,7 @@ import { LanguageModelTextPart, LanguageModelToolResult } from "vscode";
 import { stopDebugSession } from "./session";
 
 export interface StopDebugSessionToolParameters {
-  sessionName: string; // Name of session to stop (supports multiple with same name)
+  sessionId: string; // ID of session to stop (aligns with resumeDebugSession)
 }
 
 export class StopDebugSessionTool
@@ -18,12 +18,12 @@ export class StopDebugSessionTool
   async invoke(
     options: LanguageModelToolInvocationOptions<StopDebugSessionToolParameters>
   ): Promise<LanguageModelToolResult> {
-    const { sessionName } = options.input;
+    const { sessionId } = options.input;
     try {
-      await stopDebugSession({ sessionName });
+      await stopDebugSession({ sessionId });
       return new LanguageModelToolResult([
         new LanguageModelTextPart(
-          `Stopped debug session(s) named '${sessionName}'.`
+          `Stopped debug session(s) with id '${sessionId}'.`
         ),
       ]);
     } catch (error) {
@@ -41,7 +41,7 @@ export class StopDebugSessionTool
     options: LanguageModelToolInvocationPrepareOptions<StopDebugSessionToolParameters>
   ): ProviderResult<vscode.PreparedToolInvocation> {
     return {
-      invocationMessage: `Stopping debug session(s) named '${options.input.sessionName}'`,
+      invocationMessage: `Stopping debug session(s) with id '${options.input.sessionId}'`,
     };
   }
 }

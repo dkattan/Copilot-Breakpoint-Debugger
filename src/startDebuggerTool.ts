@@ -244,13 +244,26 @@ export class StartDebuggerTool
         const state = stopInfo.debuggerState;
         const sessionId = state.sessionId ?? "unknown";
         const sessionLabel = state.sessionName ?? sessionId ?? "unknown";
+        const availableTools = "resumeDebugSession, getVariables, expandVariable, evaluateExpression, stopDebugSession";
         switch (state.status) {
           case "paused":
-            return `Debugger State: paused on '${sessionLabel}' (id=${sessionId}). Available tools: resumeDebugSession, getVariables, expandVariable, evaluateExpression, stopDebugSession. Example: resumeDebugSession with debugSessionId='${sessionId}'.`;
+            return [
+              `Debugger State: paused on '${sessionLabel}' (id=${sessionId}).`,
+              `Available tools: ${availableTools}.`,
+              `Recommended tool: resumeDebugSession with sessionId='${sessionId}'.`,
+            ].join("\r\n");
           case "terminated":
-            return "Debugger State: terminated. Available tool: startDebugSessionWithBreakpoints to begin a new session.";
+            return [
+              "Debugger State: terminated.",
+              "Available tool: startDebugSessionWithBreakpoints to begin a new session.",
+              "Recommended tool: startDebugSessionWithBreakpoints to create a new session.",
+            ].join("\r\n");
           case "running":
-            return `Debugger State: running. (onHit 'captureAndContinue' continued session '${sessionLabel}'). Available tool: resumeDebugSession with new breakpoints.`;
+            return [
+              `Debugger State: running. (onHit 'captureAndContinue' continued session '${sessionLabel}').`,
+              `Available tools: ${availableTools}.`,
+              `Recommended tool: resumeDebugSession with sessionId='${sessionId}' to add breakpoints and continue.`,
+            ].join("\r\n");
         }
       })();
 
@@ -265,25 +278,25 @@ export class StartDebuggerTool
         !hasConfiguredOnHit
       ) {
         guidance.push(
-          "Tip: No onHit behavior was set; consider onHit 'captureAndContinue' to keep the session alive and still collect data."
+          "No onHit behavior was set; consider onHit 'captureAndContinue' to keep the session alive and still collect data."
         );
       }
 
       if (!multipleBreakpoints) {
         guidance.push(
-          "Tip: You can supply multiple breakpoints, each with its own onHit (e.g., trace with captureAndContinue, then stopDebugging at a later line)."
+          "You can supply multiple breakpoints, each with its own onHit (e.g., trace with captureAndContinue, then stopDebugging at a later line)."
         );
       }
 
       if (onHit === "captureAndContinue" && activeFilters.length === 0) {
         guidance.push(
-          `Tip: captureAndContinue auto-captured ${totalVars} variable(s); set variableFilter to focus only the names you care about.`
+          `captureAndContinue auto-captured ${totalVars} variable(s); set variableFilter to focus only the names you care about.`
         );
       }
 
       if (truncatedVariables) {
         guidance.push(
-          "Tip: Values were truncated to 100 characters. Provide variableFilter to return full values without truncation."
+          "Values were truncated to 100 characters. Provide variableFilter to return full values without truncation."
         );
       }
 

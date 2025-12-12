@@ -14,6 +14,7 @@
   "bugs": {
     "url": "https://github.com/dkattan/Copilot-Breakpoint-Debugger/issues"
   },
+        "when": "debugState == 'running'",
   "keywords": [
     "copilot",
     "debug",
@@ -117,10 +118,10 @@
       }
     },
     "languageModelTools": [
-      {
-        "name": "start_debugger_with_breakpoints",
+        {
+          "name": "startDebugSessionWithBreakpoints",
         "displayName": "Start Debugger",
-        "toolReferenceName": "startDebugger",
+        "toolReferenceName": "startDebugSessionWithBreakpoints",
         "canBeReferencedInPrompt": true,
         "userDescription": "Start a debug session, set breakpoints, and wait until a breakpoint is hit. Supports onHit behaviors: break (pause & return), captureAndContinue (collect variables & interpolated log messages then resume automatically), stopDebugging (terminate after hit). Supports serverReady.action types: httpRequest | shellCommand | vscodeCommand (auto-run after readiness trigger). Exact numeric hitCount pauses on that occurrence.",
         "modelDescription": "Start a debug session using the configured default launch configuration or an explicitly provided configurationName. Auto-selects sole launch config when none specified and no default setting is present. Each breakpoint can specify an onHit: break (pause), captureAndContinue (non-blocking gather of variables & interpolation of {var} placeholders in logMessage then continue), or stopDebugging (terminate immediately after hit). Supports serverReady with trigger {path+line | pattern | omitted attach} and action.type httpRequest | shellCommand | vscodeCommand. Conditional expressions and exact numeric hitCount only. variableFilter required only for captureAndContinue; omit to capture all locals up to captureMaxVariables.",
@@ -327,11 +328,10 @@
           ]
         }
       },
-      {
-        "name": "resume_debug_session",
+        {
+          "name": "resumeDebugSession",
         "displayName": "Resume Debug Session",
         "toolReferenceName": "resumeDebugSession",
-        "when": "debugState == 'running'",
         "canBeReferencedInPrompt": true,
         "userDescription": "Resume a paused debug session optionally waiting for the next breakpoint. Supports actions (break, capture, stopDebugging) and numeric hitCount shorthand when adding new breakpoints during resume.",
         "modelDescription": "Resume execution of the specified debug session. Optionally wait for next stop and set/clear breakpoints before continuing. Each new breakpoint may specify action (break | capture | stopDebugging), conditional expressions, exact numeric hitCount, and logMessage interpolation for capture.",
@@ -404,8 +404,8 @@
           ]
         }
       },
-      {
-        "name": "get_variables",
+        {
+          "name": "getVariables",
         "displayName": "Get Variables",
         "toolReferenceName": "getVariables",
         "canBeReferencedInPrompt": true,
@@ -416,8 +416,8 @@
           "properties": {}
         }
       },
-      {
-        "name": "expand_variable",
+        {
+          "name": "expandVariable",
         "displayName": "Expand Variable",
         "toolReferenceName": "expandVariable",
         "canBeReferencedInPrompt": true,
@@ -436,8 +436,8 @@
           ]
         }
       },
-      {
-        "name": "evaluate_expression",
+        {
+          "name": "evaluateExpression",
         "displayName": "Evaluate Expression",
         "toolReferenceName": "evaluateExpression",
         "canBeReferencedInPrompt": true,
@@ -460,8 +460,8 @@
           ]
         }
       },
-      {
-        "name": "stop_debug_session",
+        {
+          "name": "stopDebugSession",
         "displayName": "Stop Debug Session",
         "toolReferenceName": "stopDebugSession",
         "canBeReferencedInPrompt": true,

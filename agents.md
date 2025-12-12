@@ -32,7 +32,6 @@ This is a VS Code extension that integrates with GitHub Copilot to provide debug
 - **Extension entry point**: `src/extension.ts` - Main activation logic and tool registration
 - **Language Model Tools**: Classes implementing VS Code's `LanguageModelTool` interface
   - `StartDebuggerTool` - Thin wrapper; delegates validation & launch resolution to `startDebuggingAndWaitForStop`
-  - `WaitForBreakpointTool` - Waits for breakpoint hits using Debug Adapter Protocol monitoring
   - `GetVariablesTool` - Retrieves all variables from active debug sessions using DAP
   - `ExpandVariableTool` - Expands specific variables to show detailed contents and immediate children
 - **Tool registration**: Registers tools with VS Code's language model system via `vscode.lm.registerTool()`
@@ -50,7 +49,6 @@ This is a VS Code extension that integrates with GitHub Copilot to provide debug
 
 - `src/extension.ts` - Main extension logic, activation, and tool registration only
 - `src/startDebuggerTool.ts` - StartDebuggerTool class and interface
-- `src/waitForBreakpointTool.ts` - WaitForBreakpointTool class and interface (requires debug-tracker-vscode)
 - `src/debugUtils.ts` - Shared DAP interfaces, types, and DAPHelpers utility class
 - `src/getVariablesTool.ts` - GetVariablesTool class and interface
 - `src/expandVariableTool.ts` - ExpandVariableTool class and interface
@@ -61,19 +59,11 @@ This is a VS Code extension that integrates with GitHub Copilot to provide debug
 
 ## Extension Configuration
 
-The extension contributes language model tools that allow Copilot to interact with VS Code's debugging system:
-
-- **`set_breakpoint`** - Sets breakpoints by specifying file path and line number
-- **`start_debugger`** - Starts debugging sessions with optional configuration name
-- **`wait_for_breakpoint`** - Waits for the debugger to hit a breakpoint or stop execution
-- **`get_variables`** - Retrieves all variables from the current debug session when stopped
-- **`expand_variable`** - Expands a specific variable to show its detailed contents and immediate child properties
-
-Tools are automatically available to Copilot when the extension is active.
+The extension contributes language model tools that allow Copilot to interact with VS Code's debugging system. Tools are automatically available when the extension is active.
 
 ### Breakpoint Features
 
-All breakpoint-related tools (`start_debugger` and `resume_debug_session`) support advanced breakpoint configurations:
+All breakpoint-related tools (`startDebugSessionWithBreakpoints` and `resumeDebugSession`) support advanced breakpoint configurations:
 
 - **Conditional Breakpoints**: Set `condition` to specify an expression that must evaluate to true for the breakpoint to trigger
   - Example: `condition: "$i -ge 3"` (PowerShell) or `condition: "x > 5"` (JavaScript)
@@ -88,7 +78,7 @@ All three properties are optional and can be combined with basic breakpoints tha
 
 ### Workspace Folder Semantics
 
-`start_debugger` requires a `workspaceFolder` parameter that must be an absolute path exactly matching one of the open workspace folder roots (`workspace.workspaceFolders[].uri.fsPath`).
+`startDebugSessionWithBreakpoints` requires a `workspaceFolder` parameter that must be an absolute path exactly matching one of the open workspace folder roots (`workspace.workspaceFolders[].uri.fsPath`).
 
 Simplifications implemented:
 
@@ -118,16 +108,6 @@ Example workspace setting:
 ```
 
 You can simulate startup delay via a `preLaunchTask` (e.g. `sleep-build-delay`) in `launch.json`. The test suite uses this with `Run timeoutTest.js` to validate timeout behavior.
-
-## Prerequisites
-
-This extension requires the **debug-tracker-vscode** extension to be installed for the `wait_for_breakpoint` tool to function:
-
-1. **Automatic Installation**: The extension will attempt to auto-install if not present
-2. **Manual Installation**: Install from VS Code marketplace: `mcu-debug.debug-tracker-vscode`
-3. **Command**: Use Quick Open (`Ctrl+P`) and search for "debug-tracker-vscode"
-
-The debug tracker extension provides API services for monitoring debug sessions and is required for breakpoint waiting functionality.
 
 ## Implementation Notes
 
@@ -198,7 +178,7 @@ The debug tracker extension provides API services for monitoring debug sessions 
 
 ### Promise-based Tool Implementation
 
-- For tools that wait for events (like `wait_for_breakpoint`), return a Promise from `invoke()`
+- For tools that wait for events, return a Promise from `invoke()`
 - Use proper Promise constructor with resolve/reject for event-driven operations
 - Implement cleanup logic in both success and error paths
 - Handle race conditions between timeouts and actual events

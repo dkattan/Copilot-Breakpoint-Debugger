@@ -37,6 +37,20 @@ const normalizeFsPath = (value: string) => {
   return process.platform === "win32" ? normalized.toLowerCase() : normalized;
 };
 
+const reorderScopesForCapture = <T extends { name?: string }>(scopes: T[]): T[] => {
+  const locals: T[] = [];
+  const others: T[] = [];
+  for (const scope of scopes) {
+    const name = scope?.name?.trim();
+    if (name && /^locals?$/i.test(name)) {
+      locals.push(scope);
+    } else {
+      others.push(scope);
+    }
+  }
+  return [...locals, ...others];
+};
+
 /**
  * Variables grouped by scope
  */
@@ -2072,8 +2086,10 @@ export const startDebuggingAndWaitForStop = async (
       finalStop.session,
       finalStop.threadId
     );
+    const orderedScopes = reorderScopesForCapture(debugContext.scopes ?? []);
+    debugContext = { ...debugContext, scopes: orderedScopes };
     const scopeVariables: ScopeVariables[] = [];
-    for (const scope of debugContext.scopes ?? []) {
+    for (const scope of orderedScopes) {
       const variables = await DAPHelpers.getVariablesFromReference(
         finalStop.session,
         scope.variablesReference

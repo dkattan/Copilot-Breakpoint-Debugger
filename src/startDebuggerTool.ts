@@ -107,6 +107,7 @@ export class StartDebuggerTool
         success = false;
       }
       const providedFilters = stopInfo.hitBreakpoint.variableFilter ?? [];
+      const hasExplicitFilters = providedFilters.length > 0;
       let activeFilters: string[] = [...providedFilters];
       const maxAuto = config.captureMaxVariables ?? 40;
       const capturedLogs = stopInfo.capturedLogMessages ?? [];
@@ -124,9 +125,14 @@ export class StartDebuggerTool
         const names: string[] = [];
         const scopesUsed: string[] = [];
         for (const scope of scopes) {
-          const nonTrivialVars = scope.variables?.filter(
-            (variable) => !isTrivial(variable.name)
-          );
+          const nonTrivialVars = scope.variables?.filter((variable) => {
+            if (isTrivial(variable.name)) {
+              return false;
+            }
+            const isFunction =
+              (variable.type ?? "").toLowerCase() === "function";
+            return !isFunction;
+          });
           if (!nonTrivialVars || nonTrivialVars.length === 0) {
             continue;
           }
@@ -176,14 +182,24 @@ export class StartDebuggerTool
         }
       }
 
-      const truncate = (val: string) => {
-        const max = 120;
-        return val.length > max ? `${val.slice(0, max)}…(${val.length})` : val;
+      const maxValueLength = 100;
+      const shouldTruncateValues = !hasExplicitFilters;
+      let truncatedVariables = false;
+      const formatValue = (val: string) => {
+        if (!shouldTruncateValues) {
+          return val;
+        }
+        if (val.length > maxValueLength) {
+          truncatedVariables = true;
+          return `${val.slice(0, maxValueLength)}…(${val.length})`;
+        }
+        return val;
       };
       const variableStr = flattened
         .map((v) => {
           const typePart = v.type ? `:${v.type}` : "";
-          return `${v.name}=${truncate(v.value)} (${v.scope}${typePart})`;
+          const displayValue = formatValue(v.value);
+          return `${v.name}=${displayValue} (${v.scope}${typePart})`;
         })
         .join("; ");
       const fileName = summary.file
@@ -221,11 +237,11 @@ export class StartDebuggerTool
         const sessionLabel = state.sessionName ?? state.sessionId ?? "unknown";
         switch (state.status) {
           case "paused":
-            return `Debugger State: paused on '${sessionLabel}'. Recommended tools: resume_debug_session, get_variables, expand_variable, evaluate_expression, stop_debug_session.`;
+            return `Debugger State: paused on '${sessionLabel}'. Recommended tools: resumeDebugSession, getVariables, expandVariable, evaluateExpression, stopDebugSession.`;
           case "terminated":
-            return "Debugger State: terminated. Recommended tool: start_debugger_with_breakpoints to begin a new session.";
+            return "Debugger State: terminated. Recommended tool: startDebugSessionWithBreakpoints to begin a new session.";
           case "running":
-            return `Debugger State: running. (onHit 'captureAndContinue' continued session '${sessionLabel}'). Recommended tools: wait_for_breakpoint or resume_debug_session with new breakpoints.`;
+            return `Debugger State: running. (onHit 'captureAndContinue' continued session '${sessionLabel}'). Recommended tool: resumeDebugSession with new breakpoints.`;
         }
       })();
 
@@ -253,6 +269,12 @@ export class StartDebuggerTool
       if (onHit === "captureAndContinue" && activeFilters.length === 0) {
         guidance.push(
           `Tip: captureAndContinue auto-captured ${flattened.length} variable(s); set variableFilter to focus only the names you care about.`
+        );
+      }
+
+      if (truncatedVariables) {
+        guidance.push(
+          "Tip: Values were truncated to 100 characters. Provide variableFilter to return full values without truncation."
         );
       }
 

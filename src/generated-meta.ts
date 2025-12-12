@@ -4,7 +4,7 @@
 // Meta info
 export const publisher = "dkattan"
 export const name = "copilot-breakpoint-debugger"
-export const version = "0.0.22"
+export const version = "0.0.40"
 export const displayName = "Copilot Breakpoint Debugger"
 export const description = "Use GitHub Copilot to automate starting, inspecting and resuming VS Code debug sessions with conditional breakpoints, exact numeric hit counts (hitCount), logpoints, and capture actions that interpolate variables inside log messages."
 export const extensionId = `${publisher}.${name}`

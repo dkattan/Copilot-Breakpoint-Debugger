@@ -159,26 +159,27 @@ export class StartDebuggerTool
       }
 
       const filterSet = new Set(activeFilters);
-      const flattened: Array<{
-        name: string;
-        value: string;
-        scope: string;
-        type?: string;
+      const groupedVariables: Array<{
+        scopeName: string;
+        variables: Array<{ name: string; value: string; type?: string }>;
       }> = [];
       for (const scope of stopInfo.scopeVariables ?? []) {
-        for (const variable of scope.variables) {
-          if (filterSet.size === 0) {
-            // No filters provided (non-capture breakpoint) => skip reporting variables to keep output concise.
-            continue;
-          }
-          if (filterSet.has(variable.name)) {
-            flattened.push({
-              name: variable.name,
-              value: variable.value,
-              scope: scope.scopeName,
-              type: variable.type,
-            });
-          }
+        if (filterSet.size === 0) {
+          // No filters provided (non-capture breakpoint) => skip reporting variables to keep output concise.
+          continue;
+        }
+        const matchedVars = scope.variables
+          .filter((variable) => filterSet.has(variable.name))
+          .map((variable) => ({
+            name: variable.name,
+            value: variable.value,
+            type: variable.type,
+          }));
+        if (matchedVars.length) {
+          groupedVariables.push({
+            scopeName: scope.scopeName,
+            variables: matchedVars,
+          });
         }
       }
 
@@ -195,26 +196,29 @@ export class StartDebuggerTool
         }
         return val;
       };
-      const variableStr = flattened
-        .map((v) => {
-          const typePart = v.type ? `:${v.type}` : "";
+      const variableBlocks = groupedVariables.map((group) => {
+        const header = `${group.scopeName ?? "Scope"}:`;
+        const lines = group.variables.map((v) => {
+          const typePart = v.type ? ` (${v.type})` : "";
           const displayValue = formatValue(v.value);
-          return `${v.name}=${displayValue} (${v.scope}${typePart})`;
-        })
-        .join("; ");
+          return `- ${v.name}=${displayValue}${typePart}`;
+        });
+        return [header, ...lines].join("\n");
+      });
+      const variableStr = variableBlocks.join("\n");
       const fileName = summary.file
         ? summary.file.split(/[/\\]/).pop()
         : "unknown";
       const header = `Breakpoint ${fileName}:${summary.line} onHit=${onHit}`;
       let bodyVars: string;
-      if (flattened.length) {
-        bodyVars = `Vars: ${variableStr}`;
+      const totalVars = groupedVariables.reduce(
+        (count, group) => count + group.variables.length,
+        0
+      );
+      if (totalVars) {
+        bodyVars = `Vars:\n${variableStr}`;
         if (autoCapturedScope) {
-          bodyVars += ` (auto-captured ${
-            autoCapturedScope.count
-          } variable(s) from scope '${
-            autoCapturedScope.name ?? "unknown"
-          }', cap=${maxAuto})`;
+          bodyVars += `\n(auto-captured ${autoCapturedScope.count} variable(s) from scope '${autoCapturedScope.name ?? "unknown"}', cap=${maxAuto})`;
         }
       } else if (autoCapturedScope) {
         bodyVars = `Vars: <none> (auto-capture attempted from scope '${
@@ -234,10 +238,11 @@ export class StartDebuggerTool
       const timestampLine = `Timestamp: ${new Date().toISOString()}`;
       const debuggerStateLine = (() => {
         const state = stopInfo.debuggerState;
-        const sessionLabel = state.sessionName ?? state.sessionId ?? "unknown";
+        const sessionId = state.sessionId ?? "unknown";
+        const sessionLabel = state.sessionName ?? sessionId ?? "unknown";
         switch (state.status) {
           case "paused":
-            return `Debugger State: paused on '${sessionLabel}'. Recommended tools: resumeDebugSession, getVariables, expandVariable, evaluateExpression, stopDebugSession.`;
+            return `Debugger State: paused on '${sessionLabel}' (id=${sessionId}). Recommended tools: resumeDebugSession, getVariables, expandVariable, evaluateExpression, stopDebugSession. Example: resumeDebugSession with debugSessionId='${sessionId}'.`;
           case "terminated":
             return "Debugger State: terminated. Recommended tool: startDebugSessionWithBreakpoints to begin a new session.";
           case "running":
@@ -268,7 +273,7 @@ export class StartDebuggerTool
 
       if (onHit === "captureAndContinue" && activeFilters.length === 0) {
         guidance.push(
-          `Tip: captureAndContinue auto-captured ${flattened.length} variable(s); set variableFilter to focus only the names you care about.`
+          `Tip: captureAndContinue auto-captured ${totalVars} variable(s); set variableFilter to focus only the names you care about.`
         );
       }
 

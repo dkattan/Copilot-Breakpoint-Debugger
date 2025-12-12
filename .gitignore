@@ -7,3 +7,4 @@ score_tally.txt
 coverage
 .nyc_output
 Issues.md
+*.vsix

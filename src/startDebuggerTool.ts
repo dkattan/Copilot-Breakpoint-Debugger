@@ -197,15 +197,15 @@ export class StartDebuggerTool
         return val;
       };
       const variableBlocks = groupedVariables.map((group) => {
-        const header = `${group.scopeName ?? "Scope"}:`;
+        const header = `### ${group.scopeName ?? "Scope"}`;
         const lines = group.variables.map((v) => {
-          const typePart = v.type ? ` (${v.type})` : "";
+          const typePart = v.type ? `${v.type} = ` : "";
           const displayValue = formatValue(v.value);
-          return `- ${v.name}=${displayValue}${typePart}`;
+          return `${v.name}: ${typePart}${displayValue}`;
         });
-        return [header, ...lines].join("\n");
+        return [header, "", ...lines].join("\n");
       });
-      const variableStr = variableBlocks.join("\n");
+      const variableStr = variableBlocks.join("\n\n");
       const fileName = summary.file
         ? summary.file.split(/[/\\]/).pop()
         : "unknown";
@@ -216,9 +216,13 @@ export class StartDebuggerTool
         0
       );
       if (totalVars) {
-        bodyVars = `Vars:\n${variableStr}`;
+        bodyVars = `## Vars\n\n${variableStr}`;
         if (autoCapturedScope) {
-          bodyVars += `\n(auto-captured ${autoCapturedScope.count} variable(s) from scope '${autoCapturedScope.name ?? "unknown"}', cap=${maxAuto})`;
+          bodyVars += `\n\n(auto-captured ${
+            autoCapturedScope.count
+          } variable(s) from scope '${
+            autoCapturedScope.name ?? "unknown"
+          }', cap=${maxAuto})`;
         }
       } else if (autoCapturedScope) {
         bodyVars = `Vars: <none> (auto-capture attempted from scope '${
@@ -242,11 +246,11 @@ export class StartDebuggerTool
         const sessionLabel = state.sessionName ?? sessionId ?? "unknown";
         switch (state.status) {
           case "paused":
-            return `Debugger State: paused on '${sessionLabel}' (id=${sessionId}). Recommended tools: resumeDebugSession, getVariables, expandVariable, evaluateExpression, stopDebugSession. Example: resumeDebugSession with debugSessionId='${sessionId}'.`;
+            return `Debugger State: paused on '${sessionLabel}' (id=${sessionId}). Available tools: resumeDebugSession, getVariables, expandVariable, evaluateExpression, stopDebugSession. Example: resumeDebugSession with debugSessionId='${sessionId}'.`;
           case "terminated":
-            return "Debugger State: terminated. Recommended tool: startDebugSessionWithBreakpoints to begin a new session.";
+            return "Debugger State: terminated. Available tool: startDebugSessionWithBreakpoints to begin a new session.";
           case "running":
-            return `Debugger State: running. (onHit 'captureAndContinue' continued session '${sessionLabel}'). Recommended tool: resumeDebugSession with new breakpoints.`;
+            return `Debugger State: running. (onHit 'captureAndContinue' continued session '${sessionLabel}'). Available tool: resumeDebugSession with new breakpoints.`;
         }
       })();
 

@@ -60,7 +60,11 @@ describe("startDebuggerTool auto-capture nearest scope", () => {
     );
     const textValue = promptPart.value as string;
     assert.match(textValue, /Breakpoint .*:9/, "Missing breakpoint header");
-    assert.match(textValue, /Vars:/, "Missing Vars: section");
-    assert.match(textValue, /i=\d+/, "Auto-captured variable i missing");
+    assert.match(textValue, /## Vars/, "Missing Vars header");
+    assert.match(
+      textValue,
+      /i:\s*number\s*=\s*\d+/,
+      "Auto-captured variable i missing"
+    );
   });
 });

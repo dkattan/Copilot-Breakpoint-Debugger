@@ -5,6 +5,7 @@ import type {
 import type { BreakpointDefinition } from "./BreakpointDefinition";
 import { LanguageModelTextPart, LanguageModelToolResult } from "vscode";
 import { config } from "./config";
+import { EntryStopTimeoutError } from "./events";
 import { logger } from "./logger";
 import { startDebuggingAndWaitForStop } from "./session";
 
@@ -61,6 +62,7 @@ export class StartDebuggerTool
     options: LanguageModelToolInvocationOptions<StartDebuggerToolParameters>
   ): Promise<LanguageModelToolResult> {
     let result: LanguageModelToolResult;
+    let success = true;
     const {
       workspaceFolder,
       configurationName,
@@ -96,6 +98,14 @@ export class StartDebuggerTool
       }
 
       const onHit = stopInfo.hitBreakpoint.onHit ?? "stopDebugging";
+
+      if (
+        stopInfo.debuggerState.status === "terminated" &&
+        onHit !== "stopDebugging"
+      ) {
+        // Debugger exited unexpectedly
+        success = false;
+      }
       const providedFilters = stopInfo.hitBreakpoint.variableFilter ?? [];
       let activeFilters: string[] = [...providedFilters];
       const maxAuto = config.captureMaxVariables ?? 40;
@@ -111,13 +121,17 @@ export class StartDebuggerTool
       if (activeFilters.length === 0) {
         const scopes = stopInfo.scopeVariables ?? [];
         const isTrivial = (name: string) => name === "this";
-        // Choose the first scope that has at least one non-trivial variable.
-        const candidateScope = scopes.find((scope) =>
-          scope.variables?.some((variable) => !isTrivial(variable.name))
-        );
-        if (candidateScope) {
-          const names: string[] = [];
-          for (const variable of candidateScope.variables) {
+        const names: string[] = [];
+        const scopesUsed: string[] = [];
+        for (const scope of scopes) {
+          const nonTrivialVars = scope.variables?.filter(
+            (variable) => !isTrivial(variable.name)
+          );
+          if (!nonTrivialVars || nonTrivialVars.length === 0) {
+            continue;
+          }
+          scopesUsed.push(scope.scopeName);
+          for (const variable of nonTrivialVars) {
             if (!names.includes(variable.name)) {
               names.push(variable.name);
               if (names.length >= maxAuto) {
@@ -125,9 +139,14 @@ export class StartDebuggerTool
               }
             }
           }
+          if (names.length >= maxAuto) {
+            break;
+          }
+        }
+        if (names.length > 0) {
           activeFilters = names;
           autoCapturedScope = {
-            name: candidateScope.scopeName,
+            name: scopesUsed.length === 1 ? scopesUsed[0] : "multiple scopes",
             count: names.length,
           };
         }
@@ -237,6 +256,10 @@ export class StartDebuggerTool
         );
       }
 
+      const guidanceSection =
+        guidance.length > 0 ? `Guidance:\n- ${guidance.join("\n- ")}` : "";
+
+      const successLine = `Success: ${success}`;
       const serverReadySection = (() => {
         const info = stopInfo.serverReadyInfo;
         if (!info?.configured) {
@@ -254,7 +277,6 @@ export class StartDebuggerTool
         const detail = info.triggerSummary ? ` | ${info.triggerSummary}` : "";
         return `Server Ready Trigger: Hit (mode=${info.triggerMode}) ${hits}${detail}`;
       })();
-
       const runtimeOutputSection = (() => {
         const preview = stopInfo.runtimeOutput;
         if (!preview || preview.lines.length === 0) {
@@ -266,18 +288,14 @@ export class StartDebuggerTool
         const body = preview.lines.map((line) => `- ${line}`).join("\n");
         return `Runtime Output (${qualifier}):\n${body}`;
       })();
-
-      const guidanceSection =
-        guidance.length > 0 ? `Guidance:\n- ${guidance.join("\n- ")}` : "";
-
       const sections = [
+        successLine,
         timestampLine,
         header,
         bodyVars,
         bodyLogs,
         debuggerStateLine,
-        serverReadySection,
-        runtimeOutputSection,
+        ...(success ? [] : [serverReadySection, runtimeOutputSection]),
         guidanceSection,
       ].filter((section) => section && section.trim().length > 0);
       const textOutput = sections.join("\n");
@@ -287,9 +305,14 @@ export class StartDebuggerTool
         new LanguageModelTextPart(textOutput),
       ]);
     } catch (err) {
+      success = false;
       const message = err instanceof Error ? err.message : String(err);
+      const isTimeout =
+        err instanceof EntryStopTimeoutError || /timed out/i.test(message);
+      const failureLine = isTimeout ? "Failure: timeout" : "Failure: error";
+      const errorOutput = `Success: ${success}\n${failureLine}\nError: ${message}`;
       result = new LanguageModelToolResult([
-        new LanguageModelTextPart(`Error: ${message}`),
+        new LanguageModelTextPart(errorOutput),
       ]);
     }
     logger.debug(`[StartDebuggerTool] result ${result}`);

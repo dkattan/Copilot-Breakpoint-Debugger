@@ -45,6 +45,16 @@ describe("startDebuggerTool timeout behavior", () => {
     const text = (content[0] as vscode.LanguageModelTextPart).value as string;
     assert.match(
       text,
+      /Success:\s*false/i,
+      "Should mark timeout as unsuccessful"
+    );
+    assert.match(
+      text,
+      /Failure:\s*timeout/i,
+      "Should label failure as timeout"
+    );
+    assert.match(
+      text,
       /Timed out|timeout/i,
       "Expected timeout indication in tool output"
     );

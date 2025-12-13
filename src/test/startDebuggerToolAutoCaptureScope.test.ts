@@ -63,8 +63,8 @@ describe('startDebuggerTool auto-capture nearest scope', () => {
     assert.match(textValue, /## Vars/, 'Missing Vars header');
     assert.match(
       textValue,
-      /i:\s*number\s*=\s*\d+/,
-      'Auto-captured variable i missing'
+      /\|\s*i\s*\|\s*number\s*\|\s*\d+\s*\|/,
+      'Auto-captured variable i missing in table'
     );
   });
 });

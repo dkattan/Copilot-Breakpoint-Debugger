@@ -36,6 +36,7 @@ describe('serverReady vscodeCommand action', () => {
       sessionName: '',
       workspaceFolder,
       nameOrConfiguration: 'Run b/server.js',
+      timeoutSeconds: 3,
       breakpointConfig: {
         breakpoints: [
           {

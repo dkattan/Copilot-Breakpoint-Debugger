@@ -196,16 +196,17 @@ export class StartDebuggerTool
         }
         return val;
       };
-      const variableBlocks = groupedVariables.map((group) => {
+      const variableTables = groupedVariables.map((group) => {
         const header = `### ${group.scopeName ?? 'Scope'}`;
-        const lines = group.variables.map((v) => {
-          const typePart = v.type ? `${v.type} = ` : '';
+        const rows = group.variables.map((v) => {
           const displayValue = formatValue(v.value);
-          return `${v.name}: ${typePart}${displayValue}`;
+          const typePart = v.type ?? '';
+          return `| ${v.name} | ${typePart} | ${displayValue} |`;
         });
-        return [header, '', ...lines].join('\n');
+        const table = ['| Name | Type | Value |', '| --- | --- | --- |', ...rows];
+        return [header, '', ...table].join('\n');
       });
-      const variableStr = variableBlocks.join('\n\n');
+      const variableStr = variableTables.join('\n\n');
       const fileName = summary.file
         ? summary.file.split(/[/\\]/).pop()
         : 'unknown';
@@ -216,7 +217,7 @@ export class StartDebuggerTool
         0
       );
       if (totalVars) {
-        bodyVars = `## Vars\n\n${variableStr}`;
+        bodyVars = variableStr;
         if (autoCapturedScope) {
           bodyVars += `\n\n(auto-captured ${
             autoCapturedScope.count
@@ -235,9 +236,12 @@ export class StartDebuggerTool
       }
 
       const bodyLogs = capturedLogs.length
-        ? `Logs: ${capturedLogs
-            .map((log) => (log.length > 120 ? `${log.slice(0, 120)}…` : log))
-            .join(' | ')}`
+        ? capturedLogs
+            .map((log) =>
+              log.length > 120 ? `${log.slice(0, 120)}…` : log
+            )
+            .map((log) => `- ${log}`)
+            .join('\n')
         : '';
       const timestampLine = `Timestamp: ${new Date().toISOString()}`;
       const debuggerStateLine = (() => {
@@ -302,7 +306,7 @@ export class StartDebuggerTool
       }
 
       const guidanceSection =
-        guidance.length > 0 ? `Guidance:\n- ${guidance.join('\n- ')}` : '';
+        guidance.length > 0 ? guidance.map((item) => `- ${item}`).join('\n') : '';
 
       const successLine = `Success: ${success}`;
       const serverReadySection = (() => {
@@ -333,17 +337,28 @@ export class StartDebuggerTool
         const body = preview.lines.map((line) => `- ${line}`).join('\n');
         return `Runtime Output (${qualifier}):\n${body}`;
       })();
-      const sections = [
-        successLine,
-        timestampLine,
-        header,
-        bodyVars,
-        bodyLogs,
-        debuggerStateLine,
-        ...(success ? [] : [serverReadySection, runtimeOutputSection]),
-        guidanceSection,
-      ].filter((section) => section && section.trim().length > 0);
-      const textOutput = sections.join('\n');
+      const sections: Array<{ title: string; body: string }> = [
+        {
+          title: 'Summary',
+          body: [successLine, timestampLine, header]
+            .filter((entry) => entry && entry.trim().length > 0)
+            .join('\n'),
+        },
+        { title: 'Vars', body: bodyVars },
+        { title: 'Logs', body: bodyLogs },
+        { title: 'Debugger State', body: debuggerStateLine },
+        ...(!success
+          ? [
+              { title: 'Server Ready', body: serverReadySection },
+              { title: 'Runtime Output', body: runtimeOutputSection },
+            ]
+          : []),
+        { title: 'Guidance', body: guidanceSection },
+      ].filter((section) => section.body && section.body.trim().length > 0);
+
+      const textOutput = sections
+        .map((section) => `## ${section.title}\n${section.body}`)
+        .join('\n\n');
 
       logger.info(`[StartDebuggerTool] textOutput ${textOutput}`);
       result = new LanguageModelToolResult([

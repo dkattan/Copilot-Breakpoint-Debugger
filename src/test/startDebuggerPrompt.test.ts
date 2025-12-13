@@ -29,7 +29,11 @@ describe('startDebuggerTool concise text output', () => {
     const textValue = promptPart.value as string;
     assert.match(textValue, /^Breakpoint .*:\d+/m, 'Missing breakpoint header');
     assert.match(textValue, /## Vars/, 'Missing Vars header');
-    assert.match(textValue, /i:\s*[^\n]+/, 'Filtered variable i missing');
+    assert.match(
+      textValue,
+      /\|\s*i\s*\|[^|]*\|[^|]*\|/,
+      'Filtered variable i missing in table'
+    );
     console.log('[concise-output] preview:', textValue);
   });
 });

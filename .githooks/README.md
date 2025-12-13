@@ -23,7 +23,7 @@ git config core.hooksPath .githooks
 
 The pre-commit hook runs the following checks before each commit:
 
-1. **Format Check** - Ensures code follows Prettier formatting rules
+1. **Format Check** - Ensures code follows formatting rules
 2. **Linter** - Runs ESLint to catch potential issues
 3. **TypeScript Compilation** - Verifies code compiles without errors
 4. **Tests** - Runs the full test suite

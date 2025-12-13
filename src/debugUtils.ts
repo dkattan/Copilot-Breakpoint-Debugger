@@ -62,7 +62,7 @@ export class DAPHelpers {
     const effectiveThreadId =
       typeof threadId === 'number' ? threadId : threads[0].id;
     const thread: Thread | undefined = threads.find(
-      t => t.id === effectiveThreadId
+      (t) => t.id === effectiveThreadId
     );
     if (!thread) {
       throw new Error(
@@ -117,12 +117,12 @@ export class DAPHelpers {
     }
     const filtered = variablesResponse.variables.filter((v: Variable) => {
       const type = v.type?.toLowerCase();
-      if (type === "function") {
+      if (type === 'function') {
         return false;
       }
-      if (!type && typeof v.value === "string") {
+      if (!type && typeof v.value === 'string') {
         // Some adapters omit type but include a "function ..." value string.
-        return !v.value.startsWith("function");
+        return !v.value.startsWith('function');
       }
       return true;
     });
@@ -144,7 +144,7 @@ export class DAPHelpers {
         session,
         scope.variablesReference
       );
-      const foundVariable = variables.find(v => v.name === variableName);
+      const foundVariable = variables.find((v) => v.name === variableName);
       if (foundVariable) {
         return { variable: foundVariable, scopeName: scope.name };
       }

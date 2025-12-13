@@ -1,5 +1,5 @@
-console.log('Running test.js inside test-workspace/b');
-console.log(`Current directory: ${require('node:process').cwd()}`);
+console.log("Running test.js inside test-workspace/b");
+console.log(`Current directory: ${require("node:process").cwd()}`);
 
 const randomValue = Math.floor(Math.random() * 100);
 console.log(`Random value: ${randomValue}`);
@@ -14,15 +14,15 @@ for (let i = 0; i < 5; i++) {
   }
 }
 
-console.log('Completed loop');
+console.log("Completed loop");
 
 // Keep process alive long enough for timeout test if invoked via a separate launch config.
 // (Normal tests set breakpoints earlier; this section is only reached when no early breakpoints.)
 setTimeout(() => {
-  console.log('Exiting after idle wait.');
+  console.log("Exiting after idle wait.");
 }, 3000);
 
 // Function-type variable for filtering behavior tests
 const numberVar = 42;
 const fnVar = () => numberVar;
-console.log('Function var test', numberVar, typeof fnVar);
+console.log("Function var test", numberVar, typeof fnVar);

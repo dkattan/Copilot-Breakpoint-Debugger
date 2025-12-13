@@ -1,28 +1,28 @@
-import * as assert from "node:assert";
-import * as path from "node:path";
-import * as vscode from "vscode";
-import { startDebuggingAndWaitForStop } from "../session";
+import * as assert from 'node:assert';
+import * as path from 'node:path';
+import * as vscode from 'vscode';
+import { startDebuggingAndWaitForStop } from '../session';
 import {
   activateCopilotDebugger,
   getExtensionRoot,
   openScriptDocument,
   stopAllDebugSessions,
-} from "./utils/startDebuggerToolTestUtils";
+} from './utils/startDebuggerToolTestUtils';
 
 // Test serverReady optional breakpoint: when hit, run a command and auto-continue to user breakpoint.
 // We use a simple HTTP server (server.js) that sets a flag on listen callback.
 // The serverReady breakpoint targets the assignment line. Command does a curl-like request using node: https module via PowerShell Invoke-WebRequest availability uncertain in test harness.
 
-describe("serverReady breakpoint", () => {
+describe('serverReady breakpoint', () => {
   afterEach(async () => {
     await stopAllDebugSessions();
   });
 
-  it("runs command at serverReady breakpoint then pauses at user breakpoint", async () => {
+  it('runs command at serverReady breakpoint then pauses at user breakpoint', async () => {
     await activateCopilotDebugger();
     const extensionRoot = getExtensionRoot();
-    const workspaceFolder = path.join(extensionRoot, "test-workspace", "b");
-    const serverPath = path.join(workspaceFolder, "server.js");
+    const workspaceFolder = path.join(extensionRoot, 'test-workspace', 'b');
+    const serverPath = path.join(workspaceFolder, 'server.js');
     const userScriptPath = serverPath; // set user breakpoint after serverReady
 
     const serverDoc = await vscode.workspace.openTextDocument(serverPath);
@@ -33,29 +33,29 @@ describe("serverReady breakpoint", () => {
       serverDoc
         .getText()
         .split(/\r?\n/)
-        .findIndex((l) => l.includes("LINE_FOR_SERVER_READY")) + 1; // convert to 1-based
-    assert.ok(readyLine > 0, "Did not find serverReady marker line");
+        .findIndex((l) => l.includes('LINE_FOR_SERVER_READY')) + 1; // convert to 1-based
+    assert.ok(readyLine > 0, 'Did not find serverReady marker line');
 
     const userBreakpointLine = readyLine + 1; // next line (console.log)
 
     const context = await startDebuggingAndWaitForStop({
-      sessionName: "",
+      sessionName: '',
       workspaceFolder,
-      nameOrConfiguration: "Run b/server.js",
+      nameOrConfiguration: 'Run b/server.js',
       breakpointConfig: {
         breakpoints: [
           {
             path: userScriptPath,
             line: userBreakpointLine,
-            variableFilter: ["started"],
-            onHit: "break",
+            variableFilter: ['started'],
+            onHit: 'break',
           },
         ],
       },
       serverReady: {
         trigger: { path: serverPath, line: readyLine },
         action: {
-          type: "shellCommand",
+          type: 'shellCommand',
           shellCommand:
             "node -e \"require('node:http').get('http://localhost:31337/health', r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>console.log('health='+d));});\"",
         },
@@ -66,15 +66,15 @@ describe("serverReady breakpoint", () => {
     assert.strictEqual(
       context.frame.line,
       userBreakpointLine,
-      "Did not pause at expected user breakpoint line after serverReady continue"
+      'Did not pause at expected user breakpoint line after serverReady continue'
     );
     // Ensure variable present in scopes
     // Collect variables via DAPHelpers for each scope
     const activeSession = vscode.debug.activeDebugSession;
-    assert.ok(activeSession, "No active debug session");
+    assert.ok(activeSession, 'No active debug session');
     const variablesByScope = await Promise.all(
       context.scopes.map(async (s) => {
-        const vars = await activeSession.customRequest("variables", {
+        const vars = await activeSession.customRequest('variables', {
           variablesReference: s.variablesReference,
         });
         return (vars.variables || []).map(
@@ -84,125 +84,125 @@ describe("serverReady breakpoint", () => {
       })
     );
     const flatNames = new Set(variablesByScope.flat());
-    const foundStarted = flatNames.has("started");
-    assert.ok(foundStarted, "started variable not found in scopes");
+    const foundStarted = flatNames.has('started');
+    assert.ok(foundStarted, 'started variable not found in scopes');
     // Ensure serverReady breakpoint info processed (hitBreakpoint path/line match user breakpoint, not serverReady)
-    assert.ok(context.hitBreakpoint, "hitBreakpoint missing");
+    assert.ok(context.hitBreakpoint, 'hitBreakpoint missing');
     assert.strictEqual(
       context.hitBreakpoint?.line,
       userBreakpointLine,
-      "hitBreakpoint line mismatch"
+      'hitBreakpoint line mismatch'
     );
   });
 
-  it("runs httpRequest at serverReady breakpoint then pauses at user breakpoint", async () => {
+  it('runs httpRequest at serverReady breakpoint then pauses at user breakpoint', async () => {
     await activateCopilotDebugger();
     const extensionRoot = getExtensionRoot();
-    const workspaceFolder = path.join(extensionRoot, "test-workspace", "b");
-    const serverPath = path.join(workspaceFolder, "server.js");
+    const workspaceFolder = path.join(extensionRoot, 'test-workspace', 'b');
+    const serverPath = path.join(workspaceFolder, 'server.js');
     const serverDoc = await vscode.workspace.openTextDocument(serverPath);
     await openScriptDocument(serverDoc.uri);
     const readyLine =
       serverDoc
         .getText()
         .split(/\r?\n/)
-        .findIndex((l) => l.includes("LINE_FOR_SERVER_READY")) + 1;
-    assert.ok(readyLine > 0, "Did not find serverReady marker line");
+        .findIndex((l) => l.includes('LINE_FOR_SERVER_READY')) + 1;
+    assert.ok(readyLine > 0, 'Did not find serverReady marker line');
     const userBreakpointLine = readyLine + 1;
     const context = await startDebuggingAndWaitForStop({
-      sessionName: "",
+      sessionName: '',
       workspaceFolder,
-      nameOrConfiguration: "Run b/server.js",
+      nameOrConfiguration: 'Run b/server.js',
       breakpointConfig: {
         breakpoints: [
           {
             path: serverPath,
             line: userBreakpointLine,
-            variableFilter: ["started"],
-            onHit: "break",
+            variableFilter: ['started'],
+            onHit: 'break',
           },
         ],
       },
       serverReady: {
         trigger: { path: serverPath, line: readyLine },
-        action: { type: "httpRequest", url: "http://localhost:31337/health" },
+        action: { type: 'httpRequest', url: 'http://localhost:31337/health' },
       },
     });
     assert.strictEqual(
       context.frame.line,
       userBreakpointLine,
-      "Did not pause at expected user breakpoint line after serverReady continue (httpRequest)"
+      'Did not pause at expected user breakpoint line after serverReady continue (httpRequest)'
     );
-    assert.ok(context.hitBreakpoint, "hitBreakpoint missing (httpRequest)");
+    assert.ok(context.hitBreakpoint, 'hitBreakpoint missing (httpRequest)');
     assert.strictEqual(
       context.hitBreakpoint?.line,
       userBreakpointLine,
-      "hitBreakpoint line mismatch (httpRequest)"
+      'hitBreakpoint line mismatch (httpRequest)'
     );
   });
 
-  it("runs action when serverReady pattern matches output", async () => {
+  it('runs action when serverReady pattern matches output', async () => {
     await activateCopilotDebugger();
     const extensionRoot = getExtensionRoot();
-    const workspaceFolder = path.join(extensionRoot, "test-workspace", "b");
-    const serverPath = path.join(workspaceFolder, "serverPattern.js");
+    const workspaceFolder = path.join(extensionRoot, 'test-workspace', 'b');
+    const serverPath = path.join(workspaceFolder, 'serverPattern.js');
     const serverDoc = await vscode.workspace.openTextDocument(serverPath);
     await openScriptDocument(serverDoc.uri);
     const lines = serverDoc.getText().split(/\r?\n/);
     const patternLine =
-      lines.findIndex((l) => l.includes("PATTERN_READY_LINE")) + 1;
+      lines.findIndex((l) => l.includes('PATTERN_READY_LINE')) + 1;
     const userBreakpointLine =
-      lines.findIndex((l) => l.includes("USER_BREAKPOINT_TARGET")) + 1;
-    assert.ok(patternLine > 0, "Did not find pattern trigger line");
+      lines.findIndex((l) => l.includes('USER_BREAKPOINT_TARGET')) + 1;
+    assert.ok(patternLine > 0, 'Did not find pattern trigger line');
     assert.ok(
       userBreakpointLine > patternLine,
-      "Unexpected user breakpoint line ordering"
+      'Unexpected user breakpoint line ordering'
     );
     const context = await startDebuggingAndWaitForStop({
-      sessionName: "",
+      sessionName: '',
       workspaceFolder,
-      nameOrConfiguration: "Run b/serverPattern.js",
+      nameOrConfiguration: 'Run b/serverPattern.js',
       breakpointConfig: {
         breakpoints: [
           {
             path: serverPath,
             line: userBreakpointLine,
-            variableFilter: ["readyHits"],
-            onHit: "break",
+            variableFilter: ['readyHits'],
+            onHit: 'break',
           },
         ],
       },
       serverReady: {
         trigger: {
-          pattern: "Pattern server listening on http://localhost:31338",
+          pattern: 'Pattern server listening on http://localhost:31338',
         },
-        action: { type: "httpRequest", url: "http://localhost:31338/health" },
+        action: { type: 'httpRequest', url: 'http://localhost:31338/health' },
       },
     });
     assert.strictEqual(
       context.frame.line,
       userBreakpointLine,
-      "Did not pause at expected user breakpoint line after serverReady pattern"
+      'Did not pause at expected user breakpoint line after serverReady pattern'
     );
     assert.strictEqual(
       context.serverReadyInfo.triggerMode,
-      "pattern",
-      "serverReady trigger mode should be pattern"
+      'pattern',
+      'serverReady trigger mode should be pattern'
     );
     assert.ok(
       context.serverReadyInfo.phases.some(
-        (phase) => phase.phase === "immediate"
+        (phase) => phase.phase === 'immediate'
       ),
-      "serverReady pattern should execute immediate phase"
+      'serverReady pattern should execute immediate phase'
     );
     assert.ok(
       context.serverReadyInfo.triggerSummary
         ?.toLowerCase()
-        .includes("debug output") ||
+        .includes('debug output') ||
         context.serverReadyInfo.triggerSummary
           ?.toLowerCase()
-          .includes("terminal"),
-      "serverReady trigger summary should describe pattern hit source"
+          .includes('terminal'),
+      'serverReady trigger summary should describe pattern hit source'
     );
   });
 });

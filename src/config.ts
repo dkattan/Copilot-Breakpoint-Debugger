@@ -1,12 +1,12 @@
-import { defineConfigObject } from "reactive-vscode";
-import * as Meta from "./generated-meta";
+import { defineConfigObject } from 'reactive-vscode';
+import * as Meta from './generated-meta';
 
-type ServerReadyActionType = "httpRequest" | "shellCommand" | "vscodeCommand";
-type ConsoleLogLevel = "trace" | "debug" | "info" | "warn" | "error" | "off";
+type ServerReadyActionType = 'httpRequest' | 'shellCommand' | 'vscodeCommand';
+type ConsoleLogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'off';
 
 const configDefaults = {
   defaultLaunchConfiguration: (Meta.configs
-    .copilotDebuggerDefaultLaunchConfiguration.default ?? "") as string,
+    .copilotDebuggerDefaultLaunchConfiguration.default ?? '') as string,
   entryTimeoutSeconds: (Meta.configs.copilotDebuggerEntryTimeoutSeconds
     .default ?? 60) as number,
   captureMaxVariables: (Meta.configs.copilotDebuggerCaptureMaxVariables
@@ -15,13 +15,13 @@ const configDefaults = {
     true) as boolean,
   serverReadyDefaultActionType: (Meta.configs
     .copilotDebuggerServerReadyDefaultActionType.default ??
-    "httpRequest") as ServerReadyActionType,
+    'httpRequest') as ServerReadyActionType,
   maxBuildErrors: (Meta.configs.copilotDebuggerMaxBuildErrors.default ??
     5) as number,
   maxOutputLines: (Meta.configs.copilotDebuggerMaxOutputLines.default ??
     50) as number,
   consoleLogLevel: (Meta.configs.copilotDebuggerConsoleLogLevel.default ??
-    "info") as ConsoleLogLevel,
+    'info') as ConsoleLogLevel,
   enableTraceLogging: (Meta.configs.copilotDebuggerEnableTraceLogging.default ??
     false) as boolean,
 } satisfies {
@@ -39,6 +39,6 @@ const configDefaults = {
 export type CopilotDebuggerConfig = typeof configDefaults;
 
 export const config = defineConfigObject<CopilotDebuggerConfig>(
-  "copilot-debugger",
+  'copilot-debugger',
   configDefaults
 );

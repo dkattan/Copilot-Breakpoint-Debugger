@@ -136,15 +136,15 @@ Structure (legacy union still accepted; new flat shape preferred):
 interface ServerReadyFlat {
   trigger?: { path?: string; line?: number; pattern?: string };
   action:
-    | { type: "shellCommand"; shellCommand: string }
+    | { type: 'shellCommand'; shellCommand: string }
     | {
-        type: "httpRequest";
+        type: 'httpRequest';
         url: string;
         method?: string;
         headers?: Record<string, string>;
         body?: string;
       }
-    | { type: "vscodeCommand"; command: string; args?: unknown[] };
+    | { type: 'vscodeCommand'; command: string; args?: unknown[] };
 }
 // Legacy (still supported for backward compatibility)
 interface ServerReadyLegacy {

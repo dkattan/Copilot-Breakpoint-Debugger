@@ -14,7 +14,6 @@
   "bugs": {
     "url": "https://github.com/dkattan/Copilot-Breakpoint-Debugger/issues"
   },
-  "when": "debugState == 'running'",
   "keywords": [
     "copilot",
     "debug",

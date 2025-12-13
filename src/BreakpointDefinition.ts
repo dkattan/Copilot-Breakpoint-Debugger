@@ -8,7 +8,7 @@ export interface BreakpointDefinition {
   path: string;
   line: number;
   variableFilter?: string[]; // Optional: when action=capture and omitted we auto-capture all locals (bounded by captureMaxVariables setting)
-  onHit?: "break" | "stopDebugging" | "captureAndContinue"; // captureAndContinue returns data then continues (non-blocking)
+  onHit?: 'break' | 'stopDebugging' | 'captureAndContinue'; // captureAndContinue returns data then continues (non-blocking)
   condition?: string; // Expression evaluated at breakpoint; stop only if true
   hitCount?: number; // Exact numeric hit count (3 means pause on 3rd hit)
   logMessage?: string; // Logpoint style message with {var} interpolation

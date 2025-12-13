@@ -7,7 +7,7 @@
 - **Lint**: `npm run lint` - Runs ESLint on TypeScript files in `src/`
 - **Test**: `npm run test` - Runs tests using vscode-test
 - **Prepare for publish**: `npm run vscode:prepublish` - Runs compile before publishing
-- **Formatting**: Formatting is handled by ESLint autofix (`npm run lint -- --fix` or just `npm run lint` if configured). Prettier was removed to simplify the stack.
+- **Formatting**: Formatting is handled by ESLint autofix (`npm run lint -- --fix` or just `npm run lint` if configured).
 
 ## User-Facing Commands Added
 

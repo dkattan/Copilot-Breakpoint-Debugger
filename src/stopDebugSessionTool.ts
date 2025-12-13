@@ -1,12 +1,12 @@
-import type * as vscode from "vscode";
+import type * as vscode from 'vscode';
 import type {
   LanguageModelTool,
   LanguageModelToolInvocationOptions,
   LanguageModelToolInvocationPrepareOptions,
   ProviderResult,
-} from "vscode";
-import { LanguageModelTextPart, LanguageModelToolResult } from "vscode";
-import { stopDebugSession } from "./session";
+} from 'vscode';
+import { LanguageModelTextPart, LanguageModelToolResult } from 'vscode';
+import { stopDebugSession } from './session';
 
 export interface StopDebugSessionToolParameters {
   sessionId: string; // ID of session to stop (aligns with resumeDebugSession)

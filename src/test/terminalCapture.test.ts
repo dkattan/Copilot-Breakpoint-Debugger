@@ -1,8 +1,8 @@
-import * as assert from "node:assert";
-import * as vscode from "vscode";
-import { createTerminalOutputCapture } from "../session";
+import * as assert from 'node:assert';
+import * as vscode from 'vscode';
+import { createTerminalOutputCapture } from '../session';
 
-describe("terminal output capture", () => {
+describe('terminal output capture', () => {
   const mockTerminal = (name: string): vscode.Terminal => {
     return {
       name,
@@ -26,7 +26,7 @@ describe("terminal output capture", () => {
       }
     })();
     return {
-      commandLine: "mock",
+      commandLine: 'mock',
       read: () => iterator,
     } as unknown as vscode.TerminalShellExecution;
   };
@@ -37,7 +37,7 @@ describe("terminal output capture", () => {
     return {
       cwd: undefined,
       executeCommand: ((..._args: unknown[]) =>
-        execution) as vscode.TerminalShellIntegration["executeCommand"],
+        execution) as vscode.TerminalShellIntegration['executeCommand'],
     } as vscode.TerminalShellIntegration;
   };
 
@@ -60,7 +60,7 @@ describe("terminal output capture", () => {
     };
   };
 
-  it("captures shell integration chunks", async function () {
+  it('captures shell integration chunks', async function () {
     this.timeout(5000);
 
     const startEmitter =
@@ -73,19 +73,19 @@ describe("terminal output capture", () => {
     const restorers: Array<() => void> = [];
     try {
       restorers.push(
-        overrideProperty(vscode.window as object, "terminals", {
+        overrideProperty(vscode.window as object, 'terminals', {
           get: () => terminals,
         })
       );
       restorers.push(
-        overrideProperty(vscode.window as object, "onDidOpenTerminal", {
+        overrideProperty(vscode.window as object, 'onDidOpenTerminal', {
           value: openEmitter.event,
         })
       );
       restorers.push(
         overrideProperty(
           vscode.window as object,
-          "onDidStartTerminalShellExecution",
+          'onDidStartTerminalShellExecution',
           {
             value: startEmitter.event,
           }
@@ -94,7 +94,7 @@ describe("terminal output capture", () => {
       restorers.push(
         overrideProperty(
           vscode.window as object,
-          "onDidEndTerminalShellExecution",
+          'onDidEndTerminalShellExecution',
           {
             value: endEmitter.event,
           }
@@ -107,13 +107,13 @@ describe("terminal output capture", () => {
     }
 
     const capture = createTerminalOutputCapture(10);
-    const terminal = mockTerminal("Debug Terminal");
+    const terminal = mockTerminal('Debug Terminal');
     terminals.push(terminal);
     openEmitter.fire(terminal);
 
     const execution = mockExecution([
-      "ERROR: Something failed\n",
-      "CRASH: Terminal output\n",
+      'ERROR: Something failed\n',
+      'CRASH: Terminal output\n',
     ]);
 
     const shellIntegration = mockShellIntegration(execution);
@@ -130,12 +130,12 @@ describe("terminal output capture", () => {
     openEmitter.dispose();
 
     assert.ok(
-      snapshot.some((line) => line.includes("CRASH: Terminal output")),
-      `Expected captured terminal lines. Got: ${snapshot.join(", ")}`
+      snapshot.some((line) => line.includes('CRASH: Terminal output')),
+      `Expected captured terminal lines. Got: ${snapshot.join(', ')}`
     );
     assert.ok(
-      snapshot.every((line) => line.startsWith("Debug Terminal")),
-      `Terminal lines should include terminal name. Got: ${snapshot.join(", ")}`
+      snapshot.every((line) => line.startsWith('Debug Terminal')),
+      `Terminal lines should include terminal name. Got: ${snapshot.join(', ')}`
     );
   });
 });

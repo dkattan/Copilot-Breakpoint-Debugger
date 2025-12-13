@@ -1,12 +1,12 @@
-import type { Variable } from "./debugUtils";
-import { useEvent, useEventEmitter, useOutputChannel } from "reactive-vscode";
-import * as vscode from "vscode";
+import type { Variable } from './debugUtils';
+import { useEvent, useEventEmitter, useOutputChannel } from 'reactive-vscode';
+import * as vscode from 'vscode';
 
 // Re-export types for convenience
 export type { Variable };
 
 // Create an output channel for debugging
-export const outputChannel = useOutputChannel("Debug Tools");
+export const outputChannel = useOutputChannel('Debug Tools');
 
 export interface ThreadData {
   threadId: number;
@@ -87,6 +87,6 @@ addTerminateListener((session) => {
 const addChangeListener = useEvent(vscode.debug.onDidChangeActiveDebugSession);
 addChangeListener((session) => {
   outputChannel.appendLine(
-    `Active debug session changed: ${session ? session.name : "None"}`
+    `Active debug session changed: ${session ? session.name : 'None'}`
   );
 });

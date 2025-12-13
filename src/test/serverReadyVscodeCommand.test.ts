@@ -1,26 +1,26 @@
-import * as assert from "node:assert";
-import * as path from "node:path";
-import * as vscode from "vscode";
-import { startDebuggingAndWaitForStop } from "../session";
+import * as assert from 'node:assert';
+import * as path from 'node:path';
+import * as vscode from 'vscode';
+import { startDebuggingAndWaitForStop } from '../session';
 import {
   activateCopilotDebugger,
   getExtensionRoot,
   openScriptDocument,
   stopAllDebugSessions,
-} from "./utils/startDebuggerToolTestUtils";
+} from './utils/startDebuggerToolTestUtils';
 
 // Test serverReady vscodeCommand action variant: executes VS Code command when readiness breakpoint hit, then continues.
 
-describe("serverReady vscodeCommand action", () => {
+describe('serverReady vscodeCommand action', () => {
   afterEach(async () => {
     await stopAllDebugSessions();
   });
 
-  it("executes vscodeCommand at serverReady breakpoint then pauses at user breakpoint", async () => {
+  it('executes vscodeCommand at serverReady breakpoint then pauses at user breakpoint', async () => {
     await activateCopilotDebugger();
     const extensionRoot = getExtensionRoot();
-    const workspaceFolder = path.join(extensionRoot, "test-workspace", "b");
-    const serverPath = path.join(workspaceFolder, "server.js");
+    const workspaceFolder = path.join(extensionRoot, 'test-workspace', 'b');
+    const serverPath = path.join(workspaceFolder, 'server.js');
     const serverDoc = await vscode.workspace.openTextDocument(serverPath);
     await openScriptDocument(serverDoc.uri);
 
@@ -28,29 +28,29 @@ describe("serverReady vscodeCommand action", () => {
       serverDoc
         .getText()
         .split(/\r?\n/)
-        .findIndex((l) => l.includes("LINE_FOR_SERVER_READY")) + 1;
-    assert.ok(readyLine > 0, "Did not find serverReady marker line");
+        .findIndex((l) => l.includes('LINE_FOR_SERVER_READY')) + 1;
+    assert.ok(readyLine > 0, 'Did not find serverReady marker line');
     const userBreakpointLine = readyLine + 1;
 
     const context = await startDebuggingAndWaitForStop({
-      sessionName: "",
+      sessionName: '',
       workspaceFolder,
-      nameOrConfiguration: "Run b/server.js",
+      nameOrConfiguration: 'Run b/server.js',
       breakpointConfig: {
         breakpoints: [
           {
             path: serverPath,
             line: userBreakpointLine,
-            variableFilter: ["started"],
-            onHit: "break",
+            variableFilter: ['started'],
+            onHit: 'break',
           },
         ],
       },
       serverReady: {
         trigger: { path: serverPath, line: readyLine },
         action: {
-          type: "vscodeCommand",
-          command: "workbench.action.closePanel",
+          type: 'vscodeCommand',
+          command: 'workbench.action.closePanel',
         },
       },
     });
@@ -58,13 +58,13 @@ describe("serverReady vscodeCommand action", () => {
     assert.strictEqual(
       context.frame.line,
       userBreakpointLine,
-      "Did not pause at expected user breakpoint line after serverReady continue (vscodeCommand)"
+      'Did not pause at expected user breakpoint line after serverReady continue (vscodeCommand)'
     );
-    assert.ok(context.hitBreakpoint, "hitBreakpoint missing (vscodeCommand)");
+    assert.ok(context.hitBreakpoint, 'hitBreakpoint missing (vscodeCommand)');
     assert.strictEqual(
       context.hitBreakpoint?.line,
       userBreakpointLine,
-      "hitBreakpoint line mismatch (vscodeCommand)"
+      'hitBreakpoint line mismatch (vscodeCommand)'
     );
   });
 });

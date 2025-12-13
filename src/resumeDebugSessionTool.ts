@@ -1,13 +1,13 @@
-import type * as vscode from "vscode";
+import type * as vscode from 'vscode';
 import type {
   LanguageModelTool,
   LanguageModelToolInvocationOptions,
   LanguageModelToolInvocationPrepareOptions,
   ProviderResult,
-} from "vscode";
-import type { BreakpointDefinition } from "./BreakpointDefinition";
-import { LanguageModelTextPart, LanguageModelToolResult } from "vscode";
-import { resumeDebugSession } from "./session";
+} from 'vscode';
+import type { BreakpointDefinition } from './BreakpointDefinition';
+import { LanguageModelTextPart, LanguageModelToolResult } from 'vscode';
+import { resumeDebugSession } from './session';
 
 export interface ResumeDebugSessionToolParameters {
   sessionId: string; // ID of the debug session to resume
@@ -48,7 +48,7 @@ export class ResumeDebugSessionTool
   ): ProviderResult<vscode.PreparedToolInvocation> {
     return {
       invocationMessage: `Resuming debug session '${options.input.sessionId}'${
-        options.input.waitForStop ? " and waiting for breakpoint" : ""
+        options.input.waitForStop ? ' and waiting for breakpoint' : ''
       }`,
     };
   }

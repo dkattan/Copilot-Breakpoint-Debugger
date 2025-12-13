@@ -8,16 +8,14 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [0.0.21] - 2025-11-21
 
-# v0.0.21 Release Notes
-
 **Breaking:** Removed legacy `serverReady` shape (`path`, `line`, `command`, `httpRequest`, `pattern`, `immediateOnAttach`). Introduced unified object:
 
 ```ts
 serverReady: {
-	trigger?: { path?: string; line?: number; pattern?: string }; // omit for immediate attach
-	action: { shellCommand: string } |
-					{ httpRequest: { url: string; method?: string; headers?: Record<string,string>; body?: string } } |
-					{ vscodeCommand: { command: string; args?: unknown[] } };
+ trigger?: { path?: string; line?: number; pattern?: string }; // omit for immediate attach
+ action: { shellCommand: string } |
+     { httpRequest: { url: string; method?: string; headers?: Record<string,string>; body?: string } } |
+     { vscodeCommand: { command: string; args?: unknown[] } };
 }
 ```
 

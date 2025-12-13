@@ -1,6 +1,5 @@
 // Migrated to Antfu's flat ESLint config. See: https://github.com/antfu/eslint-config
 // We preserve prior custom rules (naming-convention for imports, curly, eqeqeq)
-// Prettier has been removed entirely; ESLint (antfu config + --fix) now handles stylistic normalization.
 import antfu from "@antfu/eslint-config";
 
 // Custom rule to ban "fallback" or "fall-back" in any form
@@ -180,6 +179,11 @@ export default antfu(
       "ts/no-explicit-any": ["error"],
       "no-inner-declarations": ["error"],
       "local/ban-fallback": "error",
+      quotes: [
+        "error",
+        "single",
+        { avoidEscape: true, allowTemplateLiterals: true },
+      ],
     },
   },
   // Global lightweight tweaks

@@ -1,13 +1,13 @@
-import { useDisposable, useEventEmitter } from "reactive-vscode";
-import * as vscode from "vscode";
+import { useDisposable, useEventEmitter } from 'reactive-vscode';
+import * as vscode from 'vscode';
 import {
   activeSessions,
   type BreakpointHitInfo,
   onSessionTerminate,
-} from "./common";
-import { config } from "./config";
-import { DAPHelpers, type DebugContext } from "./debugUtils";
-import { logger } from "./logger";
+} from './common';
+import { config } from './config';
+import { DAPHelpers, type DebugContext } from './debugUtils';
+import { logger } from './logger';
 
 // Debug Adapter Protocol message types
 interface DebugProtocolMessage {
@@ -16,7 +16,7 @@ interface DebugProtocolMessage {
 }
 
 interface DebugProtocolEvent extends DebugProtocolMessage {
-  type: "event";
+  type: 'event';
   event: string;
   body?: unknown;
 }
@@ -29,7 +29,7 @@ interface StoppedEventBody {
 }
 
 interface OutputEventBody {
-  category: "console" | "stdout" | "stderr" | "telemetry" | string;
+  category: 'console' | 'stdout' | 'stderr' | 'telemetry' | string;
   output: string;
   variablesReference?: number;
   source?: { name?: string; path?: string };
@@ -76,7 +76,7 @@ export class EntryStopTimeoutError extends Error {
     public readonly details: EntryStopTimeoutDetails
   ) {
     super(message);
-    this.name = "EntryStopTimeoutError";
+    this.name = 'EntryStopTimeoutError';
   }
 }
 
@@ -96,7 +96,7 @@ const sessionExitCodes = new Map<string, number>();
 
 // Register debug adapter tracker to monitor debug events
 useDisposable(
-  vscode.debug.registerDebugAdapterTrackerFactory("*", {
+  vscode.debug.registerDebugAdapterTrackerFactory('*', {
     createDebugAdapterTracker: (
       session: vscode.DebugSession
     ): vscode.ProviderResult<vscode.DebugAdapterTracker> => {
@@ -133,13 +133,13 @@ useDisposable(
 
         async onDidSendMessage(message: DebugProtocolMessage): Promise<void> {
           // Log all messages sent from the debug adapter to VS Code
-          if (message.type !== "event") {
+          if (message.type !== 'event') {
             return;
           }
           const event = message as DebugProtocolEvent;
 
           // Handle output events for stderr/stdout capture
-          if (event.event === "output") {
+          if (event.event === 'output') {
             const body = event.body as OutputEventBody;
             const maxLines = config.maxOutputLines ?? 50;
 
@@ -160,7 +160,7 @@ useDisposable(
           }
 
           // Handle exited events for process exit code capture
-          if (event.event === "exited") {
+          if (event.event === 'exited') {
             const body = event.body as ExitedEventBody;
             sessionExitCodes.set(session.id, body.exitCode);
             logger.debug(
@@ -169,17 +169,17 @@ useDisposable(
             return;
           }
 
-          if (event.event !== "stopped") {
+          if (event.event !== 'stopped') {
             return;
           }
           const body = event.body as StoppedEventBody;
           const validReasons = [
-            "breakpoint",
-            "step",
-            "pause",
-            "exception",
-            "assertion",
-            "entry",
+            'breakpoint',
+            'step',
+            'pause',
+            'exception',
+            'assertion',
+            'entry',
           ];
           if (!validReasons.includes(body.reason)) {
             return;
@@ -187,16 +187,16 @@ useDisposable(
 
           try {
             let exceptionDetails;
-            if (body.reason === "exception" && body.description) {
+            if (body.reason === 'exception' && body.description) {
               exceptionDetails = {
-                description: body.description || "Unknown exception",
-                details: body.text || "No additional details available",
+                description: body.description || 'Unknown exception',
+                details: body.text || 'No additional details available',
               };
             }
 
             // Some debug adapters may send 'stopped' before frames/threads fully available.
             // Retry a few times with incremental backoff.
-            const isEntry = body.reason === "entry";
+            const isEntry = body.reason === 'entry';
             // Entry stops often occur before the thread is fully paused; allow a few more attempts
             const retries = isEntry ? 5 : 3;
             let lastError: unknown;
@@ -276,7 +276,7 @@ useDisposable(
             const errorEvent: BreakpointHitInfo = {
               session,
               threadId: body?.threadId ?? 0,
-              reason: "error",
+              reason: 'error',
             };
             breakpointEventEmitter.fire(errorEvent);
           }
@@ -391,7 +391,7 @@ export const waitForDebuggerStopBySessionId = async (params: {
       resolve({
         session: endEvent.session,
         threadId: 0,
-        reason: "terminated",
+        reason: 'terminated',
       });
     });
     timeoutHandle = setTimeout(() => {
@@ -448,7 +448,7 @@ export const waitForEntryStop = async (params: {
         return;
       }
       // Ignore internal error events; wait for a genuine stopped reason
-      if (event.reason === "error") {
+      if (event.reason === 'error') {
         return;
       }
       listener.dispose();
@@ -473,7 +473,7 @@ export const waitForEntryStop = async (params: {
       resolve({
         session: endEvent.session,
         threadId: 0,
-        reason: "terminated",
+        reason: 'terminated',
       });
     });
     timeoutHandle = setTimeout(() => {

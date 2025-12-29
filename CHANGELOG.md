@@ -4,7 +4,12 @@ All notable changes to the "copilot-debugger" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
-## [Unreleased]
+## 2025-12-29
+
+**Changed:** Start Debugger tool sessions now default to **singleShot** behavior: when the debugger is paused at a breakpoint, the tool will terminate the debug session before returning. This is a safe-by-default guardrail to prevent out-of-band actions against a paused debuggee.
+
+- To keep the session alive for follow-up inspection (variables/expressions/resume), set `mode: "inspect"` in the Start Debugger tool input.
+- Note: This behavior applies to sessions started via the tool flow; it does not change normal manual VS Code debugging behavior.
 
 ## [0.0.21] - 2025-11-21
 

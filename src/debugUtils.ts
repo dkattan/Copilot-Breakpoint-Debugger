@@ -1,6 +1,7 @@
 import type { DebugProtocol } from '@vscode/debugprotocol';
 import type * as vscode from 'vscode';
 import { LanguageModelTextPart, LanguageModelToolResult } from 'vscode';
+import { truncateToolOutputText } from './outputTruncation';
 
 // Re-export DAP types for convenience
 export type Thread = DebugProtocol.Thread;
@@ -153,12 +154,16 @@ export class DAPHelpers {
   }
 
   static createSuccessResult(message: string): LanguageModelToolResult {
-    const textPart = new LanguageModelTextPart(message);
+    const textPart = new LanguageModelTextPart(
+      truncateToolOutputText(message).text
+    );
     return new LanguageModelToolResult([textPart]);
   }
 
   static createErrorResult(message: string): LanguageModelToolResult {
-    const textPart = new LanguageModelTextPart(`Error: ${message}`);
+    const textPart = new LanguageModelTextPart(
+      truncateToolOutputText(`Error: ${message}`).text
+    );
     return new LanguageModelToolResult([textPart]);
   }
 }

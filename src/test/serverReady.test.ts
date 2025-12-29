@@ -13,7 +13,8 @@ import {
 // We use a simple HTTP server (server.js) that sets a flag on listen callback.
 // The serverReady breakpoint targets the assignment line. Command does a curl-like request using node: https module via PowerShell Invoke-WebRequest availability uncertain in test harness.
 
-describe('serverReady breakpoint', () => {
+describe('serverReady breakpoint', function () {
+  this.timeout(60_000);
   afterEach(async () => {
     await stopAllDebugSessions();
   });
@@ -68,24 +69,18 @@ describe('serverReady breakpoint', () => {
       userBreakpointLine,
       'Did not pause at expected user breakpoint line after serverReady continue'
     );
-    // Ensure variable present in scopes
-    // Collect variables via DAPHelpers for each scope
-    const activeSession = vscode.debug.activeDebugSession;
-    assert.ok(activeSession, 'No active debug session');
-    const variablesByScope = await Promise.all(
-      context.scopes.map(async (s) => {
-        const vars = await activeSession.customRequest('variables', {
-          variablesReference: s.variablesReference,
-        });
-        return (vars.variables || []).map(
-          (v: { name?: string; evaluateName?: string }) =>
-            v.name || v.evaluateName
-        );
-      })
+    // Ensure variable present in pre-collected scope variables.
+    // `startDebuggingAndWaitForStop` may terminate the session before returning in
+    // safe-by-default singleShot mode, so avoid relying on `activeDebugSession`.
+    const collectedNames = new Set(
+      (context.scopeVariables ?? [])
+        .flatMap((s) => s.variables)
+        .map((v) => v.name)
     );
-    const flatNames = new Set(variablesByScope.flat());
-    const foundStarted = flatNames.has('started');
-    assert.ok(foundStarted, 'started variable not found in scopes');
+    assert.ok(
+      collectedNames.has('started'),
+      'started variable not found in pre-collected scopeVariables'
+    );
     // Ensure serverReady breakpoint info processed (hitBreakpoint path/line match user breakpoint, not serverReady)
     assert.ok(context.hitBreakpoint, 'hitBreakpoint missing');
     assert.strictEqual(

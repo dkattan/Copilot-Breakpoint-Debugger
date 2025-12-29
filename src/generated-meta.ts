@@ -2,19 +2,19 @@
 // @see https://github.com/antfu/vscode-ext-gen
 
 // Meta info
-export const publisher = 'dkattan'
-export const name = 'copilot-breakpoint-debugger'
-export const version = '0.0.41'
-export const displayName = 'Copilot Breakpoint Debugger'
-export const description = 'Use GitHub Copilot to automate starting, inspecting and resuming VS Code debug sessions with conditional breakpoints, exact numeric hit counts (hitCount), logpoints, and capture actions that interpolate variables inside log messages.'
+export const publisher = "dkattan"
+export const name = "copilot-breakpoint-debugger"
+export const version = "0.0.41"
+export const displayName = "Copilot Breakpoint Debugger"
+export const description = "Use GitHub Copilot to automate starting, inspecting and resuming VS Code debug sessions with conditional breakpoints, exact numeric hit counts (hitCount), logpoints, and capture actions that interpolate variables inside log messages."
 export const extensionId = `${publisher}.${name}`
 
 /**
  * Type union of all commands
  */
 export type CommandKey =
-  | 'copilotBreakpointDebugger.startAndWaitManual'
-  | 'copilotBreakpointDebugger.insertSampleStartDebuggerPayload'
+  | "copilotBreakpointDebugger.startAndWaitManual"
+  | "copilotBreakpointDebugger.insertSampleStartDebuggerPayload"
 
 /**
  * Commands map registered by `dkattan.copilot-breakpoint-debugger`
@@ -24,50 +24,53 @@ export const commands = {
    * Copilot Breakpoint Debugger: Manual Start & Wait
    * @value `copilotBreakpointDebugger.startAndWaitManual`
    */
-  copilotBreakpointDebuggerStartAndWaitManual: 'copilotBreakpointDebugger.startAndWaitManual',
+  copilotBreakpointDebuggerStartAndWaitManual: "copilotBreakpointDebugger.startAndWaitManual",
   /**
    * Copilot Breakpoint Debugger: Insert Sample Start Payload
    * @value `copilotBreakpointDebugger.insertSampleStartDebuggerPayload`
    */
-  copilotBreakpointDebuggerInsertSampleStartDebuggerPayload: 'copilotBreakpointDebugger.insertSampleStartDebuggerPayload',
+  copilotBreakpointDebuggerInsertSampleStartDebuggerPayload: "copilotBreakpointDebugger.insertSampleStartDebuggerPayload",
 } satisfies Record<string, CommandKey>
 
 /**
  * Type union of all configs
  */
 export type ConfigKey =
-  | 'copilot-debugger.defaultLaunchConfiguration'
-  | 'copilot-debugger.entryTimeoutSeconds'
-  | 'copilot-debugger.captureMaxVariables'
-  | 'copilot-debugger.serverReadyEnabled'
-  | 'copilot-debugger.serverReadyDefaultActionType'
-  | 'copilot-debugger.maxBuildErrors'
-  | 'copilot-debugger.maxOutputLines'
-  | 'copilot-debugger.consoleLogLevel'
-  | 'copilot-debugger.enableTraceLogging'
+  | "copilot-debugger.defaultLaunchConfiguration"
+  | "copilot-debugger.entryTimeoutSeconds"
+  | "copilot-debugger.captureMaxVariables"
+  | "copilot-debugger.serverReadyEnabled"
+  | "copilot-debugger.serverReadyDefaultActionType"
+  | "copilot-debugger.maxBuildErrors"
+  | "copilot-debugger.maxOutputLines"
+  | "copilot-debugger.maxOutputChars"
+  | "copilot-debugger.consoleLogLevel"
+  | "copilot-debugger.enableTraceLogging"
 
 export interface ConfigKeyTypeMap {
-  'copilot-debugger.defaultLaunchConfiguration': string,
-  'copilot-debugger.entryTimeoutSeconds': unknown,
-  'copilot-debugger.captureMaxVariables': unknown,
-  'copilot-debugger.serverReadyEnabled': boolean,
-  'copilot-debugger.serverReadyDefaultActionType': ('httpRequest' | 'shellCommand' | 'vscodeCommand'),
-  'copilot-debugger.maxBuildErrors': unknown,
-  'copilot-debugger.maxOutputLines': unknown,
-  'copilot-debugger.consoleLogLevel': ('trace' | 'debug' | 'info' | 'warn' | 'error' | 'off'),
-  'copilot-debugger.enableTraceLogging': boolean,
+  "copilot-debugger.defaultLaunchConfiguration": string,
+  "copilot-debugger.entryTimeoutSeconds": unknown,
+  "copilot-debugger.captureMaxVariables": unknown,
+  "copilot-debugger.serverReadyEnabled": boolean,
+  "copilot-debugger.serverReadyDefaultActionType": ("httpRequest" | "shellCommand" | "vscodeCommand"),
+  "copilot-debugger.maxBuildErrors": unknown,
+  "copilot-debugger.maxOutputLines": unknown,
+  "copilot-debugger.maxOutputChars": unknown,
+  "copilot-debugger.consoleLogLevel": ("trace" | "debug" | "info" | "warn" | "error" | "off"),
+  "copilot-debugger.enableTraceLogging": boolean,
 }
 
 export interface ConfigShorthandMap {
-  copilotDebuggerDefaultLaunchConfiguration: 'copilot-debugger.defaultLaunchConfiguration',
-  copilotDebuggerEntryTimeoutSeconds: 'copilot-debugger.entryTimeoutSeconds',
-  copilotDebuggerCaptureMaxVariables: 'copilot-debugger.captureMaxVariables',
-  copilotDebuggerServerReadyEnabled: 'copilot-debugger.serverReadyEnabled',
-  copilotDebuggerServerReadyDefaultActionType: 'copilot-debugger.serverReadyDefaultActionType',
-  copilotDebuggerMaxBuildErrors: 'copilot-debugger.maxBuildErrors',
-  copilotDebuggerMaxOutputLines: 'copilot-debugger.maxOutputLines',
-  copilotDebuggerConsoleLogLevel: 'copilot-debugger.consoleLogLevel',
-  copilotDebuggerEnableTraceLogging: 'copilot-debugger.enableTraceLogging',
+  copilotDebuggerDefaultLaunchConfiguration: "copilot-debugger.defaultLaunchConfiguration",
+  copilotDebuggerEntryTimeoutSeconds: "copilot-debugger.entryTimeoutSeconds",
+  copilotDebuggerCaptureMaxVariables: "copilot-debugger.captureMaxVariables",
+  copilotDebuggerServerReadyEnabled: "copilot-debugger.serverReadyEnabled",
+  copilotDebuggerServerReadyDefaultActionType: "copilot-debugger.serverReadyDefaultActionType",
+  copilotDebuggerMaxBuildErrors: "copilot-debugger.maxBuildErrors",
+  copilotDebuggerMaxOutputLines: "copilot-debugger.maxOutputLines",
+  copilotDebuggerMaxOutputChars: "copilot-debugger.maxOutputChars",
+  copilotDebuggerConsoleLogLevel: "copilot-debugger.consoleLogLevel",
+  copilotDebuggerEnableTraceLogging: "copilot-debugger.enableTraceLogging",
 }
 
 export interface ConfigShorthandTypeMap {
@@ -75,10 +78,11 @@ export interface ConfigShorthandTypeMap {
   copilotDebuggerEntryTimeoutSeconds: unknown,
   copilotDebuggerCaptureMaxVariables: unknown,
   copilotDebuggerServerReadyEnabled: boolean,
-  copilotDebuggerServerReadyDefaultActionType: ('httpRequest' | 'shellCommand' | 'vscodeCommand'),
+  copilotDebuggerServerReadyDefaultActionType: ("httpRequest" | "shellCommand" | "vscodeCommand"),
   copilotDebuggerMaxBuildErrors: unknown,
   copilotDebuggerMaxOutputLines: unknown,
-  copilotDebuggerConsoleLogLevel: ('trace' | 'debug' | 'info' | 'warn' | 'error' | 'off'),
+  copilotDebuggerMaxOutputChars: unknown,
+  copilotDebuggerConsoleLogLevel: ("trace" | "debug" | "info" | "warn" | "error" | "off"),
   copilotDebuggerEnableTraceLogging: boolean,
 }
 
@@ -99,9 +103,9 @@ export const configs = {
    * @type `string`
    */
   copilotDebuggerDefaultLaunchConfiguration: {
-    key: 'copilot-debugger.defaultLaunchConfiguration',
-    default: '',
-  } as ConfigItem<'copilot-debugger.defaultLaunchConfiguration'>,
+    key: "copilot-debugger.defaultLaunchConfiguration",
+    default: "",
+  } as ConfigItem<"copilot-debugger.defaultLaunchConfiguration">,
   /**
    * Timeout in seconds waiting for initial entry stop after launching (before first user breakpoint). Supports long startup/build times; must be > 0.
    * @key `copilot-debugger.entryTimeoutSeconds`
@@ -109,9 +113,9 @@ export const configs = {
    * @type `integer`
    */
   copilotDebuggerEntryTimeoutSeconds: {
-    key: 'copilot-debugger.entryTimeoutSeconds',
+    key: "copilot-debugger.entryTimeoutSeconds",
     default: 60,
-  } as ConfigItem<'copilot-debugger.entryTimeoutSeconds'>,
+  } as ConfigItem<"copilot-debugger.entryTimeoutSeconds">,
   /**
    * Maximum number of variables auto-captured when a breakpoint onHit=captureAndContinue omits variableFilter (capture-all mode).
    * @key `copilot-debugger.captureMaxVariables`
@@ -119,9 +123,9 @@ export const configs = {
    * @type `integer`
    */
   copilotDebuggerCaptureMaxVariables: {
-    key: 'copilot-debugger.captureMaxVariables',
+    key: "copilot-debugger.captureMaxVariables",
     default: 40,
-  } as ConfigItem<'copilot-debugger.captureMaxVariables'>,
+  } as ConfigItem<"copilot-debugger.captureMaxVariables">,
   /**
    * Enable serverReady automation (trigger + action). When disabled, provided serverReady payloads are ignored.
    * @key `copilot-debugger.serverReadyEnabled`
@@ -129,9 +133,9 @@ export const configs = {
    * @type `boolean`
    */
   copilotDebuggerServerReadyEnabled: {
-    key: 'copilot-debugger.serverReadyEnabled',
+    key: "copilot-debugger.serverReadyEnabled",
     default: true,
-  } as ConfigItem<'copilot-debugger.serverReadyEnabled'>,
+  } as ConfigItem<"copilot-debugger.serverReadyEnabled">,
   /**
    * Preferred serverReady action type surfaced in samples and quick insert command.
    * @key `copilot-debugger.serverReadyDefaultActionType`
@@ -139,9 +143,9 @@ export const configs = {
    * @type `string`
    */
   copilotDebuggerServerReadyDefaultActionType: {
-    key: 'copilot-debugger.serverReadyDefaultActionType',
-    default: 'httpRequest',
-  } as ConfigItem<'copilot-debugger.serverReadyDefaultActionType'>,
+    key: "copilot-debugger.serverReadyDefaultActionType",
+    default: "httpRequest",
+  } as ConfigItem<"copilot-debugger.serverReadyDefaultActionType">,
   /**
    * Maximum number of build diagnostics (from problem matchers) to include in error messages when debug session fails to start.
    * @key `copilot-debugger.maxBuildErrors`
@@ -149,9 +153,9 @@ export const configs = {
    * @type `integer`
    */
   copilotDebuggerMaxBuildErrors: {
-    key: 'copilot-debugger.maxBuildErrors',
+    key: "copilot-debugger.maxBuildErrors",
     default: 5,
-  } as ConfigItem<'copilot-debugger.maxBuildErrors'>,
+  } as ConfigItem<"copilot-debugger.maxBuildErrors">,
   /**
    * Maximum number of output lines (stderr/stdout) to buffer per debug session for runtime error reporting.
    * @key `copilot-debugger.maxOutputLines`
@@ -159,9 +163,19 @@ export const configs = {
    * @type `integer`
    */
   copilotDebuggerMaxOutputLines: {
-    key: 'copilot-debugger.maxOutputLines',
+    key: "copilot-debugger.maxOutputLines",
     default: 50,
-  } as ConfigItem<'copilot-debugger.maxOutputLines'>,
+  } as ConfigItem<"copilot-debugger.maxOutputLines">,
+  /**
+   * Maximum number of characters returned by Copilot debugger tools (tool output is truncated with a suffix when exceeded).
+   * @key `copilot-debugger.maxOutputChars`
+   * @default `8192`
+   * @type `integer`
+   */
+  copilotDebuggerMaxOutputChars: {
+    key: "copilot-debugger.maxOutputChars",
+    default: 8192,
+  } as ConfigItem<"copilot-debugger.maxOutputChars">,
   /**
    * Controls how verbosely logs are mirrored to the developer console (Output panel always receives every log; this only gates console.* mirroring). Changes take effect immediately without reloading.
    * @key `copilot-debugger.consoleLogLevel`
@@ -169,9 +183,9 @@ export const configs = {
    * @type `string`
    */
   copilotDebuggerConsoleLogLevel: {
-    key: 'copilot-debugger.consoleLogLevel',
-    default: 'info',
-  } as ConfigItem<'copilot-debugger.consoleLogLevel'>,
+    key: "copilot-debugger.consoleLogLevel",
+    default: "info",
+  } as ConfigItem<"copilot-debugger.consoleLogLevel">,
   /**
    * Emit verbose Debug Adapter Protocol trace logs to the output channel for troubleshooting.
    * @key `copilot-debugger.enableTraceLogging`
@@ -179,31 +193,32 @@ export const configs = {
    * @type `boolean`
    */
   copilotDebuggerEnableTraceLogging: {
-    key: 'copilot-debugger.enableTraceLogging',
+    key: "copilot-debugger.enableTraceLogging",
     default: false,
-  } as ConfigItem<'copilot-debugger.enableTraceLogging'>,
+  } as ConfigItem<"copilot-debugger.enableTraceLogging">,
 }
 
 export interface ScopedConfigKeyTypeMap {
 }
 
 export const scopedConfigs = {
-  scope: 'copilot-breakpoint-debugger',
+  scope: "copilot-breakpoint-debugger",
   defaults: {
   } satisfies ScopedConfigKeyTypeMap,
 }
 
 export interface NestedConfigs {
-  'copilot-debugger': {
-    'defaultLaunchConfiguration': string,
-    'entryTimeoutSeconds': unknown,
-    'captureMaxVariables': unknown,
-    'serverReadyEnabled': boolean,
-    'serverReadyDefaultActionType': ('httpRequest' | 'shellCommand' | 'vscodeCommand'),
-    'maxBuildErrors': unknown,
-    'maxOutputLines': unknown,
-    'consoleLogLevel': ('trace' | 'debug' | 'info' | 'warn' | 'error' | 'off'),
-    'enableTraceLogging': boolean,
+  "copilot-debugger": {
+    "defaultLaunchConfiguration": string,
+    "entryTimeoutSeconds": unknown,
+    "captureMaxVariables": unknown,
+    "serverReadyEnabled": boolean,
+    "serverReadyDefaultActionType": ("httpRequest" | "shellCommand" | "vscodeCommand"),
+    "maxBuildErrors": unknown,
+    "maxOutputLines": unknown,
+    "maxOutputChars": unknown,
+    "consoleLogLevel": ("trace" | "debug" | "info" | "warn" | "error" | "off"),
+    "enableTraceLogging": boolean,
   },
 }
 

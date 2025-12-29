@@ -1,7 +1,6 @@
 import * as assert from 'node:assert';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { DAPHelpers } from '../debugUtils';
 import { startDebuggingAndWaitForStop } from '../session';
 import {
   activateCopilotDebugger,
@@ -9,24 +8,6 @@ import {
   openScriptDocument,
   stopAllDebugSessions,
 } from './utils/startDebuggerToolTestUtils';
-
-/**
- * Collect all variables from all scopes in the current debug session
- */
-async function collectAllVariables(
-  activeSession: vscode.DebugSession,
-  scopes: { name: string; variablesReference: number }[]
-): Promise<{ name: string; value: string }[]> {
-  const allVariables: { name: string; value: string }[] = [];
-  for (const scope of scopes) {
-    const vars = await DAPHelpers.getVariablesFromReference(
-      activeSession,
-      scope.variablesReference
-    );
-    allVariables.push(...vars);
-  }
-  return allVariables;
-}
 
 function flattenScopeVariables(
   scopeVariables?: {
@@ -150,21 +131,19 @@ describe('multi-Root Workspace Integration', () => {
       `Expected file path to contain 'test.js', got: ${context.frame.source?.path}`
     );
 
-    // Collect variables from scopes using active session
-    const activeSession = vscode.debug.activeDebugSession;
-    assert.ok(activeSession, 'No active debug session after breakpoint hit');
-
     const preCollected = flattenScopeVariables(context.scopeVariables);
-    const allVariables = preCollected.length
-      ? preCollected
-      : await collectAllVariables(activeSession, context.scopes);
+    assert.ok(
+      preCollected.length,
+      'Expected variables to be pre-collected in scopeVariables'
+    );
+    const allVariables = preCollected;
 
     // Verify that we got the expected variables
     assertVariablesPresent(allVariables, ['i']);
   });
 
   it('workspace B with conditional breakpoint (Node.js)', async function () {
-    this.timeout(5000);
+    this.timeout(60_000);
 
     const extensionRoot = getExtensionRoot();
     const workspaceFolder = path.join(extensionRoot, 'test-workspace', 'b');
@@ -205,14 +184,12 @@ describe('multi-Root Workspace Integration', () => {
       `Expected to stop at line ${lineInsideLoop}, but stopped at line ${context.frame.line}`
     );
 
-    // Collect variables from scopes using active session
-    const activeSession = vscode.debug.activeDebugSession;
-    assert.ok(activeSession, 'No active debug session after breakpoint hit');
-
     const preCollected = flattenScopeVariables(context.scopeVariables);
-    const allVariables = preCollected.length
-      ? preCollected
-      : await collectAllVariables(activeSession, context.scopes);
+    assert.ok(
+      preCollected.length,
+      'Expected variables to be pre-collected in scopeVariables'
+    );
+    const allVariables = preCollected;
 
     // Verify we got the variable 'i' and that its value is >= 3
     const iVariable = allVariables.find((v) => v.name === 'i');

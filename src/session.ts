@@ -3,6 +3,8 @@ import type { BreakpointDefinition } from './BreakpointDefinition';
 import type { BreakpointHitInfo } from './common';
 import { spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
+import * as http from 'node:http';
+import * as https from 'node:https';
 import * as path from 'node:path';
 import * as process from 'node:process';
 import stripAnsi from 'strip-ansi';
@@ -80,6 +82,30 @@ export interface ServerReadyInfo {
 
 export type DebuggerStateStatus = 'paused' | 'running' | 'terminated';
 
+export type CopilotDebuggerToolAction =
+  | 'startDebugSessionWithBreakpoints'
+  | 'resumeDebugSession'
+  | 'stopDebugSession'
+  | 'getVariables'
+  | 'expandVariable'
+  | 'evaluateExpression'
+  | 'externalHttpRequest'
+  | 'externalShellCommand'
+  | 'browserNavigation'
+  | 'fetchWebpage';
+
+export interface CopilotDebuggerProtocol {
+  /**
+   * Explicit allowlist/denylist that the model can pattern-match.
+   *
+   * - When paused: only debugger operations are allowed.
+   * - When running: external probes may be okay.
+   */
+  allowedNextActions: CopilotDebuggerToolAction[];
+  forbiddenNextActions: CopilotDebuggerToolAction[];
+  nextStepSuggestion: string;
+}
+
 export interface DebuggerStateSnapshot {
   status: DebuggerStateStatus;
   sessionId?: string;
@@ -146,8 +172,61 @@ export interface StartDebuggerStopInfo extends DebugContext {
   capturedLogMessages?: string[];
   serverReadyInfo: ServerReadyInfo;
   debuggerState: DebuggerStateSnapshot;
+  protocol: CopilotDebuggerProtocol;
   runtimeOutput: RuntimeOutputPreview;
 }
+
+const buildProtocol = (state: DebuggerStateSnapshot): CopilotDebuggerProtocol => {
+  const sessionId = state.sessionId ?? 'unknown';
+  if (state.status === 'paused') {
+    return {
+      allowedNextActions: [
+        'evaluateExpression',
+        'getVariables',
+        'expandVariable',
+        'resumeDebugSession',
+        'stopDebugSession',
+      ],
+      forbiddenNextActions: [
+        'externalHttpRequest',
+        'externalShellCommand',
+        'browserNavigation',
+        'fetchWebpage',
+      ],
+      nextStepSuggestion: `Session is paused. Inspect state using debugger tools, then resume. Suggested next call: resumeDebugSession(sessionId='${sessionId}').`,
+    };
+  }
+  if (state.status === 'running') {
+    return {
+      allowedNextActions: [
+        'resumeDebugSession',
+        'stopDebugSession',
+        'externalHttpRequest',
+        'externalShellCommand',
+        'browserNavigation',
+        'fetchWebpage',
+      ],
+      forbiddenNextActions: [],
+      nextStepSuggestion:
+        'Session is running. You may run external probes if needed, or use resumeDebugSession to add more breakpoints and wait for the next stop.',
+    };
+  }
+  return {
+    allowedNextActions: ['startDebugSessionWithBreakpoints'],
+    forbiddenNextActions: [
+      'resumeDebugSession',
+      'getVariables',
+      'expandVariable',
+      'evaluateExpression',
+      'externalHttpRequest',
+      'externalShellCommand',
+      'browserNavigation',
+      'fetchWebpage',
+    ],
+    nextStepSuggestion:
+      'Session is terminated. Start a new session with startDebugSessionWithBreakpoints.',
+  };
+};
 
 /**
  * List all active debug sessions in the workspace.
@@ -218,6 +297,63 @@ const MAX_RETURNED_DEBUG_OUTPUT_LINES = 10;
 
 const stripAnsiEscapeCodes = (value: string): string =>
   value ? stripAnsi(value) : '';
+
+const fireAndForgetHttpRequest = (params: {
+  url: string;
+  method: string;
+  headers?: Record<string, string>;
+  body?: string;
+  timeoutMs: number;
+  onDone?: (statusCode?: number) => void;
+  onError?: (error: unknown) => void;
+}) => {
+  const { url, method, headers, body, timeoutMs, onDone, onError } = params;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch (err) {
+    onError?.(new Error(`Invalid URL '${url}': ${err instanceof Error ? err.message : String(err)}`));
+    return;
+  }
+
+  const isHttps = parsed.protocol === 'https:';
+  const transport = isHttps ? https : http;
+
+  const req = transport.request(
+    {
+      protocol: parsed.protocol,
+      hostname: parsed.hostname,
+      port: parsed.port ? Number(parsed.port) : undefined,
+      path: `${parsed.pathname}${parsed.search}`,
+      method,
+      headers,
+    },
+    (res) => {
+      // Drain data to free socket; we don't need to buffer the body.
+      res.on('data', () => {});
+      res.on('end', () => {
+        onDone?.(res.statusCode);
+      });
+    }
+  );
+
+  req.on('error', (err) => {
+    onError?.(err);
+  });
+
+  req.setTimeout(timeoutMs, () => {
+    try {
+      req.destroy(new Error(`Request timed out after ${timeoutMs}ms`));
+    } catch (err) {
+      onError?.(err);
+    }
+  });
+
+  if (body) {
+    req.write(body);
+  }
+  req.end();
+};
 
 interface TaskCompletionResult {
   name: string;
@@ -911,6 +1047,12 @@ export interface StartDebuggingAndWaitForStopParams {
   workspaceFolder: string; // absolute path to open workspace folder
   nameOrConfiguration?: string; // may be omitted; auto-selection logic will attempt resolution
   timeoutSeconds?: number; // optional override; falls back to workspace setting copilot-debugger.entryTimeoutSeconds
+  /**
+   * Tool mode:
+   * - 'singleShot' (default): tool will terminate the debug session before returning.
+   * - 'inspect': tool may return with the session paused so the caller can inspect state and resume.
+   */
+  mode?: 'singleShot' | 'inspect';
   breakpointConfig: {
     breakpoints: Array<BreakpointDefinition>;
   };
@@ -955,6 +1097,7 @@ export const startDebuggingAndWaitForStop = async (
     workspaceFolder,
     nameOrConfiguration,
     timeoutSeconds: timeoutOverride,
+    mode = 'singleShot',
     breakpointConfig,
     serverReady: serverReadyParam,
     useExistingBreakpoints: _useExistingBreakpoints = false,
@@ -1118,19 +1261,29 @@ export const startDebuggingAndWaitForStop = async (
           logger.info(
             `Dispatching serverReady httpRequest (${phase}) to ${url} method=${method}`
           );
-          void fetch(url, { method, headers, body })
-            .then((resp) => {
+          // IMPORTANT: do not await the response.
+          // If the request handler hits a break breakpoint, the debuggee pauses and
+          // the HTTP response may never complete until resumed. We bound the request
+          // lifetime with a timeout to prevent resource leaks.
+          fireAndForgetHttpRequest({
+            url,
+            method,
+            headers,
+            body,
+            timeoutMs: 5_000,
+            onDone: (statusCode) => {
               logger.info(
-                `serverReady httpRequest (${phase}) response status=${resp.status}`
+                `serverReady httpRequest (${phase}) response status=${statusCode ?? 'unknown'}`
               );
-            })
-            .catch((httpErr) => {
+            },
+            onError: (httpErr) => {
               logger.error(
                 `serverReady httpRequest (${phase}) failed: ${
                   httpErr instanceof Error ? httpErr.message : String(httpErr)
                 }`
               );
-            });
+            },
+          });
           break;
         }
         case 'vscodeCommand': {
@@ -1188,17 +1341,6 @@ export const startDebuggingAndWaitForStop = async (
     throw new Error(
       'Provide at least one breakpoint (path + line) before starting the debugger.'
     );
-  }
-  for (const bp of breakpointConfig.breakpoints) {
-    if (
-      bp.onHit === 'captureAndContinue' &&
-      bp.variableFilter &&
-      bp.variableFilter.length === 0
-    ) {
-      throw new Error(
-        `Breakpoint at ${bp.path}:${bp.line} has empty variableFilter (omit entirely for auto-capture or provide at least one name).`
-      );
-    }
   }
   if (!path.isAbsolute(workspaceFolder)) {
     throw new Error(
@@ -2200,6 +2342,27 @@ export const startDebuggingAndWaitForStop = async (
         sessionName: finalStop.session.name,
       };
     }
+
+    // Safe-by-default: if the tool is operating in singleShot mode, terminate the session
+    // before returning. This prevents the model from doing "out-of-band" external actions
+    // (like curl) against a paused debuggee.
+    if (mode === 'singleShot' && debuggerState.status === 'paused') {
+      try {
+        logger.info(
+          `singleShot mode: terminating debug session '${finalStop.session.name}' (id=${finalStop.session.id}) before returning.`
+        );
+        await vscode.debug.stopDebugging(finalStop.session);
+      } catch (stopErr) {
+        logger.warn(
+          `singleShot mode: failed to stop debug session before return: ${
+            stopErr instanceof Error ? stopErr.message : String(stopErr)
+          }`
+        );
+      }
+      debuggerState = { status: 'terminated' };
+    }
+
+    const protocol = buildProtocol(debuggerState);
     const formattedOutput = getSessionOutput(finalStop.session.id)
       .map((line) => {
         const category = line.category || 'output';
@@ -2227,6 +2390,7 @@ export const startDebuggingAndWaitForStop = async (
       capturedLogMessages,
       serverReadyInfo,
       debuggerState,
+      protocol,
       runtimeOutput,
     };
   } catch (error) {
@@ -2343,13 +2507,7 @@ export const stopDebugSession = async (params: { sessionId: string }) => {
 export const resumeDebugSession = async (params: {
   sessionId: string;
   breakpointConfig?: {
-    breakpoints?: Array<{
-      path: string;
-      line: number;
-      condition?: string;
-      hitCount?: number;
-      logMessage?: string;
-    }>;
+    breakpoints?: Array<BreakpointDefinition>;
   };
 }) => {
   const { sessionId, breakpointConfig } = params;
@@ -2364,16 +2522,13 @@ export const resumeDebugSession = async (params: {
   }
 
   if (!session) {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `No debug session found with ID '${sessionId}'.`,
-        },
-      ],
-      isError: true,
-    };
+    throw new Error(`No debug session found with ID '${sessionId}'.`);
   }
+
+  // Used to resolve relative breakpoint paths.
+  const workspaceFolder =
+    session.workspaceFolder?.uri.fsPath ||
+    vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
   // Handle breakpoint configuration if provided
   if (breakpointConfig) {
@@ -2382,10 +2537,6 @@ export const resumeDebugSession = async (params: {
       breakpointConfig.breakpoints &&
       breakpointConfig.breakpoints.length > 0
     ) {
-      // Get workspace folder from session configuration
-      const workspaceFolder =
-        session.workspaceFolder?.uri.fsPath ||
-        vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       if (!workspaceFolder) {
         throw new Error(
           'Cannot determine workspace folder for breakpoint paths'
@@ -2425,6 +2576,158 @@ export const resumeDebugSession = async (params: {
       `Debug session '${session.name}' terminated before hitting a breakpoint.`
     );
   }
-  // Otherwise resolve full breakpoint stopInfo
-  return await DAPHelpers.getDebugContext(stopInfo.session, stopInfo.threadId);
+  // Otherwise resolve full breakpoint stopInfo (align with startDebuggingAndWaitForStop output)
+  const debugContext = await DAPHelpers.getDebugContext(
+    stopInfo.session,
+    stopInfo.threadId
+  );
+
+  const orderedScopes = reorderScopesForCapture(debugContext.scopes ?? []);
+  const normalizedContext = { ...debugContext, scopes: orderedScopes };
+
+  const scopeVariables: ScopeVariables[] = [];
+  for (const scope of orderedScopes) {
+    const variables = await DAPHelpers.getVariablesFromReference(
+      stopInfo.session,
+      scope.variablesReference
+    );
+    scopeVariables.push({ scopeName: scope.name, variables });
+  }
+
+  // Determine which breakpoint was actually hit (exact file + line match) based on provided breakpointConfig.
+  let hitBreakpoint: BreakpointDefinition | undefined;
+  const framePath = normalizedContext.frame?.source?.path;
+  const frameLine = normalizedContext.frame?.line;
+  if (
+    framePath &&
+    typeof frameLine === 'number' &&
+    breakpointConfig?.breakpoints?.length
+  ) {
+    const normalizedFramePath = normalizeFsPath(framePath);
+    for (const bp of breakpointConfig.breakpoints) {
+      let absPath: string;
+      if (path.isAbsolute(bp.path)) {
+        absPath = bp.path;
+      } else {
+        if (!workspaceFolder) {
+          throw new Error('Cannot determine workspace folder for breakpoint paths');
+        }
+        absPath = path.join(workspaceFolder, bp.path);
+      }
+      if (normalizeFsPath(absPath) !== normalizedFramePath) {
+        continue;
+      }
+      if (frameLine !== bp.line) {
+        continue;
+      }
+      hitBreakpoint = {
+        ...bp,
+        path: absPath,
+        line: frameLine,
+      };
+      break;
+    }
+  }
+
+  // Build variable lookup for interpolation (for capture action log message expansion)
+  const variableLookup = new Map<string, string>();
+  for (const scope of scopeVariables) {
+    for (const v of scope.variables) {
+      variableLookup.set(v.name, v.value);
+    }
+  }
+
+  let capturedLogMessages: string[] | undefined;
+  if (hitBreakpoint?.onHit === 'captureAndContinue') {
+    const interpolate = (msg: string) =>
+      msg.replace(/\{([^{}]+)\}/g, (_m, name) => {
+        const raw = variableLookup.get(name);
+        return raw !== undefined ? raw : `{${name}}`;
+      });
+    capturedLogMessages = [];
+    for (const bp of breakpointConfig?.breakpoints ?? []) {
+      if (bp.logMessage) {
+        capturedLogMessages.push(interpolate(bp.logMessage));
+      }
+    }
+  }
+
+  if (hitBreakpoint?.onHit === 'stopDebugging') {
+    logger.info(`Terminating all debug sessions per breakpoint action.`);
+    await vscode.debug.stopDebugging();
+  } else if (hitBreakpoint?.onHit === 'captureAndContinue') {
+    try {
+      logger.debug(
+        `Continuing debug session ${stopInfo.session.id} after capture action.`
+      );
+      await stopInfo.session.customRequest('continue', {
+        threadId: stopInfo.threadId,
+      });
+    } catch (continueErr) {
+      logger.warn(
+        `Failed to continue after capture action: ${
+          continueErr instanceof Error
+            ? continueErr.message
+            : String(continueErr)
+        }`
+      );
+    }
+  }
+
+  const serverReadyInfo: ServerReadyInfo = {
+    configured: false,
+    triggerMode: 'disabled',
+    phases: [],
+  };
+
+  let debuggerState: DebuggerStateSnapshot;
+  if (hitBreakpoint?.onHit === 'stopDebugging') {
+    debuggerState = { status: 'terminated' };
+  } else if (hitBreakpoint?.onHit === 'captureAndContinue') {
+    debuggerState = {
+      status: 'running',
+      sessionId: stopInfo.session.id,
+      sessionName: stopInfo.session.name,
+    };
+  } else {
+    debuggerState = {
+      status: 'paused',
+      sessionId: stopInfo.session.id,
+      sessionName: stopInfo.session.name,
+    };
+  }
+
+  const protocol = buildProtocol(debuggerState);
+
+  const formattedOutput = getSessionOutput(stopInfo.session.id)
+    .map((line) => {
+      const category = line.category || 'output';
+      const sanitized = truncateLine(stripAnsiEscapeCodes(line.text).trim());
+      if (!sanitized) {
+        return undefined;
+      }
+      return `[${category}] ${sanitized}`;
+    })
+    .filter((line): line is string => typeof line === 'string');
+  const totalLines = formattedOutput.length;
+  const previewCount = Math.min(MAX_RETURNED_DEBUG_OUTPUT_LINES, totalLines);
+  const runtimeOutput: RuntimeOutputPreview = {
+    lines:
+      previewCount > 0
+        ? formattedOutput.slice(totalLines - previewCount)
+        : [],
+    totalLines,
+    truncated: previewCount < totalLines,
+  };
+
+  return {
+    ...normalizedContext,
+    scopeVariables,
+    hitBreakpoint: hitBreakpoint ?? undefined,
+    capturedLogMessages,
+    serverReadyInfo,
+    debuggerState,
+    protocol,
+    runtimeOutput,
+  };
 };

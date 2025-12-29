@@ -94,6 +94,12 @@
           "description": "Maximum number of output lines (stderr/stdout) to buffer per debug session for runtime error reporting.",
           "scope": "resource"
         },
+        "copilot-debugger.maxOutputChars": {
+          "type": "integer",
+          "default": 8192,
+          "description": "Maximum number of characters returned by Copilot debugger tools (tool output is truncated with a suffix when exceeded).",
+          "scope": "resource"
+        },
         "copilot-debugger.consoleLogLevel": {
           "type": "string",
           "enum": [
@@ -122,8 +128,8 @@
         "displayName": "Start Debugger",
         "toolReferenceName": "startDebugSessionWithBreakpoints",
         "canBeReferencedInPrompt": true,
-        "userDescription": "Start a debug session, set breakpoints, and wait until a breakpoint is hit. Supports onHit behaviors: break (pause & return), captureAndContinue (collect variables & interpolated log messages then resume automatically), stopDebugging (terminate after hit). Supports serverReady.action types: httpRequest | shellCommand | vscodeCommand (auto-run after readiness trigger). Exact numeric hitCount pauses on that occurrence.",
-        "modelDescription": "Start a debug session using the configured default launch configuration or an explicitly provided configurationName. Auto-selects sole launch config when none specified and no default setting is present. Each breakpoint can specify an onHit: break (pause), captureAndContinue (non-blocking gather of variables & interpolation of {var} placeholders in logMessage then continue), or stopDebugging (terminate immediately after hit). Supports serverReady with trigger {path+line | pattern | omitted attach} and action.type httpRequest | shellCommand | vscodeCommand. Conditional expressions and exact numeric hitCount only. variableFilter required only for captureAndContinue; omit to capture all locals up to captureMaxVariables.",
+        "userDescription": "Start a debug session, set breakpoints, and wait until a breakpoint is hit. Supports onHit behaviors: break (pause), captureAndContinue (collect variables then auto-resume), stopDebugging (terminate after hit). Default mode is singleShot: the tool terminates the session before returning so the model cannot accidentally run external curl/browser probes against a paused debuggee. If you need an interactive paused workflow, set mode=inspect.",
+        "modelDescription": "Start a debug session using the configured default launch configuration or an explicitly provided configurationName. Auto-selects sole launch config when none specified and no default setting is present. Each breakpoint can specify an onHit: break (pause), captureAndContinue (collect variables & interpolate {var} placeholders then continue automatically), or stopDebugging (terminate immediately after hit). IMPORTANT protocol: if the tool returns while paused (inspect mode), you must NOT run external HTTP requests (curl/wget/browser/fetch) against the debuggee; only use debugger operations (evaluateExpression/getVariables/expandVariable/resume/stop) until resumed. Supports serverReady with trigger {path+line | pattern | omitted attach} and action.type httpRequest | shellCommand | vscodeCommand. httpRequest is the recommended canonical way to trigger a request intended to hit breakpoints because it is executed by the tool with timeout handling. shellCommand runs in a terminal and can block if it performs a request that hits a break breakpoint. Conditional expressions and exact numeric hitCount only. variableFilter required only for captureAndContinue; omit to capture all locals up to captureMaxVariables.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -134,6 +140,14 @@
             "configurationName": {
               "type": "string",
               "description": "Name of launch configuration to start. If omitted uses copilot-debugger.defaultLaunchConfiguration or auto-selects sole configuration if exactly one exists."
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "singleShot",
+                "inspect"
+              ],
+              "description": "Tool mode. singleShot (default): terminate the session before returning. inspect: allow returning while paused for iterative inspection/resume workflows."
             },
             "breakpointConfig": {
               "type": "object",
@@ -157,8 +171,7 @@
                         "items": {
                           "type": "string"
                         },
-                        "minItems": 1,
-                        "description": "List of exact variable names to include when reporting variables for this breakpoint or for interpolation in captureAndContinue onHit. Required only if onHit=captureAndContinue and you want a subset; when omitted for captureAndContinue all locals (up to captureMaxVariables) are auto-collected. Ignored for break/stopDebugging. Case-sensitive."
+                        "description": "Required list of exact variable names to include when reporting variables for this breakpoint or for interpolation in captureAndContinue onHit. Use an empty array to opt into auto-capture (up to captureMaxVariables). Ignored for break/stopDebugging. Case-sensitive."
                       },
                       "onHit": {
                         "type": "string",
@@ -189,7 +202,8 @@
                     "required": [
                       "path",
                       "line",
-                      "onHit"
+                      "onHit",
+                      "variableFilter"
                     ]
                   },
                   "description": "Breakpoints to add before starting session."
@@ -198,7 +212,7 @@
             },
             "serverReady": {
               "type": "object",
-              "description": "Optional server readiness automation. New flat schema: trigger {path+line | pattern | omitted attach}; action.type in httpRequest | shellCommand | vscodeCommand. Backward compatible with legacy shape.",
+              "description": "Optional server readiness automation (trigger + action). Canonical pattern for driving a request into a breakpoint is action.type=httpRequest (tool-executed with timeout handling). shellCommand is allowed (including curl), but it can block if it performs a request that hits a break breakpoint. NOTE: the most common failure mode is external curl AFTER the tool returned while paused (inspect mode).",
               "properties": {
                 "trigger": {
                   "type": "object",
@@ -220,7 +234,7 @@
                 },
                 "action": {
                   "type": "object",
-                  "description": "Action executed when ready. Flat schema with discriminator 'type'.",
+                  "description": "Action executed when ready. Flat schema with discriminator 'type'. Blocking behavior: shellCommand runs in a terminal and may block if it performs a request that hits a break breakpoint; httpRequest is executed by the tool with timeout handling and is recommended for triggering breakpoints.",
                   "properties": {
                     "type": {
                       "type": "string",
@@ -229,7 +243,7 @@
                         "shellCommand",
                         "vscodeCommand"
                       ],
-                      "description": "Action type discriminator."
+                      "description": "Action type discriminator. Prefer httpRequest to trigger requests intended to hit breakpoints. shellCommand is allowed (including curl), but may block if it triggers a break breakpoint."
                     },
                     "url": {
                       "type": "string",
@@ -252,7 +266,7 @@
                     },
                     "shellCommand": {
                       "type": "string",
-                      "description": "Shell command executed in a new terminal (shellCommand)."
+                      "description": "Shell command executed in a new terminal (shellCommand). Allowed to run curl/wget/etc, but may block if it triggers a break breakpoint."
                     },
                     "command": {
                       "type": "string",
@@ -284,6 +298,7 @@
             {
               "workspaceFolder": "/abs/path/project",
               "configurationName": "Run test.js",
+              "mode": "singleShot",
               "breakpointConfig": {
                 "breakpoints": [
                   {
@@ -309,6 +324,7 @@
             },
             {
               "workspaceFolder": "/abs/path/project",
+              "mode": "inspect",
               "breakpointConfig": {
                 "breakpoints": [
                   {
@@ -320,7 +336,7 @@
               "serverReady": {
                 "action": {
                   "type": "shellCommand",
-                  "shellCommand": "curl http://localhost:3000/health"
+                  "shellCommand": "curl -sS http://localhost:3000/health || exit 1"
                 }
               }
             }
@@ -364,7 +380,6 @@
                         "items": {
                           "type": "string"
                         },
-                        "minItems": 1,
                         "description": "Variable names to include in reporting or interpolation for capture action."
                       },
                       "action": {
@@ -391,7 +406,8 @@
                     },
                     "required": [
                       "path",
-                      "line"
+                      "line",
+                      "variableFilter"
                     ]
                   }
                 }
@@ -503,6 +519,7 @@
     "@anthropic-ai/sdk": "^0.27.3",
     "@reactive-vscode/reactivity": "^0.4.1",
     "@vscode/prompt-tsx": "^0.4.0-alpha.5",
+    "markdown-table": "^3.0.4",
     "mocha": "^10.7.3",
     "reactive-vscode": "^0.4.1",
     "strip-ansi": "^7.1.2"

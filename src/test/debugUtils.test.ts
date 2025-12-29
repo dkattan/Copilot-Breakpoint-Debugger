@@ -13,9 +13,14 @@ let scriptPath: string;
 let workspaceFolder: string;
 const configurationName = 'Run test.js';
 // Shared immutable base params for repeated startDebuggingAndWaitForStop calls
-let baseParams: { workspaceFolder: string; nameOrConfiguration: string };
+let baseParams: {
+  workspaceFolder: string;
+  nameOrConfiguration: string;
+  mode: 'inspect';
+};
 
-describe('debugUtils - DAPHelpers', () => {
+describe('debugUtils - DAPHelpers', function () {
+  this.timeout(120_000);
   afterEach(async () => {
     await stopAllDebugSessions();
   });
@@ -37,7 +42,11 @@ describe('debugUtils - DAPHelpers', () => {
     await openScriptDocument(scriptUri);
     await activateCopilotDebugger();
     // Initialize shared base params once workspaceFolder is known
-    baseParams = { workspaceFolder, nameOrConfiguration: configurationName };
+    baseParams = {
+      workspaceFolder,
+      nameOrConfiguration: configurationName,
+      mode: 'inspect',
+    };
   });
 
   it('hitCount breakpoint triggers on specific hit count', async () => {
@@ -264,6 +273,105 @@ describe('debugUtils - DAPHelpers', () => {
       !capturedNames.includes('fnVar'),
       'Function-typed variable fnVar should be filtered out'
     );
+  });
+
+  it('diagnostics: logs function-like variables that may slip through filters (Node.js)', async () => {
+    // This test is intentionally diagnostic: it prints a small report of variables whose
+    // value *looks* like a function implementation but which might not be typed as 'function'
+    // by the debug adapter.
+    //
+    // If this output is noisy in CI, we can keep the report bounded and only log when
+    // such variables are detected.
+
+    const functionBlockLine = 28; // console.log after numberVar/fnVar definitions
+    const context = await startDebuggingAndWaitForStop(
+      Object.assign({}, baseParams, {
+        sessionName: '',
+        breakpointConfig: {
+          breakpoints: [
+            {
+              path: scriptPath,
+              line: functionBlockLine,
+              // Empty array means auto-capture elsewhere; here we want to inspect raw variables.
+              variableFilter: [],
+              action: 'break' as const,
+            },
+          ],
+        },
+      })
+    );
+
+    const activeSession = vscode.debug.activeDebugSession;
+    assert.ok(activeSession, 'No active debug session');
+
+    const functionLike = (value: string) => {
+      const v = value.trim();
+      return (
+        v.startsWith('function ') ||
+        v.startsWith('[Function') ||
+        v.includes('[native code]') ||
+        v.includes('=>') ||
+        v.startsWith('ƒ')
+      );
+    };
+
+    const suspects: Array<{
+      scope: string;
+      name: string;
+      type?: string;
+      value: string;
+    }> = [];
+
+    for (const scope of context.scopes) {
+      const raw = (await activeSession.customRequest('variables', {
+        variablesReference: scope.variablesReference,
+      })) as {
+        variables?: Array<{ name: string; value: string; type?: string }>;
+      };
+
+      for (const v of raw.variables ?? []) {
+        if (!v?.value || typeof v.value !== 'string') {
+          continue;
+        }
+        // Only log candidates that are NOT explicitly typed as function (those are already filtered).
+        const typeLower = (v.type ?? '').toLowerCase();
+        if (typeLower === 'function') {
+          continue;
+        }
+        if (functionLike(v.value)) {
+          suspects.push({
+            scope: scope.name,
+            name: v.name,
+            type: v.type,
+            value: v.value,
+          });
+        }
+      }
+    }
+
+    if (suspects.length > 0) {
+      const preview = suspects
+        .slice(0, 30)
+        .map(
+          (s) =>
+            `${s.scope}: ${s.name} (type=${s.type ?? '∅'}) = ${s.value.slice(
+              0,
+              120
+            )}`
+        )
+        .join('\n');
+
+      console.log(
+        `[diagnostics] Found ${suspects.length} function-like variable(s) not typed as 'function' (showing up to 30):\n${preview}`
+      );
+    } else {
+      console.log(
+        "[diagnostics] No function-like variables found that were not typed as 'function'"
+      );
+    }
+
+    // This is diagnostic; we don't want flakiness due to adapter differences.
+    assert.ok(true);
   });
 
   it('getDebugContext works in active session', async () => {

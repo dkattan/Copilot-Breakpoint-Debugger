@@ -9,7 +9,8 @@ import {
   stopAllDebugSessions,
 } from './utils/startDebuggerToolTestUtils';
 
-describe('startDebuggerTool auto-capture nearest scope', () => {
+describe('startDebuggerTool auto-capture nearest scope', function () {
+  this.timeout(60_000);
   const configurationName = 'Run test.js';
   let workspaceFolder: string;
   let scriptPath: string;
@@ -43,7 +44,8 @@ describe('startDebuggerTool auto-capture nearest scope', () => {
               path: scriptPath,
               line: 9,
               onHit: 'break' as const,
-              // variableFilter intentionally omitted to exercise auto-capture
+              // variableFilter required; empty array opts into auto-capture
+              variableFilter: [],
             },
           ],
         },

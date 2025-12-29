@@ -3,9 +3,10 @@ import type {
   LanguageModelTool,
   LanguageModelToolInvocationOptions,
   LanguageModelToolInvocationPrepareOptions,
+  LanguageModelToolResult,
   ProviderResult,
 } from 'vscode';
-import { LanguageModelTextPart, LanguageModelToolResult } from 'vscode';
+import { createTruncatedToolResult } from './outputTruncation';
 import { stopDebugSession } from './session';
 
 export interface StopDebugSessionToolParameters {
@@ -21,19 +22,15 @@ export class StopDebugSessionTool
     const { sessionId } = options.input;
     try {
       await stopDebugSession({ sessionId });
-      return new LanguageModelToolResult([
-        new LanguageModelTextPart(
-          `Stopped debug session(s) with id '${sessionId}'.`
-        ),
-      ]);
+      return createTruncatedToolResult(
+        `Stopped debug session(s) with id '${sessionId}'.`
+      );
     } catch (error) {
-      return new LanguageModelToolResult([
-        new LanguageModelTextPart(
-          `Error stopping debug session: ${
-            error instanceof Error ? error.message : String(error)
-          }`
-        ),
-      ]);
+      return createTruncatedToolResult(
+        `Error stopping debug session: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     }
   }
 

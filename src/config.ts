@@ -20,6 +20,8 @@ const configDefaults = {
     5) as number,
   maxOutputLines: (Meta.configs.copilotDebuggerMaxOutputLines.default ??
     50) as number,
+  maxOutputChars: (Meta.configs.copilotDebuggerMaxOutputChars.default ??
+    8192) as number,
   consoleLogLevel: (Meta.configs.copilotDebuggerConsoleLogLevel.default ??
     'info') as ConsoleLogLevel,
   enableTraceLogging: (Meta.configs.copilotDebuggerEnableTraceLogging.default ??
@@ -32,6 +34,7 @@ const configDefaults = {
   serverReadyDefaultActionType: ServerReadyActionType;
   maxBuildErrors: number;
   maxOutputLines: number;
+  maxOutputChars: number;
   consoleLogLevel: ConsoleLogLevel;
   enableTraceLogging: boolean;
 };

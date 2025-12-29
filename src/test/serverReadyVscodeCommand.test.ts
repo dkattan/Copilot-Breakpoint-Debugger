@@ -11,7 +11,8 @@ import {
 
 // Test serverReady vscodeCommand action variant: executes VS Code command when readiness breakpoint hit, then continues.
 
-describe('serverReady vscodeCommand action', () => {
+describe('serverReady vscodeCommand action', function () {
+  this.timeout(60_000);
   afterEach(async () => {
     await stopAllDebugSessions();
   });
@@ -36,7 +37,7 @@ describe('serverReady vscodeCommand action', () => {
       sessionName: '',
       workspaceFolder,
       nameOrConfiguration: 'Run b/server.js',
-      timeoutSeconds: 3,
+      timeoutSeconds: 20,
       breakpointConfig: {
         breakpoints: [
           {

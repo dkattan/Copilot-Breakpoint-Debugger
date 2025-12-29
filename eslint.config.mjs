@@ -234,6 +234,7 @@ export default antfu(
       "out/**",
       "**/*.yml",
       "test-workspace/**",
+      "src/generated-meta.ts",
     ],
   }
 );

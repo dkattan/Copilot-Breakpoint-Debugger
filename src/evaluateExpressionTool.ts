@@ -2,13 +2,14 @@ import type {
   LanguageModelTool,
   LanguageModelToolInvocationOptions,
   LanguageModelToolInvocationPrepareOptions,
+  LanguageModelToolResult,
   ProviderResult,
 } from 'vscode';
 import * as vscode from 'vscode';
-import { LanguageModelTextPart, LanguageModelToolResult } from 'vscode';
 import { activeSessions } from './common';
 import { DAPHelpers } from './debugUtils';
 import { logger } from './logger';
+import { createTruncatedToolResult } from './outputTruncation';
 
 export interface EvaluateExpressionToolParameters {
   expression: string; // Expression to evaluate like in Debug Console
@@ -53,17 +54,15 @@ export class EvaluateExpressionTool
       // Resolve session
       let session: vscode.DebugSession | undefined;
       if (sessionId) {
-        session = activeSessions.find(s => s.id === sessionId);
+        session = activeSessions.find((s) => s.id === sessionId);
       }
       if (!session) {
         session = vscode.debug.activeDebugSession || activeSessions[0];
       }
       if (!session) {
-        return new LanguageModelToolResult([
-          new LanguageModelTextPart(
-            'Error: No active debug session found to evaluate expression.'
-          ),
-        ]);
+        return createTruncatedToolResult(
+          'Error: No active debug session found to evaluate expression.'
+        );
       }
 
       // Gather context (need frame id when paused). If not paused evaluation may still work for some adapters.
@@ -83,11 +82,9 @@ export class EvaluateExpressionTool
       } catch (err) {
         const message =
           err instanceof Error ? err.message : JSON.stringify(err);
-        return new LanguageModelToolResult([
-          new LanguageModelTextPart(
-            `Error evaluating expression '${expression}': ${message}`
-          ),
-        ]);
+        return createTruncatedToolResult(
+          `Error evaluating expression '${expression}': ${message}`
+        );
       }
 
       const resultJson = {
@@ -97,17 +94,13 @@ export class EvaluateExpressionTool
         presentationHint: evalResponse?.presentationHint,
         variablesReference: evalResponse?.variablesReference,
       };
-      return new LanguageModelToolResult([
-        new LanguageModelTextPart(JSON.stringify(resultJson)),
-      ]);
+      return createTruncatedToolResult(JSON.stringify(resultJson));
     } catch (error) {
-      return new LanguageModelToolResult([
-        new LanguageModelTextPart(
-          `Unexpected error evaluating expression: ${
-            error instanceof Error ? error.message : String(error)
-          }`
-        ),
-      ]);
+      return createTruncatedToolResult(
+        `Unexpected error evaluating expression: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     }
   }
 

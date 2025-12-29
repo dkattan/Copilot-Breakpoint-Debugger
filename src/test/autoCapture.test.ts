@@ -9,7 +9,7 @@ import {
   stopAllDebugSessions,
 } from './utils/startDebuggerToolTestUtils';
 
-describe('startDebuggingAndWaitForStop - capture-all (variableFilter omitted)', () => {
+describe('startDebuggingAndWaitForStop - capture-all (variableFilter empty)', () => {
   const configurationName = 'Run test.js';
   let workspaceFolder: string;
   let scriptPath: string;
@@ -45,7 +45,8 @@ describe('startDebuggingAndWaitForStop - capture-all (variableFilter omitted)', 
               line: targetLine,
               onHit: 'captureAndContinue' as const,
               logMessage: 'i={i}',
-              // variableFilter intentionally omitted for auto-capture
+              // variableFilter required; empty array opts into auto-capture
+              variableFilter: [],
             },
           ],
         },
@@ -60,9 +61,14 @@ describe('startDebuggingAndWaitForStop - capture-all (variableFilter omitted)', 
     assert.ok(context.hitBreakpoint, 'hitBreakpoint missing');
     assert.strictEqual(context.hitBreakpoint?.onHit, 'captureAndContinue');
     assert.strictEqual(
-      context.hitBreakpoint?.variableFilter,
-      undefined,
-      'variableFilter should be undefined when omitted'
+      Array.isArray(context.hitBreakpoint?.variableFilter),
+      true,
+      'variableFilter should be present on hitBreakpoint'
+    );
+    assert.strictEqual(
+      context.hitBreakpoint?.variableFilter.length,
+      0,
+      'variableFilter should be empty when opting into auto-capture'
     );
     assert.ok(
       Array.isArray(context.capturedLogMessages) &&

@@ -9,7 +9,7 @@
   // Turn off tsc task auto detection since we have the necessary tasks as npm scripts
   "typescript.tsc.autoDetect": "off",
   // Prettier formatting settings
-  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.defaultFormatter": "vscode.typescript-language-features",
   "editor.formatOnSave": true,
   "editor.codeActionsOnSave": {},
   // Ensure Prettier is used for all supported file types
@@ -41,5 +41,6 @@
         "cmd": "npm run update"
       }
     ]
-  }
+  },
+  "editor.formatOnPaste": true
 }

@@ -3,11 +3,13 @@ import type {
   LanguageModelTool,
   LanguageModelToolInvocationOptions,
   LanguageModelToolInvocationPrepareOptions,
+  LanguageModelToolResult,
   ProviderResult,
 } from 'vscode';
 import type { BreakpointDefinition } from './BreakpointDefinition';
-import { LanguageModelTextPart, LanguageModelToolResult } from 'vscode';
+import { createTruncatedToolResult } from './outputTruncation';
 import { resumeDebugSession } from './session';
+import { renderStopInfoMarkdown } from './stopInfoMarkdown';
 
 export interface ResumeDebugSessionToolParameters {
   sessionId: string; // ID of the debug session to resume
@@ -29,17 +31,21 @@ export class ResumeDebugSessionTool
         sessionId,
         breakpointConfig,
       });
-      return new LanguageModelToolResult([
-        new LanguageModelTextPart(JSON.stringify(stopInfo, null, 2)),
-      ]);
+      return createTruncatedToolResult(
+        renderStopInfoMarkdown({
+          stopInfo,
+          breakpointConfig: {
+            breakpoints: breakpointConfig?.breakpoints ?? [],
+          },
+          success: true,
+        })
+      );
     } catch (error) {
-      return new LanguageModelToolResult([
-        new LanguageModelTextPart(
-          `Error resuming debug session: ${
-            error instanceof Error ? error.message : String(error)
-          }`
-        ),
-      ]);
+      return createTruncatedToolResult(
+        `Error resuming debug session: ${
+          error instanceof Error ? error.message : String(error)
+        }\n\nIf you want variables in the same table format as startDebugSessionWithBreakpoints, include breakpointConfig.breakpoints with an entry that matches the paused file+line, and provide variableFilter (empty array means auto-capture).`
+      );
     }
   }
 

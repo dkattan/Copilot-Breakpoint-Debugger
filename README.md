@@ -94,6 +94,11 @@ Description                                                                     
 Type     : `integer`  
 Default        : `50`  
 
+#### `copilot-debugger.maxOutputChars`
+Description                                                                                                                                                                                        : Maximum number of characters returned by Copilot debugger tools (tool output is truncated with a suffix when exceeded).  
+Type     : `integer`  
+Default        : `8192`  
+
 #### `copilot-debugger.consoleLogLevel`
 Description                                                                                                                                                                                        : Controls how verbosely logs are mirrored to the developer console (Output panel always receives every log; this only gates console.* mirroring). Changes take effect immediately without reloading.  
 Type     : `string`  
@@ -128,6 +133,10 @@ Example settings snippet:
 ### Server Readiness Automation (Unified `trigger` + `action`)
 
 You may supply a `serverReady` object when starting the debugger to run an automated action (shell command, HTTP request, or VS Code command) once the target is "ready".
+
+> **Important (don’t use `curl` with breakpoints):** If any breakpoint `onHit` is `break`, **do not** use `serverReady.action.type = "shellCommand"` with `curl`/`wget`/etc to call an endpoint that can hit that breakpoint. The request will often **hang** because the debuggee is paused and cannot finish responding.
+>
+> Prefer `serverReady.action.type = "httpRequest"` when you intend to **trigger a breakpoint** and capture state.
 
 Structure (legacy union still accepted; new flat shape preferred):
 
@@ -177,6 +186,18 @@ Actions:
 - `httpRequest` – Issues a fetch; dispatched fire‑and‑forget so a slow service cannot block debugger continuation.
 - `vscodeCommand` – Invokes a VS Code command (e.g. telemetry-free internal toggles or extension commands) with optional `args`.
 
+**Blocking behavior:**
+
+- `shellCommand` runs in a terminal and can block forever if it launches an HTTP client (like `curl`) while your debug target is paused at a `break` breakpoint.
+- `httpRequest` is executed by the tool (with timeout handling) and is the recommended way to trigger a request that is expected to hit a breakpoint.
+
+**Recommended patterns:**
+
+- **To hit a breakpoint (and capture state):** use `serverReady.action.type = "httpRequest"`.
+- **To run a smoke command after you’ve resumed:** use `shellCommand` **after** you resume (e.g., via a separate task/command), not as `serverReady`.
+
+**Common failure mode:** configuring `serverReady` with `curl http://localhost/...` while also setting a `break` breakpoint on the request handler causes the `curl` command to hang and the debug session to appear stuck.
+
 Examples:
 
 ```jsonc
@@ -190,13 +211,13 @@ Examples:
 ````
 
 ```jsonc
-// Breakpoint-triggered shell command
+// Breakpoint-triggered shell command (use for non-HTTP actions)
 {
   "serverReady": {
     "trigger": { "path": "src/server.ts", "line": 27 },
     "action": {
       "type": "shellCommand",
-      "shellCommand": "curl http://localhost:3000/health"
+      "shellCommand": "echo serverReady action executed"
     }
   }
 }

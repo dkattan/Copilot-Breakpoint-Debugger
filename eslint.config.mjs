@@ -179,11 +179,7 @@ export default antfu(
       "ts/no-explicit-any": ["error"],
       "no-inner-declarations": ["error"],
       "local/ban-fallback": "error",
-      quotes: [
-        "error",
-        "single",
-        { avoidEscape: true, allowTemplateLiterals: true },
-      ],
+      quotes: "off",
     },
   },
   // Global lightweight tweaks

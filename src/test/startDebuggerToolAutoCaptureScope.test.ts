@@ -33,6 +33,13 @@ describe('startDebuggerTool auto-capture nearest scope', function () {
   });
 
   it('auto-captures nearest scope variables when variableFilter is omitted', async () => {
+    const expectedLine =
+      (await vscode.workspace.openTextDocument(scriptPath))
+        .getText()
+        .split(/\r?\n/)
+        .findIndex((l) => l.includes('Loop iteration')) + 1;
+    assert.ok(expectedLine > 0, 'Did not find expected snippet line');
+
     const tool = new StartDebuggerTool();
     const result = await tool.invoke({
       input: {
@@ -42,7 +49,7 @@ describe('startDebuggerTool auto-capture nearest scope', function () {
           breakpoints: [
             {
               path: scriptPath,
-              line: 9,
+              code: 'Loop iteration',
               onHit: 'break' as const,
               // variableFilter required; empty array opts into auto-capture
               variableFilter: [],
@@ -61,7 +68,11 @@ describe('startDebuggerTool auto-capture nearest scope', function () {
       'expected LanguageModelTextPart for concise output'
     );
     const textValue = promptPart.value as string;
-    assert.match(textValue, /Breakpoint .*:9/, 'Missing breakpoint header');
+    assert.match(
+      textValue,
+      new RegExp(`Breakpoint .*:${expectedLine}`),
+      'Missing breakpoint header'
+    );
     assert.match(textValue, /## Vars/, 'Missing Vars header');
     assert.match(
       textValue,

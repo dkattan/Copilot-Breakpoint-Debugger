@@ -1,7 +1,7 @@
-import type { BreakpointDefinition } from './BreakpointDefinition';
-import type { StartDebuggerStopInfo } from './session';
-import { markdownTable } from 'markdown-table';
-import { config } from './config';
+import type { BreakpointDefinition } from "./BreakpointDefinition";
+import type { StartDebuggerStopInfo } from "./session";
+import { markdownTable } from "markdown-table";
+import { config } from "./config";
 
 // Keep rendering logic shared between StartDebuggerTool and ResumeDebugSessionTool.
 
@@ -18,9 +18,7 @@ export const renderStopInfoMarkdown = (params: {
 
   const summary = {
     session:
-      stopInfo.thread?.name ??
-      stopInfo.frame?.source?.name ??
-      'debug-session',
+      stopInfo.thread?.name ?? stopInfo.frame?.source?.name ?? "debug-session",
     file: stopInfo.frame?.source?.path,
     line: stopInfo.frame?.line,
     reason: stopInfo.frame?.name,
@@ -28,11 +26,11 @@ export const renderStopInfoMarkdown = (params: {
 
   if (!stopInfo.hitBreakpoint) {
     throw new TypeError(
-      'Hit breakpoint not identifiable; no frame/line correlation.'
+      "Hit breakpoint not identifiable; no frame/line correlation."
     );
   }
 
-  const onHit = stopInfo.hitBreakpoint.onHit ?? 'stopDebugging';
+  const onHit = stopInfo.hitBreakpoint.onHit ?? "stopDebugging";
 
   const providedFilters = stopInfo.hitBreakpoint.variableFilter ?? [];
   const hasExplicitFilters = providedFilters.length > 0;
@@ -49,7 +47,7 @@ export const renderStopInfoMarkdown = (params: {
   // Build list of variables: explicit filters OR auto-capture from nearest scope.
   if (activeFilters.length === 0) {
     const scopes = stopInfo.scopeVariables ?? [];
-    const isTrivial = (name: string) => name === 'this';
+    const isTrivial = (name: string) => name === "this";
     const names: string[] = [];
     const scopesUsed: string[] = [];
     for (const scope of scopes) {
@@ -57,7 +55,7 @@ export const renderStopInfoMarkdown = (params: {
         if (isTrivial(variable.name)) {
           return false;
         }
-        const isFunction = (variable.type ?? '').toLowerCase() === 'function';
+        const isFunction = (variable.type ?? "").toLowerCase() === "function";
         return !isFunction;
       });
       if (!nonTrivialVars || nonTrivialVars.length === 0) {
@@ -79,7 +77,7 @@ export const renderStopInfoMarkdown = (params: {
     if (names.length > 0) {
       activeFilters = names;
       autoCapturedScope = {
-        name: scopesUsed.length === 1 ? scopesUsed[0] : 'multiple scopes',
+        name: scopesUsed.length === 1 ? scopesUsed[0] : "multiple scopes",
         count: names.length,
       };
     }
@@ -125,21 +123,18 @@ export const renderStopInfoMarkdown = (params: {
   };
 
   const variableTables = groupedVariables.map((group) => {
-    const header = `### ${group.scopeName ?? 'Scope'}`;
+    const header = `### ${group.scopeName ?? "Scope"}`;
     const rows = group.variables.map((v) => {
       const displayValue = formatValue(v.value);
-      const typePart = v.type ?? '';
+      const typePart = v.type ?? "";
       return [v.name, typePart, displayValue];
     });
-    const table = markdownTable([
-      ['Name', 'Type', 'Value'],
-      ...rows,
-    ]);
-    return [header, '', table].join('\n');
+    const table = markdownTable([["Name", "Type", "Value"], ...rows]);
+    return [header, "", table].join("\n");
   });
 
-  const variableStr = variableTables.join('\n\n');
-  const fileName = summary.file ? summary.file.split(/[/\\]/).pop() : 'unknown';
+  const variableStr = variableTables.join("\n\n");
+  const fileName = summary.file ? summary.file.split(/[/\\]/).pop() : "unknown";
   const header = `Breakpoint ${fileName}:${summary.line} onHit=${onHit}`;
 
   let bodyVars: string;
@@ -151,81 +146,89 @@ export const renderStopInfoMarkdown = (params: {
   if (totalVars) {
     bodyVars = variableStr;
     if (autoCapturedScope) {
-      bodyVars += `\n\n(auto-captured ${autoCapturedScope.count} variable(s) from scope '${autoCapturedScope.name ?? 'unknown'}', cap=${maxAuto})`;
+      bodyVars += `\n\n(auto-captured ${
+        autoCapturedScope.count
+      } variable(s) from scope '${
+        autoCapturedScope.name ?? "unknown"
+      }', cap=${maxAuto})`;
     }
   } else if (autoCapturedScope) {
-    bodyVars = `Vars: <none> (auto-capture attempted from scope '${autoCapturedScope.name ?? 'unknown'}', cap=${maxAuto})`;
+    bodyVars = `Vars: <none> (auto-capture attempted from scope '${
+      autoCapturedScope.name ?? "unknown"
+    }', cap=${maxAuto})`;
   } else if (filterSet.size === 0) {
-    bodyVars = 'Vars: <none> (no filter provided)';
+    bodyVars = "Vars: <none> (no filter provided)";
   } else {
-    bodyVars = `Vars: <none> (filters: ${activeFilters.join(', ')})`;
+    bodyVars = `Vars: <none> (filters: ${activeFilters.join(", ")})`;
   }
 
   const bodyLogs = capturedLogs.length
     ? capturedLogs
         .map((log) => (log.length > 120 ? `${log.slice(0, 120)}…` : log))
         .map((log) => `- ${log}`)
-        .join('\n')
-    : '';
+        .join("\n")
+    : "";
 
   const timestampLine = `Timestamp: ${new Date().toISOString()}`;
 
   const debuggerStateLine = (() => {
     const state = stopInfo.debuggerState;
-    const sessionId = state.sessionId ?? 'unknown';
-    const sessionLabel = state.sessionName ?? sessionId ?? 'unknown';
+    const sessionId = state.sessionId ?? "unknown";
+    const sessionLabel = state.sessionName ?? sessionId ?? "unknown";
     const availableTools =
-      'resumeDebugSession, getVariables, expandVariable, evaluateExpression, stopDebugSession';
+      "resumeDebugSession, getVariables, expandVariable, evaluateExpression, stopDebugSession";
     switch (state.status) {
-      case 'paused':
+      case "paused":
         return [
           `Debugger State: paused on '${sessionLabel}' (id=${sessionId}).`,
           `Available tools: ${availableTools}.`,
-          'Hard rule: while paused, do NOT run external HTTP requests (curl/wget/browser/fetch) against the debuggee. Only use debugger operations until you resume.',
+          "Hard rule: while paused, do NOT run external HTTP requests (curl/wget/browser/fetch) against the debuggee. Only use debugger operations until you resume.",
           `Recommended tool: resumeDebugSession with sessionId='${sessionId}'.`,
-        ].join('\r\n');
-      case 'terminated':
+        ].join("\r\n");
+      case "terminated":
         return [
-          'Debugger State: terminated.',
-          'Available tool: startDebugSessionWithBreakpoints to begin a new session.',
-          'Recommended tool: startDebugSessionWithBreakpoints to create a new session.',
-        ].join('\r\n');
-      case 'running':
+          "Debugger State: terminated.",
+          "Available tool: startDebugSessionWithBreakpoints to begin a new session.",
+          "Recommended tool: startDebugSessionWithBreakpoints to create a new session.",
+        ].join("\r\n");
+      case "running":
         return [
           `Debugger State: running. (onHit 'captureAndContinue' continued session '${sessionLabel}').`,
           `Available tools: ${availableTools}.`,
           `Recommended tool: resumeDebugSession with sessionId='${sessionId}' to add breakpoints and continue.`,
-        ].join('\r\n');
+        ].join("\r\n");
     }
   })();
 
   const protocolSection = (() => {
     const protocol = stopInfo.protocol;
     if (!protocol) {
-      return '';
+      return "";
     }
     const allowed = protocol.allowedNextActions?.length
-      ? protocol.allowedNextActions.map((a) => `- ${a}`).join('\n')
-      : '- <none>';
+      ? protocol.allowedNextActions.map((a) => `- ${a}`).join("\n")
+      : "- <none>";
     const forbidden = protocol.forbiddenNextActions?.length
-      ? protocol.forbiddenNextActions.map((a) => `- ${a}`).join('\n')
-      : '- <none>';
+      ? protocol.forbiddenNextActions.map((a) => `- ${a}`).join("\n")
+      : "- <none>";
     return [
-      '### Allowed next actions',
+      "### Allowed next actions",
       allowed,
-      '',
-      '### Forbidden next actions',
+      "",
+      "### Forbidden next actions",
       forbidden,
-      '',
+      "",
       `Next step: ${protocol.nextStepSuggestion}`,
-    ].join('\n');
+    ].join("\n");
   })();
 
-  const hasConfiguredOnHit = breakpointConfig.breakpoints.some((bp) => !!bp.onHit);
+  const hasConfiguredOnHit = breakpointConfig.breakpoints.some(
+    (bp) => !!bp.onHit
+  );
   const multipleBreakpoints = breakpointConfig.breakpoints.length > 1;
   const guidance: string[] = [];
 
-  if (stopInfo.debuggerState.status === 'terminated' && !hasConfiguredOnHit) {
+  if (stopInfo.debuggerState.status === "terminated" && !hasConfiguredOnHit) {
     guidance.push(
       "No onHit behavior was set; consider onHit 'captureAndContinue' to keep the session alive and still collect data."
     );
@@ -233,11 +236,11 @@ export const renderStopInfoMarkdown = (params: {
 
   if (!multipleBreakpoints) {
     guidance.push(
-      'You can supply multiple breakpoints, each with its own onHit (e.g., trace with captureAndContinue, then stopDebugging at a later line).'
+      "You can supply multiple breakpoints, each with its own onHit (e.g., trace with captureAndContinue, then stopDebugging at a later line)."
     );
   }
 
-  if (onHit === 'captureAndContinue' && activeFilters.length === 0) {
+  if (onHit === "captureAndContinue" && activeFilters.length === 0) {
     guidance.push(
       `captureAndContinue auto-captured ${totalVars} variable(s); set variableFilter to focus only the names you care about.`
     );
@@ -245,60 +248,65 @@ export const renderStopInfoMarkdown = (params: {
 
   if (truncatedVariables) {
     guidance.push(
-      'Values were truncated to 100 characters. Provide variableFilter to return full values without truncation.'
+      "Values were truncated to 100 characters. Provide variableFilter to return full values without truncation."
     );
   }
 
-  const guidanceSection = guidance.length > 0 ? guidance.map((item) => `- ${item}`).join('\n') : '';
+  const guidanceSection =
+    guidance.length > 0 ? guidance.map((item) => `- ${item}`).join("\n") : "";
 
   const successLine = `Success: ${success}`;
 
   const serverReadySection = (() => {
     const info = stopInfo.serverReadyInfo;
     if (!info?.configured) {
-      return 'Server Ready Trigger: Not configured';
+      return "Server Ready Trigger: Not configured";
     }
     if (!info.phases.length) {
       return `Server Ready Trigger: Not Hit (mode=${info.triggerMode})`;
     }
     const hits = info.phases
-      .map((entry) => `${entry.phase}@${new Date(entry.timestamp).toISOString()}`)
-      .join(', ');
-    const detail = info.triggerSummary ? ` | ${info.triggerSummary}` : '';
+      .map(
+        (entry) => `${entry.phase}@${new Date(entry.timestamp).toISOString()}`
+      )
+      .join(", ");
+    const detail = info.triggerSummary ? ` | ${info.triggerSummary}` : "";
     return `Server Ready Trigger: Hit (mode=${info.triggerMode}) ${hits}${detail}`;
   })();
 
   const runtimeOutputSection = (() => {
     const preview = stopInfo.runtimeOutput;
     if (!preview || preview.lines.length === 0) {
-      return 'Runtime Output: <none>';
+      return "Runtime Output: <none>";
     }
     const qualifier = preview.truncated
       ? `showing last ${preview.lines.length} of ${preview.totalLines} line(s)`
       : `last ${preview.lines.length} line(s)`;
-    const body = preview.lines.map((line) => `- ${line}`).join('\n');
+    const body = preview.lines.map((line) => `- ${line}`).join("\n");
     return `Runtime Output (${qualifier}):\n${body}`;
   })();
 
   const sections: Array<{ title: string; body: string }> = [
     {
-      title: 'Summary',
+      title: "Summary",
       body: [successLine, timestampLine, header]
         .filter((entry) => entry && entry.trim().length > 0)
-        .join('\n'),
+        .join("\n"),
     },
-    { title: 'Vars', body: bodyVars },
-    { title: 'Logs', body: bodyLogs },
-    { title: 'Debugger State', body: debuggerStateLine },
-    { title: 'Protocol', body: protocolSection },
+    { title: "Vars", body: bodyVars },
+    { title: "Logs", body: bodyLogs },
+    { title: "Debugger State", body: debuggerStateLine },
+    { title: "Protocol", body: protocolSection },
     ...(!success
       ? [
-          { title: 'Server Ready', body: serverReadySection },
-          { title: 'Runtime Output', body: runtimeOutputSection },
+          { title: "Server Ready", body: serverReadySection },
+          { title: "Runtime Output", body: runtimeOutputSection },
         ]
       : []),
-    { title: 'Guidance', body: guidanceSection },
+    { title: "Guidance", body: guidanceSection },
   ].filter((section) => section.body && section.body.trim().length > 0);
 
-  return sections.map((section) => `## ${section.title}\n${section.body}`).join('\n\n');
+  return sections
+    .map((section) => `## ${section.title}\n${section.body}`)
+    .join("\n\n");
 };

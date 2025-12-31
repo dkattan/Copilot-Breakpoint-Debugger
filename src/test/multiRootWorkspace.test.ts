@@ -91,10 +91,18 @@ describe('multi-Root Workspace Integration', () => {
     const extensionRoot = getExtensionRoot();
     const workspaceFolder = path.join(extensionRoot, 'test-workspace', 'b');
     const scriptUri = vscode.Uri.file(path.join(workspaceFolder, 'test.js'));
-    const lineInsideLoop = 9;
+    const bpSnippet = 'Loop iteration';
 
     await openScriptDocument(scriptUri);
     await activateCopilotDebugger();
+
+    const doc = await vscode.workspace.openTextDocument(scriptUri);
+    const expectedLine =
+      doc
+        .getText()
+        .split(/\r?\n/)
+        .findIndex((l) => l.includes(bpSnippet)) + 1;
+    assert.ok(expectedLine > 0, 'Expected breakpoint snippet to exist in test.js');
 
     const configurationName = 'Run test.js';
     const baseParams = {
@@ -109,8 +117,8 @@ describe('multi-Root Workspace Integration', () => {
           breakpoints: [
             {
               path: scriptUri.fsPath,
-              line: lineInsideLoop,
-              action: 'break' as const,
+              code: bpSnippet,
+              onHit: 'break' as const,
               variableFilter: ['i'],
             },
           ],
@@ -121,8 +129,8 @@ describe('multi-Root Workspace Integration', () => {
     // Assert we stopped at the expected line
     assert.strictEqual(
       context.frame.line,
-      lineInsideLoop,
-      `Expected to stop at line ${lineInsideLoop}, but stopped at line ${context.frame.line}`
+      expectedLine,
+      `Expected to stop at line ${expectedLine}, but stopped at line ${context.frame.line}`
     );
 
     // Assert the file path contains the expected file
@@ -158,7 +166,14 @@ describe('multi-Root Workspace Integration', () => {
       nameOrConfiguration: configurationName,
     };
     const condition = 'i >= 3';
-    const lineInsideLoop = 9;
+    const bpSnippet = 'Loop iteration';
+    const doc = await vscode.workspace.openTextDocument(scriptUri);
+    const expectedLine =
+      doc
+        .getText()
+        .split(/\r?\n/)
+        .findIndex((l) => l.includes(bpSnippet)) + 1;
+    assert.ok(expectedLine > 0, 'Expected breakpoint snippet to exist in test.js');
 
     const context = await startDebuggingAndWaitForStop(
       Object.assign({}, baseParams, {
@@ -167,9 +182,9 @@ describe('multi-Root Workspace Integration', () => {
           breakpoints: [
             {
               path: scriptUri.fsPath,
-              line: lineInsideLoop,
+              code: bpSnippet,
               condition,
-              action: 'break' as const,
+              onHit: 'break' as const,
               variableFilter: ['i'],
             },
           ],
@@ -180,8 +195,8 @@ describe('multi-Root Workspace Integration', () => {
     // Assert we stopped at the expected line
     assert.strictEqual(
       context.frame.line,
-      lineInsideLoop,
-      `Expected to stop at line ${lineInsideLoop}, but stopped at line ${context.frame.line}`
+      expectedLine,
+      `Expected to stop at line ${expectedLine}, but stopped at line ${context.frame.line}`
     );
 
     const preCollected = flattenScopeVariables(context.scopeVariables);

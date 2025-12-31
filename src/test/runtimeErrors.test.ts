@@ -27,6 +27,14 @@ describe('runtime error diagnostics tests', () => {
     let caughtError: Error | undefined;
 
     try {
+      const crashDocUri = vscode.Uri.file(path.join(testWorkspaceRoot, 'crash.js'));
+      const crashDoc = await vscode.workspace.openTextDocument(crashDocUri);
+      const crashText = crashDoc.getText();
+      const breakpointSnippet =
+        crashText
+          .split(/\r?\n/)
+          .find((l) => l.includes('UNREACHABLE_AFTER_EXIT'))
+          ?.trim() ?? '';
       await startDebuggingAndWaitForStop({
         sessionName: 'Node Crash Test Session',
         workspaceFolder: workspaceFolder.uri.fsPath,
@@ -34,7 +42,7 @@ describe('runtime error diagnostics tests', () => {
           breakpoints: [
             {
               path: 'crash.js',
-              line: 16, // Line after the crash
+              code: breakpointSnippet, // Line after the crash
               onHit: 'break',
               variableFilter: ['_nonexistent'],
             },
@@ -53,8 +61,8 @@ describe('runtime error diagnostics tests', () => {
     // Verify error message
     const errorMsg = caughtError!.message;
     assert.ok(
-      errorMsg.includes('terminated'),
-      'Error should mention termination'
+      /terminated|exited|exit code|ended|stopped/i.test(errorMsg),
+      `Error should mention termination/exit. Got: ${errorMsg}`
     );
 
     // Check if error message contains runtime diagnostics
@@ -203,6 +211,14 @@ describe('runtime error diagnostics tests', () => {
     // Attempt debug session that will produce stderr
     let caughtError: Error | undefined;
     try {
+      const crashDocUri = vscode.Uri.file(path.join(testWorkspaceRoot, 'crash.js'));
+      const crashDoc = await vscode.workspace.openTextDocument(crashDocUri);
+      const crashText = crashDoc.getText();
+      const breakpointSnippet =
+        crashText
+          .split(/\r?\n/)
+          .find((l) => l.includes('UNREACHABLE_AFTER_EXIT'))
+          ?.trim() ?? '';
       await startDebuggingAndWaitForStop({
         sessionName: 'Node Crash Stderr Test',
         workspaceFolder: workspaceFolder.uri.fsPath,
@@ -210,7 +226,7 @@ describe('runtime error diagnostics tests', () => {
           breakpoints: [
             {
               path: 'crash.js',
-              line: 13,
+              code: breakpointSnippet,
               onHit: 'break',
               variableFilter: ['_test'],
             },

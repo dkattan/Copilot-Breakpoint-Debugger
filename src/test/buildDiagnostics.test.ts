@@ -36,6 +36,9 @@ describe('build diagnostics integration tests', () => {
     // Attempt to start debugging with build errors
     let caughtError: Error | undefined;
     try {
+      const docUri = vscode.Uri.file(path.join(testWorkspaceRoot, 'broken.ts'));
+      const openedDoc = await vscode.workspace.openTextDocument(docUri);
+      const breakpointSnippet = openedDoc.lineAt(3).text.trim(); // 1-based line 4
       await startDebuggingAndWaitForStop({
         sessionName: 'Build Error Test Session',
         workspaceFolder: workspaceFolder.uri.fsPath,
@@ -43,7 +46,7 @@ describe('build diagnostics integration tests', () => {
           breakpoints: [
             {
               path: 'broken.ts',
-              line: 4,
+              code: breakpointSnippet,
               onHit: 'break',
               variableFilter: ['x'],
             },

@@ -44,7 +44,7 @@ export class ResumeDebugSessionTool
       return createTruncatedToolResult(
         `Error resuming debug session: ${
           error instanceof Error ? error.message : String(error)
-        }\n\nIf you want variables in the same table format as startDebugSessionWithBreakpoints, include breakpointConfig.breakpoints with an entry that matches the paused file+line, and provide variableFilter (empty array means auto-capture).`
+        }\n\nIf you want variables in the same table format as startDebugSessionWithBreakpoints, include breakpointConfig.breakpoints with an entry that targets the paused file via path + code snippet, and provide variableFilter (empty array means auto-capture).`
       );
     }
   }

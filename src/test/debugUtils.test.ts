@@ -50,7 +50,13 @@ describe('debugUtils - DAPHelpers', function () {
   });
 
   it('hitCount breakpoint triggers on specific hit count', async () => {
-    const lineInsideLoop = 9;
+    const loopSnippet = 'Loop iteration';
+    const lineInsideLoop =
+      (await vscode.workspace.openTextDocument(scriptPath))
+        .getText()
+        .split(/\r?\n/)
+        .findIndex((l) => l.includes(loopSnippet)) + 1;
+    assert.ok(lineInsideLoop > 0, 'Did not find loop snippet line');
     const context = await startDebuggingAndWaitForStop(
       Object.assign({}, baseParams, {
         sessionName: '', // monitor any session; avoid name mismatch
@@ -58,9 +64,9 @@ describe('debugUtils - DAPHelpers', function () {
           breakpoints: [
             {
               path: scriptPath,
-              line: lineInsideLoop,
+              code: loopSnippet,
               hitCount: 3,
-              action: 'break' as const,
+              onHit: 'break' as const,
               variableFilter: ['i'],
             },
           ],
@@ -96,8 +102,16 @@ describe('debugUtils - DAPHelpers', function () {
   });
 
   it('logMessage breakpoint (logpoint) does not stop execution unless adapter treats it as breakpoint', async () => {
-    const lineInsideLoop = 9;
-    const postLoopLine = 17;
+    const loopSnippet = 'Loop iteration';
+    const postLoopSnippet = 'Completed loop';
+    const docLines = (await vscode.workspace.openTextDocument(scriptPath))
+      .getText()
+      .split(/\r?\n/);
+    const lineInsideLoop = docLines.findIndex((l) => l.includes(loopSnippet)) + 1;
+    const postLoopLine =
+      docLines.findIndex((l) => l.includes(postLoopSnippet)) + 1;
+    assert.ok(lineInsideLoop > 0, 'Did not find loop snippet line');
+    assert.ok(postLoopLine > 0, 'Did not find post-loop snippet line');
 
     const context = await startDebuggingAndWaitForStop(
       Object.assign({}, baseParams, {
@@ -106,16 +120,16 @@ describe('debugUtils - DAPHelpers', function () {
           breakpoints: [
             {
               path: scriptPath,
-              line: lineInsideLoop,
+              code: loopSnippet,
               // condition: 'i > 2',
               logMessage: 'Logpoint Loop iteration: {i}',
-              action: 'break' as const,
+              onHit: 'break' as const,
               variableFilter: ['i'],
             },
             {
               path: scriptPath,
-              line: postLoopLine,
-              action: 'break' as const,
+              code: postLoopSnippet,
+              onHit: 'break' as const,
               variableFilter: ['i'],
             },
           ],
@@ -149,7 +163,7 @@ describe('debugUtils - DAPHelpers', function () {
           breakpoints: [
             {
               path: scriptPath,
-              line: 5,
+              code: 'Random value',
               onHit: 'break' as const,
               variableFilter: ['i'],
             },
@@ -181,7 +195,13 @@ describe('debugUtils - DAPHelpers', function () {
   });
 
   it('findVariableInScopes finds existing variable', async () => {
-    const lineInsideLoop = 9;
+    const loopSnippet = 'Loop iteration';
+    const lineInsideLoop =
+      (await vscode.workspace.openTextDocument(scriptPath))
+        .getText()
+        .split(/\r?\n/)
+        .findIndex((l) => l.includes(loopSnippet)) + 1;
+    assert.ok(lineInsideLoop > 0, 'Did not find loop snippet line');
     const context = await startDebuggingAndWaitForStop(
       Object.assign({}, baseParams, {
         sessionName: '',
@@ -189,8 +209,8 @@ describe('debugUtils - DAPHelpers', function () {
           breakpoints: [
             {
               path: scriptPath,
-              line: lineInsideLoop,
-              action: 'break' as const,
+              code: loopSnippet,
+              onHit: 'break' as const,
               variableFilter: ['i'],
             },
           ],
@@ -220,8 +240,8 @@ describe('debugUtils - DAPHelpers', function () {
           breakpoints: [
             {
               path: scriptPath,
-              line: 5,
-              action: 'break' as const,
+              code: 'Random value',
+              onHit: 'break' as const,
               variableFilter: ['i'],
             },
           ],
@@ -242,7 +262,7 @@ describe('debugUtils - DAPHelpers', function () {
   });
 
   it('filters function-typed variables from capture', async () => {
-    const functionBlockLine = 28; // console.log after numberVar/fnVar definitions
+    const functionSnippet = 'Function var test';
     const context = await startDebuggingAndWaitForStop(
       Object.assign({}, baseParams, {
         sessionName: '',
@@ -250,8 +270,8 @@ describe('debugUtils - DAPHelpers', function () {
           breakpoints: [
             {
               path: scriptPath,
-              line: functionBlockLine,
-              action: 'break' as const,
+              code: functionSnippet,
+              onHit: 'break' as const,
               variableFilter: ['numberVar', 'fnVar'],
             },
           ],
@@ -283,7 +303,7 @@ describe('debugUtils - DAPHelpers', function () {
     // If this output is noisy in CI, we can keep the report bounded and only log when
     // such variables are detected.
 
-    const functionBlockLine = 28; // console.log after numberVar/fnVar definitions
+    const functionSnippet = 'Function var test';
     const context = await startDebuggingAndWaitForStop(
       Object.assign({}, baseParams, {
         sessionName: '',
@@ -291,10 +311,10 @@ describe('debugUtils - DAPHelpers', function () {
           breakpoints: [
             {
               path: scriptPath,
-              line: functionBlockLine,
+              code: functionSnippet,
               // Empty array means auto-capture elsewhere; here we want to inspect raw variables.
               variableFilter: [],
-              action: 'break' as const,
+              onHit: 'break' as const,
             },
           ],
         },
@@ -382,8 +402,8 @@ describe('debugUtils - DAPHelpers', function () {
           breakpoints: [
             {
               path: scriptPath,
-              line: 5,
-              action: 'break' as const,
+              code: 'Random value',
+              onHit: 'break' as const,
               variableFilter: ['i'],
             },
           ],
@@ -404,7 +424,13 @@ describe('debugUtils - DAPHelpers', function () {
   });
 
   it('stopDebugging action terminates session after breakpoint hit', async () => {
-    const targetLine = 9;
+    const targetSnippet = 'Loop iteration';
+    const targetLine =
+      (await vscode.workspace.openTextDocument(scriptPath))
+        .getText()
+        .split(/\r?\n/)
+        .findIndex((l) => l.includes(targetSnippet)) + 1;
+    assert.ok(targetLine > 0, 'Did not find stopDebugging snippet line');
     const context = await startDebuggingAndWaitForStop(
       Object.assign({}, baseParams, {
         sessionName: '',
@@ -412,7 +438,7 @@ describe('debugUtils - DAPHelpers', function () {
           breakpoints: [
             {
               path: scriptPath,
-              line: targetLine,
+              code: targetSnippet,
               variableFilter: ['i'],
               onHit: 'stopDebugging' as const,
             },

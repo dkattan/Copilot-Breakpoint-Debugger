@@ -15,7 +15,7 @@ describe('startDebuggerTool concise text output', () => {
       scriptRelativePath: 'test-workspace/b/test.js',
       configurationName: 'Run test.js',
       variableFilter: ['i'],
-      breakpointLines: [9],
+      breakpointSnippets: ['Loop iteration'],
       workspaceFolder: 'test-workspace/b',
     });
 

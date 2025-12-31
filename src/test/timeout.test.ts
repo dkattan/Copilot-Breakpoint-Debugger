@@ -37,7 +37,7 @@ describe('startDebuggerTool timeout behavior', () => {
       scriptRelativePath: 'test-workspace/b/test.js',
       configurationName: 'Run test.js with preLaunchTask',
       variableFilter: ['delayedValue'],
-      breakpointLines: [6], // line with delayed assignment inside setTimeout callback
+      breakpointSnippets: ['console.log("Running test.js inside test-workspace/b");'],
       workspaceFolder: 'test-workspace/b',
     });
     const { content } = result;

@@ -6,7 +6,16 @@
 
 export interface BreakpointDefinition {
   path: string;
-  line: number;
+  /**
+   * Exact code snippet (substring) to break on.
+   * The tool will search the file and set breakpoints on every matching line.
+   */
+  code: string;
+  /**
+   * Runtime-resolved hit line (1-based). Not required for breakpoint requests.
+   * Populated in stop info when a breakpoint is hit.
+   */
+  line?: number;
   variableFilter: string[];
   onHit?: 'break' | 'stopDebugging' | 'captureAndContinue'; // captureAndContinue returns data then continues (non-blocking)
   condition?: string; // Expression evaluated at breakpoint; stop only if true

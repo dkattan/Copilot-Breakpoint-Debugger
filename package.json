@@ -162,9 +162,9 @@
                         "type": "string",
                         "description": "File path relative to workspace or absolute."
                       },
-                      "line": {
-                        "type": "integer",
-                        "description": "1-based line number for the breakpoint."
+                      "code": {
+                        "type": "string",
+                        "description": "Exact code snippet (substring) to break on. The tool will search the file and set breakpoints on every matching line."
                       },
                       "variableFilter": {
                         "type": "array",
@@ -201,7 +201,7 @@
                     },
                     "required": [
                       "path",
-                      "line",
+                      "code",
                       "onHit",
                       "variableFilter"
                     ]
@@ -329,7 +329,7 @@
                 "breakpoints": [
                   {
                     "path": "src/index.ts",
-                    "line": 10
+                    "code": "console.log('hello')"
                   }
                 ]
               },
@@ -348,8 +348,8 @@
         "displayName": "Resume Debug Session",
         "toolReferenceName": "resumeDebugSession",
         "canBeReferencedInPrompt": true,
-        "userDescription": "Resume a paused debug session optionally waiting for the next breakpoint. Supports actions (break, capture, stopDebugging) and numeric hitCount shorthand when adding new breakpoints during resume.",
-        "modelDescription": "Resume execution of the specified debug session. Optionally wait for next stop and set/clear breakpoints before continuing. Each new breakpoint may specify action (break | capture | stopDebugging), conditional expressions, exact numeric hitCount, and logMessage interpolation for capture.",
+        "userDescription": "Resume a paused debug session optionally adding new breakpoints. Breakpoints use the same contract as startDebugSessionWithBreakpoints (path + code snippet + onHit).",
+        "modelDescription": "Resume execution of the specified debug session. Optionally wait for next stop and set/clear breakpoints before continuing. Each new breakpoint specifies path + code snippet and optional condition/hitCount/logMessage; onHit supports break, captureAndContinue, stopDebugging.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -372,8 +372,9 @@
                       "path": {
                         "type": "string"
                       },
-                      "line": {
-                        "type": "integer"
+                      "code": {
+                        "type": "string",
+                        "description": "Exact code snippet (substring) to break on. The tool will search the file and set breakpoints on every matching line."
                       },
                       "variableFilter": {
                         "type": "array",
@@ -382,14 +383,14 @@
                         },
                         "description": "Variable names to include in reporting or interpolation for capture action."
                       },
-                      "action": {
+                      "onHit": {
                         "type": "string",
                         "enum": [
                           "break",
-                          "capture",
+                          "captureAndContinue",
                           "stopDebugging"
                         ],
-                        "description": "Breakpoint action applied during resume. Default break."
+                        "description": "Breakpoint onHit behavior. Default break."
                       },
                       "condition": {
                         "type": "string",
@@ -406,12 +407,16 @@
                     },
                     "required": [
                       "path",
-                      "line",
+                      "code",
                       "variableFilter"
                     ]
                   }
                 }
               }
+              ,"required": [
+                "workspaceFolder",
+                "breakpointConfig"
+              ]
             }
           },
           "required": [
@@ -548,3 +553,6 @@
     "glob": "10.5.0"
   }
 }
+
+
+

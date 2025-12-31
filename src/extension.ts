@@ -126,14 +126,27 @@ function registerTools(context: vscode.ExtensionContext) {
           .map((v) => v.trim())
           .filter(Boolean);
         // Convert existing breakpoints into the expected configuration shape.
-        const breakpointConfig = {
-          breakpoints: existingSourceBreakpoints.map((sb) => ({
-            path: sb.location.uri.fsPath,
-            line: sb.location.range.start.line + 1,
-            variableFilter,
-            action: 'break' as const,
-          })),
-        };
+        // The tool contract is snippet-based; derive a snippet from the source line at each breakpoint.
+        const breakpoints = await Promise.all(
+          existingSourceBreakpoints.map(async (sb) => {
+            const doc = await vscode.workspace.openTextDocument(sb.location.uri);
+            const lineText = doc
+              .lineAt(sb.location.range.start.line)
+              .text.trim();
+            if (!lineText) {
+              throw new Error(
+                `Breakpoint line is empty in ${sb.location.uri.fsPath}:${sb.location.range.start.line + 1}. Move the breakpoint to a non-empty line.`
+              );
+            }
+            return {
+              path: sb.location.uri.fsPath,
+              code: lineText,
+              variableFilter,
+              onHit: 'break' as const,
+            };
+          })
+        );
+        const breakpointConfig = { breakpoints };
         try {
           await startDebuggingAndWaitForStop({
             sessionName: 'manual-start',

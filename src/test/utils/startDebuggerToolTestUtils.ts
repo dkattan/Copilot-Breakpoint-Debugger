@@ -51,13 +51,13 @@ export async function invokeStartDebuggerTool(
   await activateCopilotDebugger();
 
   const tool = new StartDebuggerTool();
-  const breakpointLines = opts.breakpointLines?.length
-    ? opts.breakpointLines
-    : [1];
-  const breakpoints = breakpointLines.map((line: number) => ({
+  const breakpointSnippets = opts.breakpointSnippets?.length
+    ? opts.breakpointSnippets
+    : ["console.log("];
+  const breakpoints = breakpointSnippets.map((code: string) => ({
     path: scriptUri.fsPath,
-    line,
-    action: 'break' as const,
+    code,
+    onHit: 'break' as const,
     variableFilter: opts.variableFilter ?? ['PWD', 'HOME'],
   }));
 
@@ -122,6 +122,18 @@ export function assertStartDebuggerOutput(textOutput: string): void {
 
 /** Stop any debug sessions left running after a test. */
 export async function stopAllDebugSessions(): Promise<void> {
+  // Best-effort: stop all sessions first (covers sessions not tracked in activeSessions).
+  try {
+    await vscode.debug.stopDebugging();
+  } catch (error) {
+    console.warn(
+      `Failed to stop all debug sessions: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+
+  // Then attempt to stop any sessions we tracked explicitly (idempotent).
   const sessions = [...activeSessions];
   for (const session of sessions) {
     try {

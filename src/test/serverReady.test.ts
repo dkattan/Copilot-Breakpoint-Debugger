@@ -37,7 +37,13 @@ describe('serverReady breakpoint', function () {
         .findIndex((l) => l.includes('LINE_FOR_SERVER_READY')) + 1; // convert to 1-based
     assert.ok(readyLine > 0, 'Did not find serverReady marker line');
 
-    const userBreakpointLine = readyLine + 1; // next line (console.log)
+    const userBreakpointSnippet = 'Server listening on http://localhost:';
+    const userBreakpointLine =
+      serverDoc
+        .getText()
+        .split(/\r?\n/)
+        .findIndex((l) => l.includes(userBreakpointSnippet)) + 1;
+    assert.ok(userBreakpointLine > 0, 'Did not find expected user breakpoint snippet line');
 
     const context = await startDebuggingAndWaitForStop({
       sessionName: '',
@@ -47,7 +53,7 @@ describe('serverReady breakpoint', function () {
         breakpoints: [
           {
             path: userScriptPath,
-            line: userBreakpointLine,
+            code: userBreakpointSnippet,
             variableFilter: ['started'],
             onHit: 'break',
           },
@@ -103,7 +109,13 @@ describe('serverReady breakpoint', function () {
         .split(/\r?\n/)
         .findIndex((l) => l.includes('LINE_FOR_SERVER_READY')) + 1;
     assert.ok(readyLine > 0, 'Did not find serverReady marker line');
-    const userBreakpointLine = readyLine + 1;
+    const userBreakpointSnippet = 'Server listening on http://localhost:';
+    const userBreakpointLine =
+      serverDoc
+        .getText()
+        .split(/\r?\n/)
+        .findIndex((l) => l.includes(userBreakpointSnippet)) + 1;
+    assert.ok(userBreakpointLine > 0, 'Did not find expected user breakpoint snippet line');
     const context = await startDebuggingAndWaitForStop({
       sessionName: '',
       workspaceFolder,
@@ -112,7 +124,7 @@ describe('serverReady breakpoint', function () {
         breakpoints: [
           {
             path: serverPath,
-            line: userBreakpointLine,
+            code: userBreakpointSnippet,
             variableFilter: ['started'],
             onHit: 'break',
           },
@@ -146,9 +158,12 @@ describe('serverReady breakpoint', function () {
     const lines = serverDoc.getText().split(/\r?\n/);
     const patternLine =
       lines.findIndex((l) => l.includes('PATTERN_READY_LINE')) + 1;
+    const userBreakpointSnippet =
+      lines.find((l) => l.includes('USER_BREAKPOINT_TARGET')) ?? '';
     const userBreakpointLine =
       lines.findIndex((l) => l.includes('USER_BREAKPOINT_TARGET')) + 1;
     assert.ok(patternLine > 0, 'Did not find pattern trigger line');
+    assert.ok(userBreakpointSnippet, 'Did not find user breakpoint snippet');
     assert.ok(
       userBreakpointLine > patternLine,
       'Unexpected user breakpoint line ordering'
@@ -161,7 +176,7 @@ describe('serverReady breakpoint', function () {
         breakpoints: [
           {
             path: serverPath,
-            line: userBreakpointLine,
+            code: userBreakpointSnippet,
             variableFilter: ['readyHits'],
             onHit: 'break',
           },

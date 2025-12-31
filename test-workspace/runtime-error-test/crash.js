@@ -12,4 +12,6 @@ setTimeout(() => {
   // Write to stderr and exit with specific code
   console.error("CRASH: Application terminated unexpectedly");
   process.exit(42);
+  // Unreachable line used by tests to set a breakpoint that should never be hit.
+  console.log('UNREACHABLE_AFTER_EXIT');
 }, 100);

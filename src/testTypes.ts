@@ -4,7 +4,7 @@ export interface StartDebuggerInvocationOptions {
   scriptRelativePath: string;
   variableFilter?: string[];
   configurationName?: string;
-  breakpointLines?: number[];
+  breakpointSnippets?: string[];
   workspaceFolder?: string; // optional explicit workspace folder selection
 }
 export interface ToolInvocationResult {

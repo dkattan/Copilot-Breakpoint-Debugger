@@ -31,7 +31,13 @@ describe('serverReady vscodeCommand action', function () {
         .split(/\r?\n/)
         .findIndex((l) => l.includes('LINE_FOR_SERVER_READY')) + 1;
     assert.ok(readyLine > 0, 'Did not find serverReady marker line');
-    const userBreakpointLine = readyLine + 1;
+    const userBreakpointSnippet = 'Server listening on http://localhost:';
+    const userBreakpointLine =
+      serverDoc
+        .getText()
+        .split(/\r?\n/)
+        .findIndex((l) => l.includes(userBreakpointSnippet)) + 1;
+    assert.ok(userBreakpointLine > 0, 'Did not find user breakpoint snippet line');
 
     const context = await startDebuggingAndWaitForStop({
       sessionName: '',
@@ -42,7 +48,7 @@ describe('serverReady vscodeCommand action', function () {
         breakpoints: [
           {
             path: serverPath,
-            line: userBreakpointLine,
+            code: userBreakpointSnippet,
             variableFilter: ['started'],
             onHit: 'break',
           },

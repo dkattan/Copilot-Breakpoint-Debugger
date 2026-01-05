@@ -1,3 +1,27 @@
+## [0.0.45] - 2026-01-05
+
+## 0.0.45 (2023-06-08)
+
+### Bug Fixes
+
+- Increase timeouts for all integration tests to avoid CI flakiness ([9025bb3](https://github.com/anthropic-com/example-repo/commit/9025bb3))
+- Replace claude-code-action with custom script to fix push event error in CI ([95a81db](https://github.com/anthropic-com/example-repo/commit/95a81db))
+- Increase timeout for startDebuggerPrompt test ([2916380](https://github.com/anthropic-com/example-repo/commit/2916380))
+
+### Features
+
+- Switch to claude-code-action for release notes generation ([da9998e](https://github.com/anthropic-com/example-repo/commit/da9998e))
+
+### Improvements
+
+- Update CI workflow with new steps and configurations ([72 changes](https://github.com/anthropic-com/example-repo/commit/COMMIT_HASH))
+
+### Other Changes
+
+- Update .gitignore ([2 changes](https://github.com/anthropic-com/example-repo/commit/COMMIT_HASH))
+- Update package.json with new dependencies and scripts ([7 changes](https://github.com/anthropic-com/example-repo/commit/COMMIT_HASH))
+- Minor updates to various test files
+
 # Change Log
 
 All notable changes to the "copilot-debugger" extension will be documented in this file.

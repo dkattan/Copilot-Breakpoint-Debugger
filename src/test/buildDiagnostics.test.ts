@@ -142,14 +142,20 @@ describe('build diagnostics integration tests', () => {
     }
 
     // Check diagnostics with retry
-    const brokenTsDiags = vscode.languages
-      .getDiagnostics()
-      ?.find(
-        ([uri]) =>
-          uri.fsPath.includes('broken.ts') &&
-          uri.fsPath.includes('build-error-test')
-      );
-    // await new Promise((resolve) => setTimeout(resolve, 500));
+    let brokenTsDiags;
+    for (let i = 0; i < 20; i++) {
+      brokenTsDiags = vscode.languages
+        .getDiagnostics()
+        ?.find(
+          ([uri]) =>
+            uri.fsPath.includes('broken.ts') &&
+            uri.fsPath.includes('build-error-test')
+        );
+      if (brokenTsDiags && brokenTsDiags[1].length > 0) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
 
     assert.ok(brokenTsDiags, 'Should have diagnostics for broken.ts');
 

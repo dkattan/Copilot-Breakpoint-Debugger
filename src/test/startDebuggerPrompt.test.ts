@@ -5,7 +5,9 @@ import {
   stopAllDebugSessions,
 } from './utils/startDebuggerToolTestUtils';
 
-describe('startDebuggerTool concise text output', () => {
+describe('startDebuggerTool concise text output', function () {
+  this.timeout(60000);
+
   afterEach(async () => {
     await stopAllDebugSessions();
   });

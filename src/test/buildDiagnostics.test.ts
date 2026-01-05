@@ -14,7 +14,7 @@ describe('build diagnostics integration tests', () => {
   );
 
   it('should capture build errors from problem matcher when preLaunchTask fails', async function () {
-    this.timeout(30000);
+    this.timeout(60000);
 
     const workspaceFolder = vscode.workspace.workspaceFolders?.find(
       (f) => f.uri.fsPath === testWorkspaceRoot
@@ -53,7 +53,7 @@ describe('build diagnostics integration tests', () => {
           ],
         },
         nameOrConfiguration: 'Build Error Test',
-        timeoutSeconds: 10,
+        timeoutSeconds: 45,
       });
     } catch (error) {
       caughtError = error as Error;

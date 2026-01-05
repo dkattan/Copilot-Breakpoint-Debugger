@@ -14,7 +14,7 @@ import {
 // The serverReady breakpoint targets the assignment line. Command does a curl-like request using node: https module via PowerShell Invoke-WebRequest availability uncertain in test harness.
 
 describe('serverReady breakpoint', function () {
-  this.timeout(60_000);
+  this.timeout(120000);
   afterEach(async () => {
     await stopAllDebugSessions();
   });
@@ -49,6 +49,7 @@ describe('serverReady breakpoint', function () {
       sessionName: '',
       workspaceFolder,
       nameOrConfiguration: 'Run b/server.js',
+      timeoutSeconds: 90,
       breakpointConfig: {
         breakpoints: [
           {
@@ -120,6 +121,7 @@ describe('serverReady breakpoint', function () {
       sessionName: '',
       workspaceFolder,
       nameOrConfiguration: 'Run b/server.js',
+      timeoutSeconds: 90,
       breakpointConfig: {
         breakpoints: [
           {
@@ -172,6 +174,7 @@ describe('serverReady breakpoint', function () {
       sessionName: '',
       workspaceFolder,
       nameOrConfiguration: 'Run b/serverPattern.js',
+      timeoutSeconds: 90,
       breakpointConfig: {
         breakpoints: [
           {

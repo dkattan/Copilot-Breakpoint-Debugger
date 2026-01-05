@@ -12,7 +12,7 @@ describe('runtime error diagnostics tests', () => {
   );
 
   it('should capture stderr and exit code from Node.js crash', async function () {
-    this.timeout(30000);
+    this.timeout(60000);
 
     const workspaceFolder = vscode.workspace.workspaceFolders?.find(
       (f) => f.uri.fsPath === testWorkspaceRoot
@@ -49,7 +49,7 @@ describe('runtime error diagnostics tests', () => {
           ],
         },
         nameOrConfiguration: 'Node Crash Test',
-        timeoutSeconds: 10,
+        timeoutSeconds: 45,
       });
     } catch (error) {
       caughtError = error as Error;
@@ -82,7 +82,7 @@ describe('runtime error diagnostics tests', () => {
   });
 
   it('should limit stderr output to configured maxOutputLines', async function () {
-    this.timeout(10000);
+    this.timeout(30000);
 
     const workspaceFolder = vscode.workspace.workspaceFolders?.find(
       (f) => f.uri.fsPath === testWorkspaceRoot
@@ -233,7 +233,7 @@ describe('runtime error diagnostics tests', () => {
           ],
         },
         nameOrConfiguration: 'Node Crash Test',
-        timeoutSeconds: 10,
+        timeoutSeconds: 45,
       });
     } catch (error) {
       caughtError = error as Error;

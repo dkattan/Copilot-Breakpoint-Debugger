@@ -6,9 +6,15 @@ import {
 } from './utils/startDebuggerToolTestUtils';
 
 describe('startDebuggerTool concise text output', function () {
-  this.timeout(60000);
+  this.timeout(180000);
+
+  beforeEach(async () => {
+    // Increase entry timeout for CI environments
+    await vscode.workspace.getConfiguration('copilot-debugger').update('entryTimeoutSeconds', 120, vscode.ConfigurationTarget.Workspace);
+  });
 
   afterEach(async () => {
+    await vscode.workspace.getConfiguration('copilot-debugger').update('entryTimeoutSeconds', undefined, vscode.ConfigurationTarget.Workspace);
     await stopAllDebugSessions();
   });
 

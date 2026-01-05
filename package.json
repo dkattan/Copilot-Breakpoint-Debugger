@@ -412,8 +412,8 @@
                     ]
                   }
                 }
-              }
-              ,"required": [
+              },
+              "required": [
                 "workspaceFolder",
                 "breakpointConfig"
               ]
@@ -553,6 +553,3 @@
     "glob": "10.5.0"
   }
 }
-
-
-

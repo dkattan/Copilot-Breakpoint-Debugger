@@ -54,6 +54,8 @@ jobs:
       contents: write
     outputs:
       version: ${{ steps.version.outputs.version }}
+    env:
+      USE_CODEX: 'false' # Set to 'true' to use OpenAI Codex instead of Claude
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -76,8 +78,9 @@ jobs:
           script: |
             const latestRelease = await github.rest.repos.getLatestRelease({ owner: context.repo.owner, repo: context.repo.repo }).catch(()=>null);
             let nextVersion;
+            let prevTagRaw = '';
             if (latestRelease) {
-              const prevTagRaw = latestRelease.data.tag_name || '';
+              prevTagRaw = latestRelease.data.tag_name || '';
               const prev = prevTagRaw.replace(/^v/, '');
               const parts = prev.split('.');
               if (parts.length !== 3 || parts.some(p => isNaN(Number(p)))) {
@@ -91,21 +94,91 @@ jobs:
             }
             core.info(`Computed next version: ${nextVersion}`);
             core.setOutput('version', nextVersion);
+            core.setOutput('previous_tag', prevTagRaw);
 
-      - name: Create and push tag
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
+      - name: Configure Git
         run: |
-          if git rev-parse ${VERSION} >/dev/null 2>&1; then echo "Tag ${VERSION} already exists"; else git tag ${VERSION}; git push origin ${VERSION}; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Generate release notes & create release
-        uses: ./.github/actions/anthropic-release-notes
+      - name: Generate Context
+        id: context
+        run: |
+          PREV_TAG="${{ steps.version.outputs.previous_tag }}"
+          if [ -n "$PREV_TAG" ]; then
+            RANGE="$PREV_TAG..HEAD"
+            echo "Generating context for range: $RANGE"
+          else
+            RANGE=""
+            echo "Generating context for initial release (all history)"
+          fi
+          
+          {
+            echo 'commits<<EOF'
+            git log --pretty=format:"- %s (%an) [%h]" $RANGE
+            echo ''
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+          
+          {
+            echo 'stats<<EOF'
+            if [ -n "$RANGE" ]; then
+              git diff --stat $RANGE
+            else
+              git show --stat
+            fi
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+
+      - name: Read Prompt
+        id: prompt
+        run: |
+          PROMPT=$(cat .github/prompts/release-notes.md)
+          echo "prompt<<EOF" >> $GITHUB_OUTPUT
+          echo "$PROMPT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Update docs, tag, and release with Claude
+        if: env.USE_CODEX != 'true'
+        uses: anthropics/claude-code-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-          language: en
-          model: claude-3-5-sonnet-latest
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: ${{ steps.prompt.outputs.prompt }}
+          claude_args: |
+            --allowedTools "Read,Write,Edit,Bash(git:*)"
+
+      - name: Update docs, tag, and release with Codex
+        if: env.USE_CODEX == 'true'
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt: ${{ steps.prompt.outputs.prompt }}
+          sandbox: workspace-write
+          codex-args: '["--allowedTools", "Read,Write,Edit,Bash(git:*)"]'
+
+      - name: Commit and Push Changes
+        run: |
+          git add CHANGELOG.md README.md package.json
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "docs: update for release ${{ steps.version.outputs.version }} [skip ci]"
+            git push origin main
+          fi
+
+      - name: Create Tag
+        run: |
+          git tag ${{ steps.version.outputs.version }}
+          git push origin ${{ steps.version.outputs.version }}
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          body_path: RELEASE_NOTES.md
           token: ${{ secrets.GITHUB_TOKEN }}
-          version: ${{ steps.version.outputs.version }}
 
   package:
     name: Package Extension

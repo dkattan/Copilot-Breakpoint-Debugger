@@ -10,10 +10,11 @@ ${{ steps.context.outputs.commits }}
 ${{ steps.context.outputs.stats }}
 
 Task:
-1. Analyze the changes provided in the context.
-2. Run `git diff ${{ steps.version.outputs.previous_tag }}` to inspect the actual code changes.
-3. Verify that the tool descriptions in `package.json` match the implementation. Update them if necessary.
-4. Update CHANGELOG.md with a new section for ${{ steps.version.outputs.version }}.
-5. Update README.md if necessary based on the changes.
-6. Update package.json description if the project scope has evolved significantly.
-7. Create a file named RELEASE_NOTES.md containing the release notes body for this version.
+Generate release notes for version ${{ steps.version.outputs.version }}.
+The release notes should be in Markdown format.
+Include:
+- A summary of changes.
+- A list of new features, bug fixes, and improvements.
+- Any breaking changes.
+
+Output ONLY the content of the release notes. Do not include any conversational text or code blocks wrapping the content.

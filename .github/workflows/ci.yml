@@ -130,33 +130,14 @@ jobs:
             echo 'EOF'
           } >> $GITHUB_OUTPUT
 
-      - name: Read Prompt
-        id: prompt
-        run: |
-          PROMPT=$(cat .github/prompts/release-notes.md)
-          echo "prompt<<EOF" >> $GITHUB_OUTPUT
-          echo "$PROMPT" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Update docs, tag, and release with Claude
-        if: env.USE_CODEX != 'true'
-        uses: anthropics/claude-code-action@v1
+      - name: Generate Release Notes
+        run: node .github/scripts/generate-release-notes.js
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: ${{ steps.prompt.outputs.prompt }}
-          claude_args: |
-            --allowedTools "Read,Write,Edit,Bash(git:*)"
-
-      - name: Update docs, tag, and release with Codex
-        if: env.USE_CODEX == 'true'
-        uses: openai/codex-action@v1
-        with:
-          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          prompt: ${{ steps.prompt.outputs.prompt }}
-          sandbox: workspace-write
-          codex-args: '["--allowedTools", "Read,Write,Edit,Bash(git:*)"]'
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PREV_TAG: ${{ steps.version.outputs.previous_tag }}
+          COMMITS: ${{ steps.context.outputs.commits }}
+          STATS: ${{ steps.context.outputs.stats }}
 
       - name: Commit and Push Changes
         run: |

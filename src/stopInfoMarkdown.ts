@@ -2,6 +2,7 @@ import type { BreakpointDefinition } from "./BreakpointDefinition";
 import type { StartDebuggerStopInfo } from "./session";
 import { markdownTable } from "markdown-table";
 import { config } from "./config";
+import { version } from "./generated-meta";
 
 // Keep rendering logic shared between StartDebuggerTool and ResumeDebugSessionTool.
 
@@ -256,6 +257,7 @@ export const renderStopInfoMarkdown = (params: {
     guidance.length > 0 ? guidance.map((item) => `- ${item}`).join("\n") : "";
 
   const successLine = `Success: ${success}`;
+  const versionLine = `Plugin Version: ${version}`;
 
   const serverReadySection = (() => {
     const info = stopInfo.serverReadyInfo;
@@ -289,7 +291,7 @@ export const renderStopInfoMarkdown = (params: {
   const sections: Array<{ title: string; body: string }> = [
     {
       title: "Summary",
-      body: [successLine, timestampLine, header]
+      body: [successLine, versionLine, timestampLine, header]
         .filter((entry) => entry && entry.trim().length > 0)
         .join("\n"),
     },

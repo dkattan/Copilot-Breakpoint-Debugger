@@ -1137,6 +1137,17 @@ export const startDebuggingAndWaitForStop = async (
 
   logger.debug("startDebuggingAndWaitForStop params", params);
 
+  if (mode === "singleShot" && breakpointConfig?.breakpoints) {
+    const invalidBp = breakpointConfig.breakpoints.find(
+      (bp) => bp.onHit === "captureAndContinue"
+    );
+    if (invalidBp) {
+      throw new Error(
+        `'captureAndContinue' onHit action is not supported in singleShot mode. Use 'inspect' mode or 'break'/'stopDebugging' action.`
+      );
+    }
+  }
+
   const serverReadyEnabled = config.serverReadyEnabled !== false;
   if (serverReadyParam && !serverReadyEnabled) {
     logger.info(
@@ -2089,7 +2100,7 @@ export const startDebuggingAndWaitForStop = async (
     if (entryStop.reason === "terminated") {
       throw new Error(
         withRuntimeDiagnostics(
-          `Debug session '${effectiveSessionName}' terminated before hitting entry.`,
+          `Debug session '${effectiveSessionName}' terminated before hitting entry (unexpected: user cancelled or app exited).`,
           entryStop.session.id
         )
       );
@@ -2152,7 +2163,7 @@ export const startDebuggingAndWaitForStop = async (
     if (finalStop.reason === "terminated") {
       throw new Error(
         withRuntimeDiagnostics(
-          `Debug session '${effectiveSessionName}' terminated before hitting a user breakpoint.`,
+          `Debug session '${effectiveSessionName}' terminated before hitting a user breakpoint (unexpected: user cancelled or app exited).`,
           finalStop.session.id
         )
       );
@@ -2194,7 +2205,7 @@ export const startDebuggingAndWaitForStop = async (
       if (nextStop.reason === "terminated") {
         throw new Error(
           withRuntimeDiagnostics(
-            `Debug session '${effectiveSessionName}' terminated after serverReady processing before hitting a user breakpoint.`,
+            `Debug session '${effectiveSessionName}' terminated after serverReady processing before hitting a user breakpoint (unexpected: user cancelled or app exited).`,
             finalStop.session.id
           )
         );

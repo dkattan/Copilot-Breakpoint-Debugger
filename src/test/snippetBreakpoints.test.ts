@@ -94,4 +94,35 @@ describe("snippet-based breakpoints", function () {
       }
     );
   });
+
+  it("throws when 'code' snippet is missing (even if line is provided)", async () => {
+    await activateCopilotDebugger();
+    const extensionRoot = getExtensionRoot();
+    const workspaceFolder = path.join(extensionRoot, "test-workspace");
+    const scriptPath = path.join(workspaceFolder, "test.js");
+
+    await assert.rejects(
+      () =>
+        startDebuggingAndWaitForStop({
+          sessionName: "",
+          workspaceFolder,
+          nameOrConfiguration: "Run test.js",
+          breakpointConfig: {
+            breakpoints: [
+              {
+                path: scriptPath,
+                line: 10,
+                onHit: "break",
+                variableFilter: [],
+                // eslint-disable-next-line ts/no-explicit-any
+              } as any, // Cast to any to bypass TS check for missing 'code'
+            ],
+          },
+        }),
+      (err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        return msg.includes("missing required 'code' snippet");
+      }
+    );
+  });
 });

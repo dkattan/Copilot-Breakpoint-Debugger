@@ -45,6 +45,7 @@ describe("startDebuggingAndWaitForStop - capture-all (variableFilter empty)", ()
     const context = await startDebuggingAndWaitForStop(
       Object.assign({}, baseParams, {
         sessionName: "",
+        mode: "inspect" as const,
         breakpointConfig: {
           breakpoints: [
             {

@@ -30,8 +30,7 @@
     "chat.extensionUnification.enabled": false,
     "copilot-debugger.maxOutputLines": 20,
     "copilot-debugger.maxBuildErrors": 2,
-    "copilot-debugger.maxOutputChars": 8192,
-    "copilot-debugger.entryTimeoutSeconds": 120
+    "copilot-debugger.maxOutputChars": 8192
   },
   "launch": {
     "version": "0.2.0",

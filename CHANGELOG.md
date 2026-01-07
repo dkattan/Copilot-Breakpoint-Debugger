@@ -1,3 +1,27 @@
+## [0.0.48] - 2026-01-07
+
+# Release Notes - v0.0.48
+
+## Summary
+This release includes improvements to the CI/CD pipeline, specifically around release note generation and workflow optimization.
+
+## Changes
+
+### Improvements
+- **CI Pipeline Enhancement**: Automated release note generation is now integrated directly into the auto-release workflow
+- **Workflow Optimization**: Release notes artifact is now reused across workflow jobs to improve efficiency and reduce redundant processing
+- **Test Configuration**: Reverted workspace timeout settings to ensure proper test execution
+
+### Bug Fixes
+- Fixed test workspace timeout configuration that was causing issues in the test environment
+
+## Breaking Changes
+None
+
+---
+
+**Full Changelog**: https://github.com/Copilot-Breakpoint-Debugger/compare/v0.0.47...v0.0.48
+
 ## [0.0.47] - 2026-01-07
 
 # Release Notes - v0.0.47

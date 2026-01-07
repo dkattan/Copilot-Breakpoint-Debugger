@@ -128,8 +128,8 @@
         "displayName": "Start Debugger",
         "toolReferenceName": "startDebugSessionWithBreakpoints",
         "canBeReferencedInPrompt": true,
-        "userDescription": "Start a debug session, set breakpoints, and wait until a breakpoint is hit. Supports onHit behaviors: break (pause), captureAndContinue (collect variables then auto-resume), captureAndStopDebugging (terminate after hit). Default mode is singleShot: the tool terminates the session before returning so the model cannot accidentally run external curl/browser probes against a paused debuggee. If you need an interactive paused workflow, set mode=inspect.",
-        "modelDescription": "Start a debug session using the configured default launch configuration or an explicitly provided configurationName. Auto-selects sole launch config when none specified and no default setting is present. Defaults to 'singleShot' mode (safest), which runs the session, hits a breakpoint, collects data, and terminates automatically. Use 'inspect' mode to pause at a breakpoint for interactive debugging (must provide inspectJustification); while paused, use debugger tools (evaluateExpression) instead of external requests (curl) which may block. Supports 'serverReady' to automatically wait for app startup and trigger a request to hit your breakpoints. Breakpoints support path, code snippet, onHit behavior (break, captureAndContinue, captureAndStopDebugging), variableFilter, condition, and hitCount.",
+        "userDescription": "Start a debug session, set breakpoints, and wait until a breakpoint is hit. Supports onHit behaviors: break (pause), captureAndContinue (collect variables then auto-resume), captureAndStopDebugging (terminate after hit). Supports autoStepOver to capture variables before and after a single step-over (useful for assignments/invocations). Default mode is singleShot: the tool terminates the session before returning so the model cannot accidentally run external curl/browser probes against a paused debuggee. If you need an interactive paused workflow, set mode=inspect.",
+        "modelDescription": "Start a debug session using the configured default launch configuration or an explicitly provided configurationName. Auto-selects sole launch config when none specified and no default setting is present. Defaults to 'singleShot' mode (safest), which runs the session, hits a breakpoint, collects data, and terminates automatically. Use 'inspect' mode to pause at a breakpoint for interactive debugging (must provide inspectJustification); while paused, use debugger tools (evaluateExpression) instead of external requests (curl) which may block. Supports 'serverReady' to automatically wait for app startup and trigger a request to hit your breakpoints. Breakpoints support path, code snippet, onHit behavior (break, captureAndContinue, captureAndStopDebugging), variableFilter, condition, hitCount, and autoStepOver (capture variables before and after stepping over once; helpful for post-assignment values).",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -197,6 +197,10 @@
                       "logMessage": {
                         "type": "string",
                         "description": "Optional log message for logpoint or capture action. Uses curly braces for variable interpolation (e.g., 'Value is {x}'). If action=capture, interpolated messages are returned as capturedLogMessages."
+                      },
+                      "autoStepOver": {
+                        "type": "boolean",
+                        "description": "If true, capture variables, step over once (DAP 'next'), then capture again. Useful for capturing before/after around an assignment or invocation in one shot."
                       },
                       "reasonCode": {
                         "type": "string",
@@ -502,13 +506,13 @@
         "toolReferenceName": "stopDebugSession",
         "canBeReferencedInPrompt": true,
         "userDescription": "Terminate one or more debug sessions by id (aligns with resumeDebugSession).",
-        "modelDescription": "Stop (terminate) all active debug sessions whose id matches the provided sessionId.",
+        "modelDescription": "Stop (terminate) debug sessions identified by sessionId. sessionId may be the VS Code debug session UUID (recommended) or the numeric toolId shown by listDebugSessions.",
         "inputSchema": {
           "type": "object",
           "properties": {
             "sessionId": {
               "type": "string",
-              "description": "Id of the debug session to stop."
+              "description": "Identifier of the debug session to stop. Accepts the VS Code session UUID or the numeric toolId from listDebugSessions."
             }
           },
           "required": [
@@ -530,7 +534,7 @@
     "compile-tests": "tsc -p ./",
     "pretest": "npm run lint && npm run compile-tests && npm run build:dist",
     "lint": "eslint",
-    "test": "node -e \"try{require('fs').rmSync('./.vscode-test/user-data',{recursive:true,force:true});}catch(e){}\" && npx vscode-test",
+    "test": "node -e \"try{require('fs').rmSync('./.vscode-test/user-data',{recursive:true,force:true});}catch(e){}\" && npx vscode-test --config .vscode-test.mjs",
     "test:coverage": "npm run compile-tests && npx vscode-test --coverage",
     "release:notes": "tsx .github/scripts/generate-release-notes.ts",
     "deps": "taze"
@@ -560,6 +564,7 @@
     "@vscode/debugprotocol": "^1.68.0",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
+    "baseline-browser-mapping": "^2.9.12",
     "esbuild": "^0.27.0",
     "esbuild-register": "^3.6.0",
     "eslint": "^9.25.1",

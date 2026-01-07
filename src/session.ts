@@ -56,6 +56,22 @@ const reorderScopesForCapture = <T extends { name?: string }>(
   return [...locals, ...others];
 };
 
+const captureScopeVariables = async (params: {
+  session: vscode.DebugSession;
+  scopes: Array<{ name?: string; variablesReference: number }>;
+}): Promise<ScopeVariables[]> => {
+  const { session, scopes } = params;
+  const scopeVariables: ScopeVariables[] = [];
+  for (const scope of scopes) {
+    const variables = await DAPHelpers.getVariablesFromReference(
+      session,
+      scope.variablesReference
+    );
+    scopeVariables.push({ scopeName: scope.name ?? "Scope", variables });
+  }
+  return scopeVariables;
+};
+
 /**
  * Variables grouped by scope
  */
@@ -169,6 +185,13 @@ export interface StartDebugSessionResult {
 
 export interface StartDebuggerStopInfo extends DebugContext {
   scopeVariables: ScopeVariables[];
+  stepOverCapture?: {
+    performed: boolean;
+    fromLine?: number;
+    toLine?: number;
+    before: ScopeVariables[];
+    after: ScopeVariables[];
+  };
   hitBreakpoint?: BreakpointDefinition;
   capturedLogMessages?: string[];
   serverReadyInfo: ServerReadyInfo;
@@ -2486,14 +2509,6 @@ export const startDebuggingAndWaitForStop = async (
     );
     const orderedScopes = reorderScopesForCapture(debugContext.scopes ?? []);
     debugContext = { ...debugContext, scopes: orderedScopes };
-    const scopeVariables: ScopeVariables[] = [];
-    for (const scope of orderedScopes) {
-      const variables = await DAPHelpers.getVariablesFromReference(
-        finalStop.session,
-        scope.variablesReference
-      );
-      scopeVariables.push({ scopeName: scope.name, variables });
-    }
     // Determine which breakpoint was actually hit (exact file + line match)
     let hitBreakpoint: BreakpointDefinition | undefined;
     const framePath = debugContext.frame?.source?.path;
@@ -2516,11 +2531,77 @@ export const startDebuggingAndWaitForStop = async (
           code: bp.code,
           variableFilter: bp.variableFilter,
           onHit: bp.onHit,
+          condition: bp.condition,
+          hitCount: bp.hitCount,
           logMessage: bp.logMessage,
+          autoStepOver: bp.autoStepOver,
           reasonCode: bp.reasonCode,
         };
         break;
       }
+    }
+
+    // Capture variables; if requested, auto-step-over once and capture before/after.
+    let stepOverCapture: StartDebuggerStopInfo["stepOverCapture"] | undefined;
+    let scopeVariables: ScopeVariables[] = [];
+    if (hitBreakpoint?.autoStepOver) {
+      const before = await captureScopeVariables({
+        session: finalStop.session,
+        scopes: orderedScopes,
+      });
+      const fromLine = debugContext.frame?.line;
+
+      try {
+        await finalStop.session.customRequest("next", {
+          threadId: finalStop.threadId,
+        });
+      } catch (err) {
+        throw new Error(
+          `autoStepOver failed: debug adapter did not accept step-over request (DAP 'next'): ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        );
+      }
+
+      const stepped = await waitForDebuggerStopBySessionId({
+        sessionId: finalStop.session.id,
+        timeout: remainingMs,
+      });
+      if (stepped.reason === "terminated") {
+        throw new Error(
+          withRuntimeDiagnostics(
+            "autoStepOver requested, but the debug session terminated during step-over.",
+            finalStop.session.id
+          )
+        );
+      }
+
+      finalStop = stepped;
+      debugContext = await DAPHelpers.getDebugContext(
+        finalStop.session,
+        finalStop.threadId
+      );
+      const steppedScopes = reorderScopesForCapture(debugContext.scopes ?? []);
+      debugContext = { ...debugContext, scopes: steppedScopes };
+      const after = await captureScopeVariables({
+        session: finalStop.session,
+        scopes: steppedScopes,
+      });
+      const toLine = debugContext.frame?.line;
+
+      scopeVariables = after;
+      stepOverCapture = {
+        performed: true,
+        fromLine,
+        toLine,
+        before,
+        after,
+      };
+    } else {
+      scopeVariables = await captureScopeVariables({
+        session: finalStop.session,
+        scopes: orderedScopes,
+      });
     }
     // Build variable lookup for interpolation (for capture action log message expansion)
     const variableLookup = new Map<string, string>();
@@ -2640,6 +2721,7 @@ export const startDebuggingAndWaitForStop = async (
     return {
       ...debugContext,
       scopeVariables,
+      stepOverCapture,
       hitBreakpoint: hitBreakpoint ?? undefined,
       capturedLogMessages,
       serverReadyInfo,

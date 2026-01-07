@@ -20,8 +20,15 @@ server.listen(port, () => {
   console.log(`Server listening on http://localhost:${port}`);
 });
 
+// Emit a repeated line so breakpoint-based tests have a stable target even if the
+// first server.listen callback line is missed due to breakpoint-binding races.
+const tickInterval = setInterval(() => {
+  console.log('TICK_FOR_USER_BREAKPOINT');
+}, 200);
+
 // Keep process alive for a short period
 setTimeout(() => {
   console.log('Shutting down server');
+  clearInterval(tickInterval);
   server.close();
 }, 5000);

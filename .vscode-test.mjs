@@ -30,6 +30,9 @@ export default defineConfig({
   launchArgs: [
     resolve(__dirname, "test-workspace", "test-workspace.code-workspace"),
     // '--profile-temp',
+    "--disable-workspace-trust",
+    "--skip-welcome",
+    "--skip-release-notes",
     "--disable-extensions",
     "--enable-proposed-api",
     "dkattan.copilot-breakpoint-debugger",

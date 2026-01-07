@@ -31,7 +31,7 @@ describe('serverReady vscodeCommand action', function () {
         .split(/\r?\n/)
         .findIndex((l) => l.includes('LINE_FOR_SERVER_READY')) + 1;
     assert.ok(readyLine > 0, 'Did not find serverReady marker line');
-    const userBreakpointSnippet = 'Server listening on http://localhost:';
+    const userBreakpointSnippet = 'TICK_FOR_USER_BREAKPOINT';
     const userBreakpointLine =
       serverDoc
         .getText()
@@ -58,7 +58,9 @@ describe('serverReady vscodeCommand action', function () {
         trigger: { path: serverPath, line: readyLine },
         action: {
           type: 'vscodeCommand',
-          command: 'workbench.action.closePanel',
+          // Use a non-UI command that resolves quickly and is safe in headless extension tests.
+          command: 'setContext',
+          args: ['copilotBreakpointDebugger.test.serverReady', true],
         },
       },
     });

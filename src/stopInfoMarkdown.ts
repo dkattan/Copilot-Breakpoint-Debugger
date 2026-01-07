@@ -31,6 +31,9 @@ export const renderStopInfoMarkdown = (params: {
   }
 
   const onHit = stopInfo.hitBreakpoint?.onHit ?? "break";
+  const stepOver = stopInfo.stepOverCapture?.performed
+    ? stopInfo.stepOverCapture
+    : undefined;
 
   const providedFilters = stopInfo.hitBreakpoint?.variableFilter ?? [];
   const hasExplicitFilters = providedFilters.length > 0;
@@ -86,8 +89,40 @@ export const renderStopInfoMarkdown = (params: {
   const filterSet = new Set(activeFilters);
   const groupedVariables: Array<{
     scopeName: string;
-    variables: Array<{ name: string; value: string; type?: string }>;
+    variables: Array<{
+      name: string;
+      type?: string;
+      value: string;
+      beforeValue?: string;
+      afterValue?: string;
+    }>;
   }> = [];
+
+  const beforeLookup = (() => {
+    if (!stepOver) {
+      return undefined;
+    }
+    const map = new Map<string, { value: string; type?: string }>();
+    for (const scope of stepOver.before ?? []) {
+      for (const v of scope.variables ?? []) {
+        map.set(v.name, { value: v.value, type: v.type });
+      }
+    }
+    return map;
+  })();
+  const afterLookup = (() => {
+    if (!stepOver) {
+      return undefined;
+    }
+    const map = new Map<string, { value: string; type?: string }>();
+    for (const scope of stepOver.after ?? []) {
+      for (const v of scope.variables ?? []) {
+        map.set(v.name, { value: v.value, type: v.type });
+      }
+    }
+    return map;
+  })();
+
   for (const scope of stopInfo.scopeVariables ?? []) {
     if (filterSet.size === 0) {
       // No filters provided (non-capture breakpoint) => skip reporting variables to keep output concise.
@@ -95,11 +130,24 @@ export const renderStopInfoMarkdown = (params: {
     }
     const matchedVars = scope.variables
       .filter((variable) => filterSet.has(variable.name))
-      .map((variable) => ({
-        name: variable.name,
-        value: variable.value,
-        type: variable.type,
-      }));
+      .map((variable) => {
+        if (!stepOver || !beforeLookup || !afterLookup) {
+          return {
+            name: variable.name,
+            value: variable.value,
+            type: variable.type,
+          };
+        }
+        const before = beforeLookup.get(variable.name);
+        const after = afterLookup.get(variable.name);
+        return {
+          name: variable.name,
+          type: variable.type ?? after?.type ?? before?.type,
+          value: after?.value ?? variable.value,
+          beforeValue: before?.value,
+          afterValue: after?.value ?? variable.value,
+        };
+      });
     if (matchedVars.length) {
       groupedVariables.push({
         scopeName: scope.scopeName,
@@ -125,11 +173,20 @@ export const renderStopInfoMarkdown = (params: {
   const variableTables = groupedVariables.map((group) => {
     const header = `### ${group.scopeName ?? "Scope"}`;
     const rows = group.variables.map((v) => {
-      const displayValue = formatValue(v.value);
       const typePart = v.type ?? "";
-      return [v.name, typePart, displayValue];
+      if (!stepOver) {
+        const displayValue = formatValue(v.value);
+        return [v.name, typePart, displayValue];
+      }
+      const beforeVal = v.beforeValue ?? "<unavailable>";
+      const afterVal = v.afterValue ?? v.value ?? "<unavailable>";
+      const displayBefore = formatValue(beforeVal);
+      const displayAfter = formatValue(afterVal);
+      return [v.name, typePart, displayBefore, displayAfter];
     });
-    const table = markdownTable([["Name", "Type", "Value"], ...rows]);
+    const table = stepOver
+      ? markdownTable([["Name", "Type", "Before", "After"], ...rows])
+      : markdownTable([["Name", "Type", "Value"], ...rows]);
     return [header, "", table].join("\n");
   });
 
@@ -139,7 +196,11 @@ export const renderStopInfoMarkdown = (params: {
   if (stopInfo.exceptionInfo) {
     header = `Exception: ${stopInfo.exceptionInfo.description} (see Exception Details below)`;
   } else if (stopInfo.hitBreakpoint) {
-    header = `Breakpoint ${fileName}:${summary.line} onHit=${onHit}`;
+    if (stepOver?.performed && stepOver.fromLine && stepOver.toLine) {
+      header = `Breakpoint ${fileName}:${stepOver.fromLine} onHit=${onHit} (autoStepOver -> stopped at line ${stepOver.toLine})`;
+    } else {
+      header = `Breakpoint ${fileName}:${summary.line} onHit=${onHit}`;
+    }
   } else {
     header = `Stopped: reason=${stopInfo.reason ?? "unknown"} at ${fileName}:${
       summary.line

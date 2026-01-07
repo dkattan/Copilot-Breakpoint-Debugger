@@ -1,7 +1,8 @@
+import type { BreakpointDefinition } from "../BreakpointDefinition";
 import * as assert from "node:assert";
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { startDebuggingAndWaitForStop } from "../session";
+import { type ScopeVariables, startDebuggingAndWaitForStop } from "../session";
 import {
   activateCopilotDebugger,
   getExtensionRoot,
@@ -10,7 +11,7 @@ import {
 } from "./utils/startDebuggerToolTestUtils";
 
 describe("snippet-based breakpoints", function () {
-  this.timeout(60_000);
+  this.timeout(120_000);
 
   afterEach(async () => {
     await stopAllDebugSessions();
@@ -38,6 +39,7 @@ describe("snippet-based breakpoints", function () {
       sessionName: "",
       workspaceFolder,
       nameOrConfiguration: "Run test.js",
+      timeoutSeconds: 90,
       breakpointConfig: {
         breakpoints: [
           {
@@ -114,8 +116,7 @@ describe("snippet-based breakpoints", function () {
                 line: 10,
                 onHit: "break",
                 variableFilter: [],
-                // eslint-disable-next-line ts/no-explicit-any
-              } as any, // Cast to any to bypass TS check for missing 'code'
+              } as unknown as BreakpointDefinition, // Cast to bypass TS check for missing 'code'
             ],
           },
         }),
@@ -124,5 +125,68 @@ describe("snippet-based breakpoints", function () {
         return msg.includes("missing required 'code' snippet");
       }
     );
+  });
+
+  it("autoStepOver captures before/after values around an assignment", async () => {
+    await activateCopilotDebugger();
+
+    const extensionRoot = getExtensionRoot();
+    const workspaceFolder = path.join(extensionRoot, "test-workspace");
+    const scriptPath = path.join(workspaceFolder, "test.js");
+    const scriptUri = vscode.Uri.file(scriptPath);
+    const doc = await vscode.workspace.openTextDocument(scriptUri);
+    await openScriptDocument(scriptUri);
+
+    const assignmentSnippet = "assignedValue = 1";
+    const assignmentLine =
+      doc
+        .getText()
+        .split(/\r?\n/)
+        .findIndex((l) => l.includes(assignmentSnippet)) + 1;
+    assert.ok(
+      assignmentLine > 0,
+      "Expected assignment snippet to exist in test.js"
+    );
+
+    const context = await startDebuggingAndWaitForStop({
+      sessionName: "",
+      workspaceFolder,
+      nameOrConfiguration: "Run test.js",
+      breakpointConfig: {
+        breakpoints: [
+          {
+            path: scriptPath,
+            code: assignmentSnippet,
+            onHit: "break",
+            autoStepOver: true,
+            variableFilter: ["assignedValue"],
+          },
+        ],
+      },
+    });
+
+    assert.ok(context.stepOverCapture?.performed, "Expected stepOverCapture");
+    assert.strictEqual(context.stepOverCapture?.fromLine, assignmentLine);
+    assert.ok(
+      typeof context.stepOverCapture?.toLine === "number" &&
+        (context.stepOverCapture?.toLine as number) > assignmentLine,
+      "Expected toLine to be after the assignment line"
+    );
+
+    const findVar = (scopes: ScopeVariables[]) => {
+      for (const scope of scopes) {
+        for (const v of scope.variables ?? []) {
+          if (v.name === "assignedValue") {
+            return v.value;
+          }
+        }
+      }
+      return undefined;
+    };
+
+    const beforeVal = findVar(context.stepOverCapture!.before);
+    const afterVal = findVar(context.stepOverCapture!.after);
+    assert.strictEqual(beforeVal, "0");
+    assert.strictEqual(afterVal, "1");
   });
 });

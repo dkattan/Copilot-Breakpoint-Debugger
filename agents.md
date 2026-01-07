@@ -3,7 +3,7 @@
 ## Development Commands
 
 - **Build**: `npm run compile` - Compiles TypeScript to JavaScript in `out/` directory
-- **Watch mode**: `npm run watch` - Compiles TypeScript in watch mode for development
+- **Watch mode**: `npm run watch` - Compiles TypeScript in watch mode for development (long-running)
 - **Lint**: `npm run lint` - Runs ESLint on TypeScript files in `src/`
 - **Test**: `npm run test` - Runs tests using vscode-test
 - **Prepare for publish**: `npm run vscode:prepublish` - Runs compile before publishing
@@ -44,6 +44,10 @@ This is a VS Code extension that integrates with GitHub Copilot to provide debug
 - Line numbers are converted from 1-based (user input) to 0-based (VS Code internal)
 - Async operations use `async/await` pattern with proper error handling
 - Tools validate workspace state before performing operations. Post-refactor: core validation (workspaceFolder, breakpoint structure, auto-select or resolve launch configuration, timeout derivation) now lives centrally inside `startDebuggingAndWaitForStop` for consistency.
+
+## How to run tests in this repo (preferred)
+
+- Tests are run automatically in a commit hook. To run them manually, use `npm test`.
 
 ### File Structure
 

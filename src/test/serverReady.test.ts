@@ -37,7 +37,7 @@ describe("serverReady breakpoint", function () {
         .findIndex((l) => l.includes("LINE_FOR_SERVER_READY")) + 1; // convert to 1-based
     assert.ok(readyLine > 0, "Did not find serverReady marker line");
 
-    const userBreakpointSnippet = "Server listening on http://localhost:";
+    const userBreakpointSnippet = "TICK_FOR_USER_BREAKPOINT";
     const userBreakpointLine =
       serverDoc
         .getText()
@@ -113,7 +113,7 @@ describe("serverReady breakpoint", function () {
         .split(/\r?\n/)
         .findIndex((l) => l.includes("LINE_FOR_SERVER_READY")) + 1;
     assert.ok(readyLine > 0, "Did not find serverReady marker line");
-    const userBreakpointSnippet = "Server listening on http://localhost:";
+    const userBreakpointSnippet = "TICK_FOR_USER_BREAKPOINT";
     const userBreakpointLine =
       serverDoc
         .getText()

@@ -21,5 +21,10 @@ export interface BreakpointDefinition {
   condition?: string; // Expression evaluated at breakpoint; stop only if true
   hitCount?: number; // Exact numeric hit count (3 means pause on 3rd hit)
   logMessage?: string; // Logpoint style message with {var} interpolation
+  /**
+   * If true, the tool will capture variables, step over once (DAP 'next'), then capture again.
+   * Useful for "before vs after" snapshots around assignments/invocations.
+   */
+  autoStepOver?: boolean;
   reasonCode?: string; // Internal telemetry tag (not surfaced)
 }

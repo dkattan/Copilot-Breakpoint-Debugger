@@ -229,18 +229,14 @@ jobs:
             echo 'EOF'
           } >> $GITHUB_OUTPUT
 
-      - name: Download Release Notes artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: release-notes
-
-      - name: Update CHANGELOG from downloaded release notes
+      - name: Generate Release Notes
         run: npm run release:notes
         env:
-          SKIP_LLM: 'true'
-          RELEASE_NOTES_FILE: RELEASE_NOTES.md
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           VERSION: ${{ steps.version.outputs.version }}
           PREV_TAG: ${{ steps.version.outputs.previous_tag }}
+          COMMITS: ${{ steps.context.outputs.commits }}
+          STATS: ${{ steps.context.outputs.stats }}
 
       - name: Commit and Push Changes
         run: |

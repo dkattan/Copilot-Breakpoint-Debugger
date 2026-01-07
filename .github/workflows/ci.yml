@@ -3,6 +3,7 @@ name: CI/CD Pipeline
 on:
   push:
     branches: [main]
+  workflow_dispatch: {}
 
 jobs:
   release-notes-smoke:
@@ -82,13 +83,26 @@ jobs:
           } >> $GITHUB_OUTPUT
 
       - name: Generate Release Notes
-        run: npx tsx .github/scripts/generate-release-notes-local.ts
+        run: npm run release:notes
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           VERSION: ${{ steps.version.outputs.version }}
           PREV_TAG: ${{ steps.version.outputs.previous_tag }}
           COMMITS: ${{ steps.context.outputs.commits }}
           STATS: ${{ steps.context.outputs.stats }}
+
+      - name: Verify RELEASE_NOTES.md
+        run: |
+          test -s RELEASE_NOTES.md
+          echo "--- RELEASE_NOTES.md (first 40 lines) ---"
+          head -n 40 RELEASE_NOTES.md
+
+      - name: Upload release notes artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes-smoke
+          path: |
+            RELEASE_NOTES.md
 
   build-and-test:
     name: Build and Test
@@ -216,7 +230,7 @@ jobs:
           } >> $GITHUB_OUTPUT
 
       - name: Generate Release Notes
-        run: npx tsx .github/scripts/generate-release-notes-local.ts
+        run: npm run release:notes
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           VERSION: ${{ steps.version.outputs.version }}

@@ -1,13 +1,12 @@
 /**
- * Local helper for generating release notes (TypeScript).
+ * Release notes generator (TypeScript).
  *
- * This script mirrors the GitHub Actions context generation and then uses
- * the Claude Agent SDK (V2 prompt helper) to generate RELEASE_NOTES.md and
- * update CHANGELOG.md.
+ * - In CI: requires VERSION/PREV_TAG/COMMITS/STATS and writes RELEASE_NOTES.md + updates CHANGELOG.md.
+ * - Locally: computes the same context from git tags/logs and does the same outputs.
  *
  * Requirements:
  * - ANTHROPIC_TOKEN (or ANTHROPIC_API_KEY)
- * - git history available (run from a clone with tags)
+ * - git history available (run from a clone with tags) for local mode
  *
  * Run via: npm run release:notes
  */

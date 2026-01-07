@@ -532,7 +532,7 @@
     "lint": "eslint",
     "test": "node -e \"try{require('fs').rmSync('./.vscode-test/user-data',{recursive:true,force:true});}catch(e){}\" && npx vscode-test",
     "test:coverage": "npm run compile-tests && npx vscode-test --coverage",
-    "release:notes": "tsx .github/scripts/generate-release-notes-local.ts",
+    "release:notes": "tsx .github/scripts/generate-release-notes.ts",
     "deps": "taze"
   },
   "dependencies": {

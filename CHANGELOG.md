@@ -1,3 +1,27 @@
+## [0.0.47] - 2026-01-07
+
+# Release Notes - v0.0.47
+
+## Summary
+
+This release focuses on improving the continuous integration workflow by automating the release notes generation process directly in GitHub Actions.
+
+## Changes
+
+### Improvements
+
+- **Automated Release Notes Generation**: The release notes generation script has been integrated into the CI/CD pipeline, allowing for automatic generation of release notes during the build process. The script was renamed from `generate-release-notes-local.ts` to `generate-release-notes.ts` to reflect its broader usage beyond local development.
+
+- **Enhanced CI Workflow**: Updated GitHub Actions workflow configuration to include the release notes generation step, streamlining the release process and ensuring consistent documentation with each version release.
+
+### Internal Changes
+
+- Minor version bump in package.json from 0.0.46 to 0.0.47
+
+## Breaking Changes
+
+None
+
 ## [0.0.46] - 2026-01-07
 
 # Release Notes - v0.0.46

@@ -261,6 +261,67 @@ export const listDebugSessions = () => {
   };
 };
 
+export interface DebugSessionListItem {
+  /**
+   * Stop-compatible identifier.
+   *
+   * IMPORTANT: This must be usable as input to stopDebugSession(sessionId).
+   */
+  id: string;
+  name: string;
+  isActive: boolean;
+  configurationType?: string;
+  request?: string;
+}
+
+export const mapDebugSessionsForTool = (params: {
+  sessions: Array<{ id?: string; name?: string; configuration?: unknown }>;
+  activeSessionId?: string;
+}): DebugSessionListItem[] => {
+  const { sessions, activeSessionId } = params;
+  return sessions
+    .map((session) => {
+      const id = typeof session.id === "string" ? session.id : "";
+      const name = typeof session.name === "string" ? session.name : "";
+      const configuration =
+        session.configuration && typeof session.configuration === "object"
+          ? (session.configuration as Record<string, unknown>)
+          : undefined;
+
+      const configurationType =
+        typeof configuration?.type === "string"
+          ? configuration.type
+          : undefined;
+      const request =
+        typeof configuration?.request === "string"
+          ? configuration.request
+          : undefined;
+
+      return {
+        id,
+        name,
+        isActive: !!activeSessionId && id === activeSessionId,
+        configurationType,
+        request,
+      } satisfies DebugSessionListItem;
+    })
+    .filter((item) => item.id.trim().length > 0);
+};
+
+/**
+ * Session listing intended for LLM consumption.
+ *
+ * This returns ONLY ids that are valid inputs to stopDebugSession(sessionId).
+ */
+export const listDebugSessionsForTool = (): string => {
+  const activeId = vscode.debug.activeDebugSession?.id;
+  const items = mapDebugSessionsForTool({
+    sessions: activeSessions,
+    activeSessionId: activeId,
+  });
+  return JSON.stringify({ sessions: items }, null, 2);
+};
+
 const collectBuildDiagnostics = (
   workspaceUri: vscode.Uri,
   maxErrors: number
@@ -423,7 +484,10 @@ const truncateLine = (line: string, maxLength = 160): string => {
 const truncateSnippet = (snippet: string, maxLength = 80): string =>
   truncateLine(snippet.replace(/\s+/g, " ").trim(), maxLength);
 
-const findAllLineNumbersForSnippet = (doc: vscode.TextDocument, snippet: string): number[] => {
+const findAllLineNumbersForSnippet = (
+  doc: vscode.TextDocument,
+  snippet: string
+): number[] => {
   const text = doc.getText();
   if (!snippet || !snippet.trim()) {
     return [];
@@ -1139,9 +1203,11 @@ const configureExceptions = async (session: vscode.DebugSession) => {
     }>;
     supportsExceptionOptions?: boolean;
   };
-  
+
   if (!capabilities?.exceptionBreakpointFilters) {
-    logger.debug(`No exception breakpoint filters found for session ${session.id}`);
+    logger.debug(
+      `No exception breakpoint filters found for session ${session.id}`
+    );
     return;
   }
 
@@ -1164,12 +1230,15 @@ const configureExceptions = async (session: vscode.DebugSession) => {
   const filtersToEnable = capabilities.exceptionBreakpointFilters
     .filter((filter) => {
       const filterId = filter.filter.toLowerCase();
-      return filter.default === true || preferredExceptionFilterIds.has(filterId);
+      return (
+        filter.default === true || preferredExceptionFilterIds.has(filterId)
+      );
     })
     .map((filter) => filter.filter);
 
   try {
-    const supportsExceptionOptions = capabilities.supportsExceptionOptions === true;
+    const supportsExceptionOptions =
+      capabilities.supportsExceptionOptions === true;
     const summaryParts: string[] = [];
     if (filtersToEnable.length) {
       summaryParts.push(`filters=[${filtersToEnable.join(", ")}]`);
@@ -1183,9 +1252,9 @@ const configureExceptions = async (session: vscode.DebugSession) => {
     }
 
     logger.info(
-      `Enabling exception breakpoints for session ${session.id}: ${summaryParts.join(
-        ", "
-      )}`
+      `Enabling exception breakpoints for session ${
+        session.id
+      }: ${summaryParts.join(", ")}`
     );
 
     await session.customRequest("setExceptionBreakpoints", {
@@ -2735,16 +2804,22 @@ export const resumeDebugSession = async (params: {
           // Try to resolve relative path against session folder, then any workspace folder
           const candidates = [
             session.workspaceFolder?.uri.fsPath,
-            ...(vscode.workspace.workspaceFolders ?? []).map(f => f.uri.fsPath)
+            ...(vscode.workspace.workspaceFolders ?? []).map(
+              (f) => f.uri.fsPath
+            ),
           ].filter((p): p is string => !!p);
 
-          const found = candidates.find(base => fs.existsSync(path.join(base, bp.path)));
+          const found = candidates.find((base) =>
+            fs.existsSync(path.join(base, bp.path))
+          );
           if (found) {
             absPath = path.join(found, bp.path);
           } else {
             // Legacy determination
             if (!workspaceFolder) {
-               throw new Error(`Cannot determine workspace folder for '${bp.path}'`); 
+              throw new Error(
+                `Cannot determine workspace folder for '${bp.path}'`
+              );
             }
             absPath = path.join(workspaceFolder, bp.path);
           }
@@ -2775,7 +2850,9 @@ export const resumeDebugSession = async (params: {
           const uri = vscode.Uri.file(entry.absPath);
           const location = new vscode.Position(line - 1, 0);
           const hitCond =
-            entry.bp.hitCount !== undefined ? String(entry.bp.hitCount) : undefined;
+            entry.bp.hitCount !== undefined
+              ? String(entry.bp.hitCount)
+              : undefined;
           newBreakpoints.push(
             new vscode.SourceBreakpoint(
               new vscode.Location(uri, location),
@@ -2860,7 +2937,9 @@ export const resumeDebugSession = async (params: {
         continue;
       }
       // Identify hit breakpoint by checking whether the frame line is one of the resolved snippet matches.
-      const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(absPath));
+      const doc = await vscode.workspace.openTextDocument(
+        vscode.Uri.file(absPath)
+      );
       const resolvedLines = findAllLineNumbersForSnippet(doc, bp.code);
       if (!resolvedLines.includes(frameLine)) {
         continue;

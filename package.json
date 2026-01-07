@@ -429,6 +429,18 @@
         }
       },
       {
+        "name": "listDebugSessions",
+        "displayName": "List Debug Sessions",
+        "toolReferenceName": "listDebugSessions",
+        "canBeReferencedInPrompt": true,
+        "userDescription": "List active debug sessions and their stop-compatible ids.",
+        "modelDescription": "List all active debug sessions. The returned 'id' values are guaranteed to be valid inputs to stopDebugSession(sessionId).",
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
         "name": "getVariables",
         "displayName": "Get Variables",
         "toolReferenceName": "getVariables",
@@ -520,6 +532,7 @@
     "lint": "eslint",
     "test": "node -e \"try{require('fs').rmSync('./.vscode-test/user-data',{recursive:true,force:true});}catch(e){}\" && npx vscode-test",
     "test:coverage": "npm run compile-tests && npx vscode-test --coverage",
+    "release:notes": "tsx .github/scripts/generate-release-notes-local.ts",
     "deps": "taze"
   },
   "dependencies": {
@@ -532,6 +545,9 @@
     "mocha": "^10.7.3",
     "reactive-vscode": "^0.4.1",
     "strip-ansi": "^7.1.2"
+  },
+  "optionalDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.1.76"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^3.0.0",
@@ -550,6 +566,7 @@
     "npm-run-all": "^4.1.5",
     "taze": "^19.9.2",
     "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.8.3",
     "vscode-ext-gen": "^1.4.0"
   },

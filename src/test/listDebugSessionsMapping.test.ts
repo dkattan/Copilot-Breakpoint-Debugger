@@ -15,6 +15,7 @@ describe('listDebugSessions mapping', () => {
 
     assert.deepStrictEqual(result, [
       {
+        toolId: 1,
         id: 'abc',
         name: 'one',
         isActive: true,
@@ -31,5 +32,6 @@ describe('listDebugSessions mapping', () => {
     });
 
     assert.strictEqual(result[0].isActive, false);
+    assert.strictEqual(result[0].toolId, 1);
   });
 });

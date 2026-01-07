@@ -250,11 +250,14 @@ function registerTools(context: vscode.ExtensionContext) {
         const sample = {
           workspaceFolder: "/abs/path/project",
           configurationName: "Run test.js",
+          mode: "inspect",
+          inspectJustification:
+            "Need to keep the debug session paused to interactively evaluate expressions and inspect variables after the breakpoint is hit.",
           breakpointConfig: {
             breakpoints: [
               {
                 path: "src/server.ts",
-                line: 27,
+                code: "console.log('listening')",
                 onHit: "captureAndContinue",
                 logMessage: "port={PORT}",
                 variableFilter: ["PORT"],

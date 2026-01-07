@@ -263,6 +263,13 @@ export const listDebugSessions = () => {
 
 export interface DebugSessionListItem {
   /**
+   * 1-based stable identifier within the current listing.
+   *
+   * Intended for LLM ergonomics: you can pass this value to stopDebugSession(sessionId)
+   * as an alternative to the VS Code session UUID.
+   */
+  toolId: number;
+  /**
    * Stop-compatible identifier.
    *
    * IMPORTANT: This must be usable as input to stopDebugSession(sessionId).
@@ -280,7 +287,7 @@ export const mapDebugSessionsForTool = (params: {
 }): DebugSessionListItem[] => {
   const { sessions, activeSessionId } = params;
   return sessions
-    .map((session) => {
+    .map((session, index) => {
       const id = typeof session.id === "string" ? session.id : "";
       const name = typeof session.name === "string" ? session.name : "";
       const configuration =
@@ -298,6 +305,7 @@ export const mapDebugSessionsForTool = (params: {
           : undefined;
 
       return {
+        toolId: index + 1,
         id,
         name,
         isActive: !!activeSessionId && id === activeSessionId,
@@ -2732,12 +2740,45 @@ export const startDebuggingAndWaitForStop = async (
  */
 export const stopDebugSession = async (params: { sessionId: string }) => {
   const { sessionId } = params;
-  const matchingSessions = activeSessions.filter(
-    (session: vscode.DebugSession) => session.id === sessionId
+  const trimmed = typeof sessionId === "string" ? sessionId.trim() : "";
+  if (!trimmed) {
+    throw new Error("sessionId is required");
+  }
+
+  // 1) Exact VS Code session UUID match.
+  let matchingSessions = activeSessions.filter(
+    (session: vscode.DebugSession) => session.id === trimmed
   );
 
+  // 2) If not found, allow passing the listDebugSessions toolId (1-based index).
+  if (matchingSessions.length === 0 && /^\d+$/.test(trimmed)) {
+    const toolId = Number(trimmed);
+    const mapped = mapDebugSessionsForTool({
+      sessions: activeSessions,
+      activeSessionId: vscode.debug.activeDebugSession?.id,
+    });
+    const item = mapped.find((i) => i.toolId === toolId);
+    if (item) {
+      matchingSessions = activeSessions.filter((s) => s.id === item.id);
+    }
+  }
+
+  // 3) If still not found, allow exact name match when unambiguous.
   if (matchingSessions.length === 0) {
-    throw new Error(`No debug session(s) found with id '${sessionId}'.`);
+    const byName = activeSessions.filter((s) => s.name === trimmed);
+    if (byName.length === 1) {
+      matchingSessions = byName;
+    } else if (byName.length > 1) {
+      throw new Error(
+        `Multiple debug sessions share the name '${trimmed}'. Use listDebugSessions and pass the session 'id' (UUID) or 'toolId'.`
+      );
+    }
+  }
+
+  if (matchingSessions.length === 0) {
+    throw new Error(
+      `No debug session(s) found for '${trimmed}'. Use listDebugSessions and pass either the session 'id' (UUID) or 'toolId'.`
+    );
   }
 
   for (const session of matchingSessions) {

@@ -31,7 +31,7 @@ export const renderStopInfoMarkdown = (params: {
     );
   }
 
-  const onHit = stopInfo.hitBreakpoint.onHit ?? "stopDebugging";
+  const onHit = stopInfo.hitBreakpoint.onHit ?? "break";
 
   const providedFilters = stopInfo.hitBreakpoint.variableFilter ?? [];
   const hasExplicitFilters = providedFilters.length > 0;
@@ -237,7 +237,7 @@ export const renderStopInfoMarkdown = (params: {
 
   if (!multipleBreakpoints) {
     guidance.push(
-      "You can supply multiple breakpoints, each with its own onHit (e.g., trace with captureAndContinue, then stopDebugging at a later line)."
+      "You can supply multiple breakpoints, each with its own onHit (e.g., trace with captureAndContinue, then captureAndStopDebugging at a later line)."
     );
   }
 

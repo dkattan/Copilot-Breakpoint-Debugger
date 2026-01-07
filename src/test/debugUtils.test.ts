@@ -423,7 +423,7 @@ describe('debugUtils - DAPHelpers', function () {
     assert.ok(debugContext.scopes.length > 0, 'Should have at least one scope');
   });
 
-  it('stopDebugging action terminates session after breakpoint hit', async () => {
+  it('captureAndStopDebugging action terminates session after breakpoint hit', async () => {
     const targetSnippet = 'Loop iteration';
     const targetLine =
       (await vscode.workspace.openTextDocument(scriptPath))
@@ -440,7 +440,7 @@ describe('debugUtils - DAPHelpers', function () {
               path: scriptPath,
               code: targetSnippet,
               variableFilter: ['i'],
-              onHit: 'stopDebugging' as const,
+              onHit: 'captureAndStopDebugging' as const,
             },
           ],
         },
@@ -455,7 +455,7 @@ describe('debugUtils - DAPHelpers', function () {
     assert.strictEqual(
       active,
       undefined,
-      'Debug session should be terminated after action=stopDebugging'
+      'Debug session should be terminated after action=captureAndStopDebugging'
     );
   });
 });

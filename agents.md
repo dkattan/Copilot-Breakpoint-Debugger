@@ -291,7 +291,7 @@ This project is primarily consumed by language models, so release metadata empha
 ### v0.0.6 Changes (Historical Reference)
 
 - Introduced exact per-breakpoint `variableFilter` (top-level filter removed).
-- Added optional per-breakpoint `action` (e.g., `stopDebugging`).
+- Added optional per-breakpoint `action` (e.g., `captureAndStopDebugging`).
 - Added `logger.ts` for structured tool logging.
 - Cleaned CHANGELOG formatting (headings/lists/code fences compliance).
 - Release notes tailored for LLM consumption (no end-user upgrade guidance).

@@ -1143,7 +1143,7 @@ export const startDebuggingAndWaitForStop = async (
     );
     if (invalidBp) {
       throw new Error(
-        `'captureAndContinue' onHit action is not supported in singleShot mode. Use 'inspect' mode or 'break'/'stopDebugging' action.`
+        `'captureAndContinue' onHit action is not supported in singleShot mode. Use 'inspect' mode or 'break'/'captureAndStopDebugging' action.`
       );
     }
   }
@@ -2335,7 +2335,7 @@ export const startDebuggingAndWaitForStop = async (
         }
       }
     }
-    if (hitBreakpoint?.onHit === "stopDebugging") {
+    if (hitBreakpoint?.onHit === "captureAndStopDebugging") {
       logger.info(`Terminating all debug sessions per breakpoint action.`);
       await vscode.debug.stopDebugging();
       const now = Date.now();
@@ -2373,7 +2373,7 @@ export const startDebuggingAndWaitForStop = async (
       triggerSummary: serverReadyTriggerSummary,
     };
     let debuggerState: DebuggerStateSnapshot;
-    if (hitBreakpoint?.onHit === "stopDebugging") {
+    if (hitBreakpoint?.onHit === "captureAndStopDebugging") {
       debuggerState = { status: "terminated" };
     } else if (hitBreakpoint?.onHit === "captureAndContinue") {
       debuggerState = {
@@ -2736,7 +2736,7 @@ export const resumeDebugSession = async (params: {
     }
   }
 
-  if (hitBreakpoint?.onHit === "stopDebugging") {
+  if (hitBreakpoint?.onHit === "captureAndStopDebugging") {
     logger.info(`Terminating all debug sessions per breakpoint action.`);
     await vscode.debug.stopDebugging();
   } else if (hitBreakpoint?.onHit === "captureAndContinue") {
@@ -2765,7 +2765,7 @@ export const resumeDebugSession = async (params: {
   };
 
   let debuggerState: DebuggerStateSnapshot;
-  if (hitBreakpoint?.onHit === "stopDebugging") {
+  if (hitBreakpoint?.onHit === "captureAndStopDebugging") {
     debuggerState = { status: "terminated" };
   } else if (hitBreakpoint?.onHit === "captureAndContinue") {
     debuggerState = {

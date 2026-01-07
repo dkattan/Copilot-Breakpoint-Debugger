@@ -128,8 +128,8 @@
         "displayName": "Start Debugger",
         "toolReferenceName": "startDebugSessionWithBreakpoints",
         "canBeReferencedInPrompt": true,
-        "userDescription": "Start a debug session, set breakpoints, and wait until a breakpoint is hit. Supports onHit behaviors: break (pause), captureAndContinue (collect variables then auto-resume), stopDebugging (terminate after hit). Default mode is singleShot: the tool terminates the session before returning so the model cannot accidentally run external curl/browser probes against a paused debuggee. If you need an interactive paused workflow, set mode=inspect.",
-        "modelDescription": "Start a debug session using the configured default launch configuration or an explicitly provided configurationName. Auto-selects sole launch config when none specified and no default setting is present. Each breakpoint can specify an onHit: break (pause), captureAndContinue (collect variables & interpolate {var} placeholders then continue automatically), or stopDebugging (terminate immediately after hit). IMPORTANT protocol: if the tool returns while paused (inspect mode), you must NOT run external HTTP requests (curl/wget/browser/fetch) against the debuggee; only use debugger operations (evaluateExpression/getVariables/expandVariable/resume/stop) until resumed. Supports serverReady with trigger {path+line | pattern | omitted attach} and action.type httpRequest | shellCommand | vscodeCommand. httpRequest is the recommended canonical way to trigger a request intended to hit breakpoints because it is executed by the tool with timeout handling. shellCommand runs in a terminal and can block if it performs a request that hits a break breakpoint. Conditional expressions and exact numeric hitCount only. variableFilter required only for captureAndContinue; omit to capture all locals up to captureMaxVariables.",
+        "userDescription": "Start a debug session, set breakpoints, and wait until a breakpoint is hit. Supports onHit behaviors: break (pause), captureAndContinue (collect variables then auto-resume), captureAndStopDebugging (terminate after hit). Default mode is singleShot: the tool terminates the session before returning so the model cannot accidentally run external curl/browser probes against a paused debuggee. If you need an interactive paused workflow, set mode=inspect.",
+        "modelDescription": "Start a debug session using the configured default launch configuration or an explicitly provided configurationName. Auto-selects sole launch config when none specified and no default setting is present. Defaults to 'singleShot' mode (safest), which runs the session, hits a breakpoint, collects data, and terminates automatically. Use 'inspect' mode to pause at a breakpoint for interactive debugging (must provide inspectJustification); while paused, use debugger tools (evaluateExpression) instead of external requests (curl) which may block. Supports 'serverReady' to automatically wait for app startup and trigger a request to hit your breakpoints. Breakpoints support path, code snippet, onHit behavior (break, captureAndContinue, captureAndStopDebugging), variableFilter, condition, and hitCount.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -147,7 +147,11 @@
                 "singleShot",
                 "inspect"
               ],
-              "description": "Tool mode. singleShot (default): terminate the session before returning. inspect: allow returning while paused for iterative inspection/resume workflows."
+              "description": "Tool mode. singleShot (default): terminate the session before returning. inspect: allow returning while paused for iterative inspection/resume workflows (requires inspectJustification)."
+            },
+            "inspectJustification": {
+              "type": "string",
+              "description": "Required when mode is 'inspect'. Explanation of why interactive inspection is needed instead of singleShot."
             },
             "breakpointConfig": {
               "type": "object",
@@ -171,16 +175,16 @@
                         "items": {
                           "type": "string"
                         },
-                        "description": "Required list of exact variable names to include when reporting variables for this breakpoint or for interpolation in captureAndContinue onHit. Use an empty array to opt into auto-capture (up to captureMaxVariables). Ignored for break/stopDebugging. Case-sensitive."
+                        "description": "Required list of exact variable names to include when reporting variables for this breakpoint or for interpolation in captureAndContinue onHit. Use an empty array to opt into auto-capture (up to captureMaxVariables). Ignored for break/captureAndStopDebugging. Case-sensitive."
                       },
                       "onHit": {
                         "type": "string",
                         "enum": [
                           "break",
                           "captureAndContinue",
-                          "stopDebugging"
+                          "captureAndStopDebugging"
                         ],
-                        "description": "Breakpoint onHit: break pauses and returns; captureAndContinue collects variables & interpolated log messages then resumes; stopDebugging terminates session after hit."
+                        "description": "Breakpoint onHit: break pauses and returns; captureAndContinue collects variables & interpolated log messages then resumes; captureAndStopDebugging collects variables then terminates session after hit."
                       },
                       "condition": {
                         "type": "string",
@@ -349,7 +353,7 @@
         "toolReferenceName": "resumeDebugSession",
         "canBeReferencedInPrompt": true,
         "userDescription": "Resume a paused debug session optionally adding new breakpoints. Breakpoints use the same contract as startDebugSessionWithBreakpoints (path + code snippet + onHit).",
-        "modelDescription": "Resume execution of the specified debug session. Optionally wait for next stop and set/clear breakpoints before continuing. Each new breakpoint specifies path + code snippet and optional condition/hitCount/logMessage; onHit supports break, captureAndContinue, stopDebugging.",
+        "modelDescription": "Resume execution of the specified debug session. Optionally wait for next stop and set/clear breakpoints before continuing. Each new breakpoint specifies path + code snippet and optional condition/hitCount/logMessage; onHit supports break, captureAndContinue, captureAndStopDebugging.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -388,7 +392,7 @@
                         "enum": [
                           "break",
                           "captureAndContinue",
-                          "stopDebugging"
+                          "captureAndStopDebugging"
                         ],
                         "description": "Breakpoint onHit behavior. Default break."
                       },

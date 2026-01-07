@@ -44,6 +44,10 @@ export interface StartDebuggerToolParameters {
    * - 'inspect': allow returning while paused so the caller can inspect state and resume.
    */
   mode?: 'singleShot' | 'inspect';
+  /**
+   * Required when mode is 'inspect'. Explanation of why interactive inspection is needed instead of singleShot.
+   */
+  inspectJustification?: string;
   breakpointConfig: BreakpointConfiguration;
   /**
    * Optional serverReady configuration.
@@ -73,9 +77,22 @@ export class StartDebuggerTool
       workspaceFolder,
       configurationName,
       mode,
+      inspectJustification,
       breakpointConfig,
       serverReady,
     } = options.input;
+
+    if (mode === 'inspect') {
+      if (
+        !inspectJustification ||
+        typeof inspectJustification !== 'string' ||
+        inspectJustification.trim().length === 0
+      ) {
+        return createTruncatedToolResult(
+          "Error: 'inspectJustification' is required when mode is 'inspect'. Please explain why interactive inspection is needed (e.g., 'Need to evaluate expression X which depends on variable Y')."
+        );
+      }
+    }
 
     try {
       // Direct invocation with new serverReady structure

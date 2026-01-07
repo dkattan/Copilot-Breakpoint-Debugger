@@ -1,3 +1,39 @@
+## [0.0.49] - 2026-01-07
+
+# Release 0.0.49
+
+## Summary
+
+This release introduces automatic step-over functionality and enhances debug session management with stable session IDs and improved tool integration. These improvements provide more reliable debugging experiences and better error handling.
+
+## New Features
+
+- **Automatic Step Over (`autoStepOver`)**: Added intelligent step-over functionality that automatically advances through code execution
+- **Stable Session IDs**: Debug sessions now maintain consistent, stable identifiers throughout their lifecycle for better tracking and management
+- **Enhanced Tool Integration**: Debug sessions now support `toolId` tracking for improved integration with external tools and better session resolution
+
+## Improvements
+
+- **Enhanced Debug Session Management**: Significant improvements to session lifecycle management with better error handling and state tracking
+- **Improved Stop Information**: Enhanced markdown formatting and display of breakpoint stop information with more detailed context
+- **Test Coverage**: Expanded test suite with new tests for debug session resolution and snippet breakpoints functionality
+
+## Bug Fixes
+
+- Improved error handling in debug session management to prevent edge cases and improve stability
+
+## Technical Details
+
+**Changed Files**: 16 files modified
+- Core session management improvements in `src/session.ts` (+147 lines)
+- Enhanced stop information display in `src/stopInfoMarkdown.ts` (+81 lines)
+- New test coverage for session resolution and breakpoint handling
+- Updated configuration and build settings
+
+**Commits**:
+- feat: autoStepOver + stable session ids ([4c100cc](https://github.com/darrenkattan/Copilot-Breakpoint-Debugger/commit/4c100cc))
+- feat: enhance debug session management with toolId and improved error handling ([5895491](https://github.com/darrenkattan/Copilot-Breakpoint-Debugger/commit/5895491))
+
 ## [0.0.48] - 2026-01-07
 
 # Release Notes - v0.0.48

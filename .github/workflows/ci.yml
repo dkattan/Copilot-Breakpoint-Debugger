@@ -6,8 +6,8 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  release-notes-smoke:
-    name: Release Notes (Smoke)
+  release-notes:
+    name: Release Notes
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ubuntu-latest
     permissions:
@@ -100,7 +100,7 @@ jobs:
       - name: Upload release notes artifact
         uses: actions/upload-artifact@v4
         with:
-          name: release-notes-smoke
+          name: release-notes
           path: |
             RELEASE_NOTES.md
 
@@ -148,7 +148,7 @@ jobs:
     name: Auto Release
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ubuntu-latest
-    needs: build-and-test
+    needs: [build-and-test, release-notes]
     permissions:
       contents: write
     outputs:
@@ -229,14 +229,18 @@ jobs:
             echo 'EOF'
           } >> $GITHUB_OUTPUT
 
-      - name: Generate Release Notes
+      - name: Download Release Notes artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+
+      - name: Update CHANGELOG from downloaded release notes
         run: npm run release:notes
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SKIP_LLM: 'true'
+          RELEASE_NOTES_FILE: RELEASE_NOTES.md
           VERSION: ${{ steps.version.outputs.version }}
           PREV_TAG: ${{ steps.version.outputs.previous_tag }}
-          COMMITS: ${{ steps.context.outputs.commits }}
-          STATS: ${{ steps.context.outputs.stats }}
 
       - name: Commit and Push Changes
         run: |

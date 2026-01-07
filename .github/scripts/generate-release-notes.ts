@@ -18,6 +18,13 @@ import process from "node:process";
 
 import { unstable_v2_prompt } from "@anthropic-ai/claude-agent-sdk";
 
+function isTruthyEnv(value: string | undefined): boolean {
+  if (!value) {
+    return false;
+  }
+  return ["1", "true", "yes", "y", "on"].includes(value.trim().toLowerCase());
+}
+
 function runGit(args: string[]): string {
   const res = spawnSync("git", args, { encoding: "utf8" });
   if (res.status !== 0) {
@@ -128,10 +135,11 @@ function updateChangelog(params: { version: string; content: string }): void {
 
 async function main(): Promise<void> {
   const workspaceRoot = process.env.GITHUB_WORKSPACE ?? process.cwd();
-  const apiKey = process.env.ANTHROPIC_API_KEY ?? process.env.ANTHROPIC_TOKEN;
+  const skipLlm = isTruthyEnv(process.env.SKIP_LLM);
   const model = process.env.ANTHROPIC_MODEL ?? "sonnet";
 
-  if (!apiKey) {
+  const apiKey = process.env.ANTHROPIC_API_KEY ?? process.env.ANTHROPIC_TOKEN;
+  if (!skipLlm && !apiKey) {
     console.error(
       "Missing Anthropic credentials: set ANTHROPIC_API_KEY (CI) or ANTHROPIC_TOKEN (local)"
     );
@@ -140,7 +148,7 @@ async function main(): Promise<void> {
 
   // Ensure the SDK can find credentials.
   // Claude Agent SDK reads ANTHROPIC_API_KEY, so map token if provided.
-  if (!process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_TOKEN) {
+  if (!skipLlm && !process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_TOKEN) {
     process.env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_TOKEN;
   }
 
@@ -170,6 +178,27 @@ async function main(): Promise<void> {
     const built = buildContext(prevTag);
     commits = built.commits;
     stats = built.stats;
+  }
+
+  if (skipLlm) {
+    const notesFile = (process.env.RELEASE_NOTES_FILE ?? "RELEASE_NOTES.md").trim();
+    if (!notesFile) {
+      throw new Error("SKIP_LLM=true requires RELEASE_NOTES_FILE (or a default RELEASE_NOTES.md)");
+    }
+    if (!fs.existsSync(notesFile)) {
+      throw new Error(
+        `SKIP_LLM=true requires an existing release notes file, but '${notesFile}' was not found.`
+      );
+    }
+
+    const content = fs.readFileSync(notesFile, "utf8");
+    fs.writeFileSync("RELEASE_NOTES.md", content);
+    updateChangelog({ version, content });
+
+    console.log(`SKIP_LLM=true: used existing '${notesFile}' to update outputs.`);
+    console.log("RELEASE_NOTES.md written.");
+    console.log("CHANGELOG.md updated.");
+    return;
   }
 
   const prompt = fillPromptTemplate({

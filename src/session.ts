@@ -14,6 +14,7 @@ import { config } from "./config";
 import { DAPHelpers, type DebugContext, type VariableInfo } from "./debugUtils";
 import {
   EntryStopTimeoutError,
+  getSessionCapabilities,
   getSessionExitCode,
   getSessionOutput,
   waitForDebuggerStopBySessionId,
@@ -174,6 +175,11 @@ export interface StartDebuggerStopInfo extends DebugContext {
   debuggerState: DebuggerStateSnapshot;
   protocol: CopilotDebuggerProtocol;
   runtimeOutput: RuntimeOutputPreview;
+  reason?: string;
+  exceptionInfo?: {
+    description: string;
+    details: string;
+  };
 }
 
 const buildProtocol = (
@@ -1121,6 +1127,82 @@ export interface StartDebuggingAndWaitForStopParams {
   useExistingBreakpoints?: boolean;
 }
 
+const configureExceptions = async (session: vscode.DebugSession) => {
+  // Wait a short moment for capabilities to be populated by the tracker
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
+  const capabilities = getSessionCapabilities(session.id) as {
+    exceptionBreakpointFilters?: Array<{
+      filter: string;
+      label: string;
+      default?: boolean;
+    }>;
+    supportsExceptionOptions?: boolean;
+  };
+  
+  if (!capabilities?.exceptionBreakpointFilters) {
+    logger.debug(`No exception breakpoint filters found for session ${session.id}`);
+    return;
+  }
+
+  // Exception breakpoint filters are adapter-defined IDs (Capabilities.exceptionBreakpointFilters[].filter).
+  // DAP does not standardize these IDs across adapters.
+  //
+  // When supportsExceptionOptions is false, the only portable control we have is `filters`, so we
+  // enable adapter-default filters plus a small set of commonly-used filter IDs *if the adapter
+  // advertises them*. This is NOT label parsing; it's exact ID matching against the adapter's own list.
+  const preferredExceptionFilterIds = new Set([
+    // Used by Microsoft vscode-js-debug (JavaScript) adapter via PauseOnExceptionsState.Uncaught.
+    // Source: https://raw.githubusercontent.com/microsoft/vscode-js-debug/main/src/adapter/exceptionPauseService.ts
+    // (also surfaced in capabilities: https://raw.githubusercontent.com/microsoft/vscode-js-debug/main/src/adapter/debugAdapter.ts)
+    "uncaught",
+    // Used by Microsoft debugpy (Python) adapter as "userUnhandled" (note casing).
+    // Source: https://raw.githubusercontent.com/microsoft/debugpy/main/src/debugpy/adapter/clients.py
+    "userunhandled",
+  ]);
+
+  const filtersToEnable = capabilities.exceptionBreakpointFilters
+    .filter((filter) => {
+      const filterId = filter.filter.toLowerCase();
+      return filter.default === true || preferredExceptionFilterIds.has(filterId);
+    })
+    .map((filter) => filter.filter);
+
+  try {
+    const supportsExceptionOptions = capabilities.supportsExceptionOptions === true;
+    const summaryParts: string[] = [];
+    if (filtersToEnable.length) {
+      summaryParts.push(`filters=[${filtersToEnable.join(", ")}]`);
+    } else {
+      summaryParts.push("filters=[]");
+    }
+    if (supportsExceptionOptions) {
+      summaryParts.push("exceptionOptions=[userUnhandled]");
+    } else {
+      summaryParts.push("exceptionOptions=<not supported>");
+    }
+
+    logger.info(
+      `Enabling exception breakpoints for session ${session.id}: ${summaryParts.join(
+        ", "
+      )}`
+    );
+
+    await session.customRequest("setExceptionBreakpoints", {
+      filters: filtersToEnable,
+      ...(supportsExceptionOptions
+        ? { exceptionOptions: [{ breakMode: "userUnhandled" }] }
+        : {}),
+    });
+  } catch (err) {
+    logger.warn(
+      `Failed to set exception breakpoints: ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    );
+  }
+};
+
 export const startDebuggingAndWaitForStop = async (
   params: StartDebuggingAndWaitForStopParams
 ): Promise<StartDebuggerStopInfo> => {
@@ -1313,7 +1395,7 @@ export const startDebuggingAndWaitForStop = async (
             method,
             headers,
             body,
-            timeoutMs: 5_000,
+            timeoutMs: 15_000,
             onDone: (statusCode) => {
               logger.info(
                 `serverReady httpRequest (${phase}) response status=${
@@ -2068,7 +2150,9 @@ export const startDebuggingAndWaitForStop = async (
   }
 
   taskTrackingArmed = true;
+
   const success = await vscode.debug.startDebugging(folder, resolvedConfig);
+
   taskTrackingArmed = false;
   if (!success) {
     const baseMessage = `Failed to start debug session '${effectiveSessionName}'.`;
@@ -2107,6 +2191,11 @@ export const startDebuggingAndWaitForStop = async (
     }
     enableTerminalPatternEvaluation();
     activeDebugPatternScan = scheduleDebugPatternScan(entryStop.session.id);
+
+    // Configure exception breakpoints as early as possible (now that we have the concrete session id),
+    // so uncaught exceptions can stop the debugger before the app terminates.
+    await configureExceptions(entryStop.session);
+
     const sessionId = entryStop.session.id;
     // Determine if entry stop is serverReady breakpoint
     // Tolerate serverReady breakpoint being the first ("entry") stop even if a user breakpoint
@@ -2153,10 +2242,52 @@ export const startDebuggingAndWaitForStop = async (
           }`
         );
       }
-      finalStop = await waitForDebuggerStopBySessionId({
+      const firstPostEntryStop = await waitForDebuggerStopBySessionId({
         sessionId,
         timeout: remainingMs,
       });
+
+      // Some adapters emit multiple early stops (often reported as 'breakpoint' rather than 'entry').
+      // Continue until we hit a requested breakpoint, an exception stop, or termination.
+      {
+        let nextStop: BreakpointHitInfo = firstPostEntryStop;
+        const loopStart = Date.now();
+        const maxHops = 10;
+        let hops = 0;
+        while (
+          nextStop.reason !== "terminated" &&
+          nextStop.reason !== "exception" &&
+          !(
+            typeof nextStop.line === "number" &&
+            validated.some((v) => v.resolvedLine === nextStop.line)
+          ) &&
+          hops < maxHops
+        ) {
+          hops++;
+          const elapsed = Date.now() - loopStart;
+          const remaining = Math.max(0, remainingMs - elapsed);
+          logger.debug(
+            `Continuing past non-user stop (reason=${nextStop.reason} line=${nextStop.line}); hop ${hops}/${maxHops}.`
+          );
+          try {
+            await nextStop.session.customRequest("continue", {
+              threadId: nextStop.threadId,
+            });
+          } catch (e) {
+            logger.warn(
+              `Failed to continue after non-user stop: ${
+                e instanceof Error ? e.message : String(e)
+              }`
+            );
+            break;
+          }
+          nextStop = await waitForDebuggerStopBySessionId({
+            sessionId,
+            timeout: remaining,
+          });
+        }
+        finalStop = nextStop;
+      }
     } else {
       finalStop = entryStop; // entry coincides with user breakpoint
     }
@@ -2438,6 +2569,8 @@ export const startDebuggingAndWaitForStop = async (
       debuggerState,
       protocol,
       runtimeOutput,
+      reason: finalStop.reason,
+      exceptionInfo: finalStop.exceptionInfo,
     };
   } catch (error) {
     taskTrackingArmed = false;
@@ -2595,9 +2728,28 @@ export const resumeDebugSession = async (params: {
         lines: number[];
       }>;
       for (const bp of breakpointConfig.breakpoints) {
-        const absPath = path.isAbsolute(bp.path)
-          ? bp.path
-          : path.join(workspaceFolder, bp.path);
+        let absPath: string;
+        if (path.isAbsolute(bp.path)) {
+          absPath = bp.path;
+        } else {
+          // Try to resolve relative path against session folder, then any workspace folder
+          const candidates = [
+            session.workspaceFolder?.uri.fsPath,
+            ...(vscode.workspace.workspaceFolders ?? []).map(f => f.uri.fsPath)
+          ].filter((p): p is string => !!p);
+
+          const found = candidates.find(base => fs.existsSync(path.join(base, bp.path)));
+          if (found) {
+            absPath = path.join(found, bp.path);
+          } else {
+            // Legacy determination
+            if (!workspaceFolder) {
+               throw new Error(`Cannot determine workspace folder for '${bp.path}'`); 
+            }
+            absPath = path.join(workspaceFolder, bp.path);
+          }
+        }
+
         if (!bp.code || !bp.code.trim()) {
           throw new Error(
             `Breakpoint for '${absPath}' is missing required 'code' snippet.`
@@ -2688,12 +2840,21 @@ export const resumeDebugSession = async (params: {
       if (path.isAbsolute(bp.path)) {
         absPath = bp.path;
       } else {
-        if (!workspaceFolder) {
-          throw new Error(
-            "Cannot determine workspace folder for breakpoint paths"
-          );
+        // Smart resolution to find correct workspace folder
+        const candidates = [
+          session.workspaceFolder?.uri.fsPath,
+          ...(vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath),
+        ].filter((p): p is string => !!p);
+
+        const found = candidates.find((base) =>
+          fs.existsSync(path.join(base, bp.path))
+        );
+        if (found) {
+          absPath = path.join(found, bp.path);
+        } else {
+          // Default resolution
+          absPath = path.join(workspaceFolder ?? candidates[0] ?? "", bp.path);
         }
-        absPath = path.join(workspaceFolder, bp.path);
       }
       if (normalizeFsPath(absPath) !== normalizedFramePath) {
         continue;
@@ -2811,5 +2972,7 @@ export const resumeDebugSession = async (params: {
     debuggerState,
     protocol,
     runtimeOutput,
+    reason: stopInfo.reason,
+    exceptionInfo: stopInfo.exceptionInfo,
   };
 };

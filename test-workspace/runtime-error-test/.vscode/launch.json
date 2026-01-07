@@ -10,6 +10,22 @@
       "console": "integratedTerminal"
     },
     {
+      "type": "node",
+      "request": "launch",
+      "name": "Node Exception Test",
+      "program": "${workspaceFolder}/exception.js",
+      "skipFiles": ["<node_internals>/**"],
+      "console": "integratedTerminal"
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Node Caught Exception Test",
+      "program": "${workspaceFolder}/caughtException.js",
+      "skipFiles": ["<node_internals>/**"],
+      "console": "integratedTerminal"
+    },
+    {
       "type": "PowerShell",
       "request": "launch",
       "name": "PowerShell Crash Test",

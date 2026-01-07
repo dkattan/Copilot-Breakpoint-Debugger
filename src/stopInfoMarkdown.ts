@@ -25,15 +25,14 @@ export const renderStopInfoMarkdown = (params: {
     reason: stopInfo.frame?.name,
   };
 
-  if (!stopInfo.hitBreakpoint) {
-    throw new TypeError(
-      "Hit breakpoint not identifiable; no frame/line correlation."
-    );
+  if (!stopInfo.hitBreakpoint && !stopInfo.exceptionInfo) {
+    // If we have neither a breakpoint match nor an exception, we just report generic stop.
+    // No throw.
   }
 
-  const onHit = stopInfo.hitBreakpoint.onHit ?? "break";
+  const onHit = stopInfo.hitBreakpoint?.onHit ?? "break";
 
-  const providedFilters = stopInfo.hitBreakpoint.variableFilter ?? [];
+  const providedFilters = stopInfo.hitBreakpoint?.variableFilter ?? [];
   const hasExplicitFilters = providedFilters.length > 0;
   let activeFilters: string[] = [...providedFilters];
   const maxAuto = config.captureMaxVariables ?? 40;
@@ -136,7 +135,16 @@ export const renderStopInfoMarkdown = (params: {
 
   const variableStr = variableTables.join("\n\n");
   const fileName = summary.file ? summary.file.split(/[/\\]/).pop() : "unknown";
-  const header = `Breakpoint ${fileName}:${summary.line} onHit=${onHit}`;
+  let header: string;
+  if (stopInfo.exceptionInfo) {
+    header = `Exception: ${stopInfo.exceptionInfo.description} (see Exception Details below)`;
+  } else if (stopInfo.hitBreakpoint) {
+    header = `Breakpoint ${fileName}:${summary.line} onHit=${onHit}`;
+  } else {
+    header = `Stopped: reason=${stopInfo.reason ?? "unknown"} at ${fileName}:${
+      summary.line
+    }`;
+  }
 
   let bodyVars: string;
   const totalVars = groupedVariables.reduce(
@@ -288,6 +296,16 @@ export const renderStopInfoMarkdown = (params: {
     return `Runtime Output (${qualifier}):\n${body}`;
   })();
 
+  const exceptionSection = (() => {
+    if (!stopInfo.exceptionInfo) {
+      return undefined;
+    }
+    return {
+      title: "Exception Details",
+      body: `**${stopInfo.exceptionInfo.description}**\n\n\`\`\`text\n${stopInfo.exceptionInfo.details}\n\`\`\``,
+    };
+  })();
+
   const sections: Array<{ title: string; body: string }> = [
     {
       title: "Summary",
@@ -295,6 +313,7 @@ export const renderStopInfoMarkdown = (params: {
         .filter((entry) => entry && entry.trim().length > 0)
         .join("\n"),
     },
+    exceptionSection ?? { title: "", body: "" },
     { title: "Vars", body: bodyVars },
     { title: "Logs", body: bodyLogs },
     { title: "Debugger State", body: debuggerStateLine },

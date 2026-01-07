@@ -15,6 +15,13 @@ interface DebugProtocolMessage {
   type: string;
 }
 
+interface DebugProtocolResponse extends DebugProtocolMessage {
+  type: 'response';
+  command: string;
+  success: boolean;
+  body?: unknown;
+}
+
 interface DebugProtocolEvent extends DebugProtocolMessage {
   type: 'event';
   event: string;
@@ -94,6 +101,16 @@ const sessionOutputBuffers = new Map<string, OutputLine[]>();
 // Per-session exit codes from DAP exited events
 const sessionExitCodes = new Map<string, number>();
 
+// Per-session capabilities from DAP initialize response
+const sessionCapabilities = new Map<string, unknown>();
+
+/**
+ * Get capabilities for a session
+ */
+export function getSessionCapabilities(sessionId: string): unknown | undefined {
+  return sessionCapabilities.get(sessionId);
+}
+
 // Register debug adapter tracker to monitor debug events
 useDisposable(
   vscode.debug.registerDebugAdapterTrackerFactory('*', {
@@ -133,6 +150,13 @@ useDisposable(
 
         async onDidSendMessage(message: DebugProtocolMessage): Promise<void> {
           // Log all messages sent from the debug adapter to VS Code
+          if (message.type === 'response') {
+            const response = message as DebugProtocolResponse;
+            if (response.command === 'initialize' && response.success) {
+              sessionCapabilities.set(session.id, response.body);
+            }
+          }
+
           if (message.type !== 'event') {
             return;
           }
@@ -199,7 +223,6 @@ useDisposable(
             const isEntry = body.reason === 'entry';
             // Entry stops often occur before the thread is fully paused; allow a few more attempts
             const retries = isEntry ? 5 : 3;
-            let lastError: unknown;
             let callStackData: DebugContext | undefined;
             for (let attempt = 0; attempt < retries; attempt++) {
               try {
@@ -210,47 +233,48 @@ useDisposable(
                   session,
                   body.threadId
                 );
-                if (!callStackData.frame?.source?.path) {
-                  throw new Error(
-                    `Top stack frame missing source path: ${JSON.stringify(
-                      callStackData.frame
-                    )}`
-                  );
-                }
+                // Some adapters report 'stopped' before a user-code frame exists (or before source paths
+                // are populated). For tool orchestration we primarily need the session id + thread id;
+                // higher-level code can retry context resolution once the adapter is fully paused.
                 // Success
                 break;
               } catch (err) {
-                lastError = err;
                 logger.debug(
                   `getDebugContext attempt ${attempt + 1} failed for thread ${
                     body.threadId
                   }: ${err instanceof Error ? err.message : String(err)}`
                 );
+
+                // If this was an entry stop and the thread isn't paused yet, treat it as an acceptable
+                // early entry signal. We only need the session id at this stage.
+                if (
+                  isEntry &&
+                  err instanceof Error &&
+                  (/not paused/i.test(err.message) ||
+                    /Invalid thread id/i.test(err.message))
+                ) {
+                  callStackData = undefined;
+                  break;
+                }
               }
             }
 
             if (!callStackData) {
-              // If this was an entry stop and the thread isn't paused yet, treat it as a transient pre-breakpoint state
-              if (
-                isEntry &&
-                lastError instanceof Error &&
-                (/not paused/i.test(lastError.message) ||
-                  /Invalid thread id/i.test(lastError.message))
-              ) {
-                logger.debug(
-                  `Ignoring early entry stop without call stack: ${lastError.message}`
-                );
-                return; // Do not emit error event; wait for a real breakpoint/step stop
-              }
-              throw new Error(
-                `Unable to retrieve call stack after ${retries} attempts for thread ${
-                  body.threadId
-                }: ${
-                  lastError instanceof Error
-                    ? lastError.message
-                    : String(lastError)
-                }`
+              // Emit a minimal stop event even without call stack info.
+              // This prevents timeouts when adapters report 'stopped' before threads/frames are ready.
+              const eventData: BreakpointHitInfo = {
+                session,
+                threadId: body.threadId,
+                reason: body.reason,
+                exceptionInfo: exceptionDetails,
+              };
+              logger.debug(
+                `Firing minimal stop event (no call stack yet): ${JSON.stringify(
+                  eventData
+                )}`
               );
+              breakpointEventEmitter.fire(eventData);
+              return;
             }
 
             const eventData: BreakpointHitInfo = {
@@ -349,6 +373,7 @@ export function getSessionExitCode(sessionId: string): number | undefined {
 export function clearSessionDiagnostics(sessionId: string): void {
   sessionOutputBuffers.delete(sessionId);
   sessionExitCodes.delete(sessionId);
+  sessionCapabilities.delete(sessionId);
 }
 
 // Legacy waitForDebuggerStop removed in favor of session id and entry specific helpers.

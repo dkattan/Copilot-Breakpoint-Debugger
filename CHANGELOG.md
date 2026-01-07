@@ -1,3 +1,35 @@
+## [0.0.46] - 2026-01-07
+
+# Release Notes - v0.0.46
+
+## Summary
+
+This release introduces a new tool for listing active debug sessions, improves the reliability of stopped-event handling, and refactors the API for stopping debug sessions. The release also includes significant enhancements to the TypeScript-based release notes generation and CI workflows.
+
+## New Features
+
+- **List Debug Sessions Tool**: Added `listDebugSessions` tool to query and display active debug sessions, making it easier to track multiple debugging contexts
+- **TypeScript Release Notes Generation**: Migrated release notes generation from JavaScript to TypeScript for better type safety and maintainability
+
+## Bug Fixes
+
+- **Hardened Stopped-Event Handling**: Improved robustness of stopped-event handling to prevent race conditions and ensure reliable breakpoint capture
+
+## Improvements
+
+- **API Refactoring**: Renamed `stopDebugging` to `captureAndStopDebugging` to better reflect its dual purpose, and added `inspectJustification` requirement for inspect mode to clarify debugging intent
+- **Enhanced CI Workflows**: Expanded CI configuration with additional checks and improved test coverage
+- **Test Suite Enhancements**: 
+  - Increased test timeouts across integration tests to reduce CI flakiness
+  - Added comprehensive tests for caught exceptions and runtime error handling
+  - Expanded server-ready tests and debug session mapping tests
+- **Improved Stop Info Display**: Enhanced markdown formatting for debug session stop information
+
+## Breaking Changes
+
+- **API Change**: The `stopDebugging` method has been renamed to `captureAndStopDebugging`. Code calling the old method name will need to be updated.
+- **Inspect Mode Requirement**: Inspect mode now requires an `inspectJustification` parameter to be provided.
+
 ## [0.0.45] - 2026-01-05
 
 ## 0.0.45 (2023-06-08)

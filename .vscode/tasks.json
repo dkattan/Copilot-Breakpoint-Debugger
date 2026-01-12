@@ -48,6 +48,23 @@
       "runOptions": {
         "runOn": "folderOpen"
       }
+    },
+    {
+      "label": "init-submodules",
+      "type": "shell",
+      "command": "git submodule update --init --recursive",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "silent",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "runOptions": {
+        "runOn": "folderOpen"
+      }
     }
   ]
 }

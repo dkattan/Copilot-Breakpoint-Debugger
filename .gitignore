@@ -8,3 +8,9 @@ coverage
 .nyc_output
 Issues.md
 *.vsixRELEASE_NOTES.md
+
+# Playwright demo artifacts (keep .ts sources only)
+playwright/**/*.js
+playwright/**/*.map
+playwright-demo.config.js
+playwright-demo.config.js.map

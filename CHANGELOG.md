@@ -115,7 +115,7 @@ This release introduces a new tool for listing active debug sessions, improves t
 
 ## Improvements
 
-- **API Refactoring**: Renamed `stopDebugging` to `captureAndStopDebugging` to better reflect its dual purpose, and added `inspectJustification` requirement for inspect mode to clarify debugging intent
+- **API Refactoring**: Renamed `stopDebugging` to `captureAndStopDebugging` to better reflect its dual purpose
 - **Enhanced CI Workflows**: Expanded CI configuration with additional checks and improved test coverage
 - **Test Suite Enhancements**: 
   - Increased test timeouts across integration tests to reduce CI flakiness
@@ -126,7 +126,7 @@ This release introduces a new tool for listing active debug sessions, improves t
 ## Breaking Changes
 
 - **API Change**: The `stopDebugging` method has been renamed to `captureAndStopDebugging`. Code calling the old method name will need to be updated.
-- **Inspect Mode Requirement**: Inspect mode now requires an `inspectJustification` parameter to be provided.
+
 
 ## [0.0.45] - 2026-01-05
 

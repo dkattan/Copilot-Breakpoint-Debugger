@@ -251,8 +251,6 @@ function registerTools(context: vscode.ExtensionContext) {
           workspaceFolder: "/abs/path/project",
           configurationName: "Run test.js",
           mode: "inspect",
-          inspectJustification:
-            "Need to keep the debug session paused to interactively evaluate expressions and inspect variables after the breakpoint is hit.",
           breakpointConfig: {
             breakpoints: [
               {

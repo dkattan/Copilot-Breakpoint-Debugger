@@ -13,6 +13,7 @@ describe("build diagnostics integration tests", () => {
     "../../test-workspace/build-error-test"
   );
 
+
   it("should capture build errors from problem matcher when preLaunchTask fails", async function () {
     this.timeout(60000);
 
@@ -65,9 +66,10 @@ describe("build diagnostics integration tests", () => {
     // Verify error message contains build diagnostics
     const errorMsg = caughtError!.message;
     assert.ok(
-      errorMsg.includes("terminated before hitting entry") ||
+      errorMsg.includes("preLaunchTask") ||
+        errorMsg.includes("terminated before hitting entry") ||
         errorMsg.includes("Failed to start debug session"),
-      `Error should mention entry stop failure or start failure. Got: ${errorMsg}`
+      `Error should mention preLaunchTask failure, entry stop failure, or start failure. Got: ${errorMsg}`
     );
 
     // The error message should mention diagnostics or task failure
@@ -173,6 +175,77 @@ describe("build diagnostics integration tests", () => {
       const msg = diag.message;
       assert.ok(msg.length > 0, "Diagnostic message should not be empty");
     }
+  });
+
+  it("should include preLaunchTask stdout in error message when preLaunchTask fails", async function () {
+    this.timeout(60000);
+
+    const workspaceFolder = vscode.workspace.workspaceFolders?.find(
+      (f) => f.uri.fsPath === testWorkspaceRoot
+    );
+
+    if (!workspaceFolder) {
+      this.skip();
+      return;
+    }
+
+    // Configure debug.onTaskErrors to abort to prevent dialogs in tests
+    const debugConfig = vscode.workspace.getConfiguration("debug");
+    await debugConfig.update(
+      "onTaskErrors",
+      "abort",
+      vscode.ConfigurationTarget.Workspace
+    );
+
+    // Ensure terminal shell integration is enabled so task output is observable via
+    // window.onDidStartTerminalShellExecution / onDidEndTerminalShellExecution.
+    const terminalConfig = vscode.workspace.getConfiguration("terminal.integrated");
+    await terminalConfig.update(
+      "shellIntegration.enabled",
+      true,
+      vscode.ConfigurationTarget.Workspace
+    );
+
+    let caughtError: Error | undefined;
+    try {
+      const docUri = vscode.Uri.file(
+        path.join(testWorkspaceRoot, "good.js")
+      );
+      const openedDoc = await vscode.workspace.openTextDocument(docUri);
+      const breakpointSnippet = openedDoc.lineAt(0).text.trim(); // 1-based line 1
+
+      await startDebuggingAndWaitForStop({
+        sessionName: "Build Error Stdout Test Session",
+        workspaceFolder: workspaceFolder.uri.fsPath,
+        breakpointConfig: {
+          breakpoints: [
+            {
+              path: "good.js",
+              code: breakpointSnippet,
+              onHit: "break",
+              variableFilter: ["process"],
+            },
+          ],
+        },
+        nameOrConfiguration: "Build Error Stdout Test",
+        timeoutSeconds: 45,
+      });
+    } catch (error) {
+      caughtError = error as Error;
+    }
+
+    assert.ok(caughtError, "Should throw error when preLaunchTask fails");
+
+    const errorMsg = caughtError!.message;
+    assert.ok(
+      errorMsg.includes("Build error on stdout"),
+      `Error message should include failing preLaunchTask stdout. Got: ${errorMsg}`
+    );
+
+    assert.ok(
+      errorMsg.includes("sh: fail build on stdout"),
+      `Error message should mention the failing task label. Got: ${errorMsg}`
+    );
   });
 
   it("should respect maxBuildErrors configuration", async function () {

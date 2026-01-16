@@ -14,3 +14,10 @@ playwright/**/*.js
 playwright/**/*.map
 playwright-demo.config.js
 playwright-demo.config.js.map
+
+# Local caches for signed-in Playwright demo runs
+.tmp/
+
+# Local Playwright Test Explorer env
+.env.playwright
+test-results

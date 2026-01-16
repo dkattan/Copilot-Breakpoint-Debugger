@@ -9,6 +9,15 @@
       "program": "${workspaceFolder}/broken.ts",
       "outFiles": ["${workspaceFolder}/out/**/*.js"],
       "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Build Error Stdout Test",
+      "preLaunchTask": "sh: fail build on stdout",
+      "program": "${workspaceFolder}/good.js",
+      "skipFiles": ["<node_internals>/**"],
+      "console": "internalConsole"
     }
   ]
 }

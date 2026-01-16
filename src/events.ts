@@ -466,6 +466,8 @@ export const waitForEntryStop = async (params: {
   return await new Promise<BreakpointHitInfo>((resolve, reject) => {
     let terminateListener: vscode.Disposable | undefined; // not strictly needed for entry but keep symmetry
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    let lateStartCleanup: vscode.Disposable | undefined;
+    let lateStartCleanupTimer: ReturnType<typeof setTimeout> | undefined;
     const excludeSet = new Set(excludeSessionIds);
     const listener = onBreakpointHit((event) => {
       // Ignore events for sessions that existed before launch (excludeSet)
@@ -505,6 +507,32 @@ export const waitForEntryStop = async (params: {
       listener.dispose();
       terminateListener?.dispose();
       timeoutHandle = undefined;
+
+      // Cleanup safety net: if a debug session starts shortly AFTER we time out
+      // (a known race when startDebugging is slow to create the session), stop it
+      // so it can't interfere with subsequent tool invocations/tests.
+      // This is best-effort cleanup only and does not affect the timeout result.
+      lateStartCleanup?.dispose();
+      lateStartCleanupTimer && clearTimeout(lateStartCleanupTimer);
+      lateStartCleanupTimer = setTimeout(() => {
+        lateStartCleanup?.dispose();
+        lateStartCleanup = undefined;
+        lateStartCleanupTimer = undefined;
+      }, 10_000);
+      lateStartCleanup = vscode.debug.onDidStartDebugSession((session) => {
+        if (excludeSet.has(session.id)) {
+          return;
+        }
+        lateStartCleanup?.dispose();
+        lateStartCleanup = undefined;
+        lateStartCleanupTimer && clearTimeout(lateStartCleanupTimer);
+        lateStartCleanupTimer = undefined;
+        void vscode.debug.stopDebugging(session);
+        logger.warn(
+          `Stopped debug session '${session.name}' (${session.id}) that started after entry timeout.`
+        );
+      });
+
       const candidateSessions = activeSessions.filter(
         (session) => !excludeSet.has(session.id)
       );

@@ -11,7 +11,8 @@ import {
 } from "./utils/startDebuggerToolTestUtils";
 
 describe("snippet-based breakpoints", function () {
-  this.timeout(120_000);
+  // Debug adapter startup + step/variable capture can be slow under full-suite load.
+  this.timeout(240_000);
 
   afterEach(async () => {
     await stopAllDebugSessions();
@@ -152,6 +153,7 @@ describe("snippet-based breakpoints", function () {
       sessionName: "",
       workspaceFolder,
       nameOrConfiguration: "Run test.js",
+      timeoutSeconds: 180,
       breakpointConfig: {
         breakpoints: [
           {

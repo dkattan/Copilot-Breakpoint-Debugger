@@ -465,6 +465,7 @@ interface TaskCompletionResult {
   name: string;
   exitCode?: number;
   outputLines: string[];
+  taskExecution?: vscode.TaskExecution;
 }
 
 const missingCommandPatterns = [
@@ -852,6 +853,11 @@ const isTscCommand = (command: string) => {
   return normalized === "tsc" || normalized === "tsc.cmd";
 };
 
+const isNodeCommand = (command: string) => {
+  const normalized = path.basename(command).toLowerCase();
+  return normalized === "node" || normalized === "node.exe";
+};
+
 const trimWrappedQuotes = (value: string) => {
   if (
     (value.startsWith('"') && value.endsWith('"')) ||
@@ -898,14 +904,28 @@ const runCommandForDiagnostics = (
   let resolvedCommand = command;
   let resolvedArgs = args;
   let routedToTypescript = false;
-  if (typescriptCliPath && isTscCommand(command)) {
+  if (isNodeCommand(command) && !/[\\/\s]/.test(command)) {
+    // In extension hosts (especially during tests), PATH can be restricted.
+    // Use the Node runtime running the extension host to make diagnostic capture deterministic.
+    resolvedCommand = process.execPath;
+  } else if (typescriptCliPath && isTscCommand(command)) {
     resolvedCommand = process.execPath;
     resolvedArgs = [typescriptCliPath, ...args];
     routedToTypescript = true;
   } else {
     resolvedCommand = resolveCommandFromBins(command, binDirs) ?? command;
   }
-  const direct = spawnSync(resolvedCommand, resolvedArgs, options);
+
+  // In VS Code extension hosts (especially test runs), process.execPath may include spaces and
+  // parentheses (e.g. "Code Helper (Plugin)"). If we pass shell:true, Node wraps in /bin/sh -c
+  // and the unquoted parens cause syntax errors. When we explicitly route to process.execPath,
+  // always run it directly without a shell.
+  const effectiveOptions =
+    options?.shell === true && resolvedCommand === process.execPath
+      ? { ...options, shell: false }
+      : options;
+
+  const direct = spawnSync(resolvedCommand, resolvedArgs, effectiveOptions);
   if (routedToTypescript || !shouldRetryWithNpx(command, direct)) {
     return direct;
   }
@@ -955,15 +975,18 @@ const captureShellExecutionOutput = (
   const cwd = resolveCwd(execution.options?.cwd, baseCwd);
   const binDirs = collectNodeBinDirs(baseCwd);
   const env = mergeEnv(baseCwd, execution.options?.env, binDirs);
+  const workspaceFolderVar = "$" + "{workspaceFolder}";
+  const substitute = (value: string) => value.replaceAll(workspaceFolderVar, baseCwd);
   let result: ReturnType<typeof spawnSync> | undefined;
   if (execution.command) {
     const command =
       typeof execution.command === "string"
-        ? execution.command
+        ? substitute(execution.command)
         : execution.command.value;
-    const args = (execution.args || []).map((arg) =>
-      typeof arg === "string" ? arg : arg.value
-    );
+    const args = (execution.args || []).map((arg) => {
+      const raw = typeof arg === "string" ? arg : arg.value;
+      return substitute(raw);
+    });
     result = runCommandForDiagnostics(
       command,
       args,
@@ -977,11 +1000,11 @@ const captureShellExecutionOutput = (
       binDirs
     );
   } else if (execution.commandLine) {
-    const parsed = parseShellCommandLine(execution.commandLine);
+    const parsed = parseShellCommandLine(substitute(execution.commandLine));
     if (parsed) {
       result = runCommandForDiagnostics(
-        parsed.command,
-        parsed.args,
+        substitute(parsed.command),
+        parsed.args.map((arg) => substitute(arg)),
         {
           cwd,
           env,
@@ -1018,9 +1041,11 @@ const captureProcessExecutionOutput = (
   const cwd = resolveCwd(execution.options?.cwd, baseCwd);
   const binDirs = collectNodeBinDirs(baseCwd);
   const env = mergeEnv(baseCwd, execution.options?.env, binDirs);
+  const workspaceFolderVar = "$" + "{workspaceFolder}";
+  const substitute = (value: string) => value.replaceAll(workspaceFolderVar, baseCwd);
   const result = runCommandForDiagnostics(
-    execution.process,
-    execution.args || [],
+    substitute(execution.process),
+    (execution.args || []).map((arg) => substitute(String(arg))),
     {
       cwd,
       env,
@@ -1082,6 +1107,126 @@ const captureTaskOutputLines = (
   return [];
 };
 
+const captureTaskOutputLinesAsync = async (
+  taskExecution: vscode.TaskExecution,
+  baseCwd: string
+): Promise<string[]> => {
+  const direct = captureTaskOutputLines(taskExecution, baseCwd);
+  if (direct.length > 0) {
+    return direct;
+  }
+
+  // Task executions may not expose enough execution detail (or may be a non-shell execution type).
+  // When direct capture yields no output, resolve the original task definition and try again.
+
+  try {
+    const allTasks = await vscode.tasks.fetchTasks();
+    const scope = taskExecution.task.scope;
+    const scopedTasks = allTasks.filter((candidate) => {
+      if (candidate.name !== taskExecution.task.name) {
+        return false;
+      }
+      if (typeof scope === "number") {
+        return candidate.scope === scope;
+      }
+      if (scope && typeof scope === "object") {
+        return (
+          candidate.scope &&
+          typeof candidate.scope === "object" &&
+          candidate.scope.uri.fsPath === scope.uri.fsPath
+        );
+      }
+      return true;
+    });
+
+    const resolvedTask = scopedTasks.length
+      ? scopedTasks[0]
+      : allTasks.find((candidate) => candidate.name === taskExecution.task.name);
+    const resolvedExecution = resolvedTask?.execution;
+    if (!resolvedExecution) {
+      // Fall through to tasks.json parsing below.
+    } else {
+      const isShellExecution = (
+        candidate: typeof resolvedExecution
+      ): candidate is vscode.ShellExecution => {
+        const shellCandidate = candidate as vscode.ShellExecution;
+        return (
+          typeof shellCandidate.commandLine === "string" ||
+          typeof shellCandidate.command !== "undefined"
+        );
+      };
+      const isProcessExecution = (
+        candidate: typeof resolvedExecution
+      ): candidate is vscode.ProcessExecution => {
+        return typeof (candidate as vscode.ProcessExecution).process === "string";
+      };
+      if (isShellExecution(resolvedExecution)) {
+        return captureShellExecutionOutput(resolvedExecution, baseCwd);
+      }
+      if (isProcessExecution(resolvedExecution)) {
+        return captureProcessExecutionOutput(resolvedExecution, baseCwd);
+      }
+    }
+  } catch (err) {
+    logger.warn(
+      `Failed to resolve task definition for output capture (${taskExecution.task.name}): ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    );
+  }
+
+  // Deterministic capture: parse .vscode/tasks.json for this workspace folder.
+  // This helps in VS Code test environments where task execution details can be unavailable.
+  try {
+    const tasksJsonPath = path.join(baseCwd, ".vscode", "tasks.json");
+    if (!fs.existsSync(tasksJsonPath)) {
+      return [];
+    }
+    const raw = fs.readFileSync(tasksJsonPath, "utf-8");
+    const parsed = JSON.parse(raw) as {
+      tasks?: Array<{
+        label?: string;
+        command?: string;
+        args?: unknown[];
+      }>;
+    };
+    const task = parsed.tasks?.find((t) => t.label === taskExecution.task.name);
+    if (!task?.command) {
+      return [];
+    }
+    const workspaceFolderVar = "$" + "{workspaceFolder}";
+    const substitute = (value: string) => value.replaceAll(workspaceFolderVar, baseCwd);
+    const command = substitute(task.command);
+    const args = (task.args ?? []).map((arg) => substitute(String(arg)));
+    const binDirs = collectNodeBinDirs(baseCwd);
+    const env = mergeEnv(baseCwd, undefined, binDirs);
+    const result = runCommandForDiagnostics(
+      command,
+      args,
+      {
+        cwd: baseCwd,
+        env,
+        shell: process.platform === "win32",
+        encoding: "utf-8",
+        maxBuffer: 1024 * 1024,
+      },
+      binDirs
+    );
+    const lines = [
+      ...sanitizeTaskOutput(coerceOutput(result.stdout)),
+      ...sanitizeTaskOutput(coerceOutput(result.stderr)),
+    ];
+    return lines.slice(-MAX_CAPTURED_TASK_OUTPUT_LINES);
+  } catch (err) {
+    logger.warn(
+      `Failed to capture task output via tasks.json (${taskExecution.task.name}): ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    );
+  }
+  return [];
+};
+
 const monitorTask = (
   taskExecution: vscode.TaskExecution,
   baseCwd: string
@@ -1115,13 +1260,37 @@ const monitorTask = (
       vscode.tasks.onDidEndTaskProcess((event) => {
         if (event.execution === taskExecution) {
           const exitCode = event.exitCode ?? undefined;
+          if (typeof exitCode === "number" && exitCode !== 0) {
+            captureTaskOutputLinesAsync(taskExecution, baseCwd)
+              .then((outputLines) => {
+                complete({
+                  name: taskExecution.task.name,
+                  exitCode,
+                  outputLines,
+                  taskExecution,
+                });
+              })
+              .catch((err) => {
+                logger.warn(
+                  `Failed to capture task output for ${taskExecution.task.name}: ${
+                    err instanceof Error ? err.message : String(err)
+                  }`
+                );
+                complete({
+                  name: taskExecution.task.name,
+                  exitCode,
+                  outputLines: [],
+                  taskExecution,
+                });
+              });
+            return;
+          }
+
           complete({
             name: taskExecution.task.name,
             exitCode,
-            outputLines:
-              typeof exitCode === "number" && exitCode !== 0
-                ? captureTaskOutputLines(taskExecution, baseCwd)
-                : [],
+            outputLines: [],
+            taskExecution,
           });
         }
       })
@@ -1130,11 +1299,23 @@ const monitorTask = (
     disposables.push(
       vscode.tasks.onDidEndTask((event) => {
         if (event.execution === taskExecution) {
-          complete({
-            name: taskExecution.task.name,
-            exitCode: undefined,
-            outputLines: [],
-          });
+          captureTaskOutputLinesAsync(taskExecution, baseCwd)
+            .then((outputLines) => {
+              complete({
+                name: taskExecution.task.name,
+                exitCode: outputLines.length ? 1 : undefined,
+                outputLines,
+                taskExecution,
+              });
+            })
+            .catch(() => {
+              complete({
+                name: taskExecution.task.name,
+                exitCode: undefined,
+                outputLines: [],
+                taskExecution,
+              });
+            });
         }
       })
     );
@@ -1221,6 +1402,222 @@ export interface StartDebuggingAndWaitForStopParams {
    */
   useExistingBreakpoints?: boolean;
 }
+
+const runPreLaunchTaskFromTasksJson = (
+  workspaceFolderFsPath: string,
+  taskLabel: string
+): { exitCode: number | undefined; outputLines: string[] } => {
+  const tasksJsonPath = path.join(workspaceFolderFsPath, ".vscode", "tasks.json");
+  if (!fs.existsSync(tasksJsonPath)) {
+    return { exitCode: undefined, outputLines: [] };
+  }
+  const raw = fs.readFileSync(tasksJsonPath, "utf-8");
+  const parsed = JSON.parse(raw) as {
+    tasks?: Array<{
+      label?: string;
+      type?: string;
+      command?: string;
+      args?: unknown[];
+    }>;
+  };
+  const task = parsed.tasks?.find((t) => t.label === taskLabel);
+  if (!task?.command) {
+    return { exitCode: undefined, outputLines: [] };
+  }
+
+  const workspaceFolderVar = "$" + "{workspaceFolder}";
+  const substitute = (value: string) =>
+    value.replaceAll(workspaceFolderVar, workspaceFolderFsPath);
+
+  const command = substitute(task.command);
+  const args = (task.args ?? []).map((arg) => substitute(String(arg)));
+  const binDirs = collectNodeBinDirs(workspaceFolderFsPath);
+  const env = mergeEnv(workspaceFolderFsPath, undefined, binDirs);
+
+  // Shell tasks commonly encode a full command line in `command` (e.g. "sleep 5").
+  // When we run them ourselves, we must use a shell so the string is interpreted.
+  const taskType = typeof task.type === "string" ? task.type.toLowerCase() : "";
+  const useShell = taskType === "shell" ? true : process.platform === "win32";
+
+  const result = runCommandForDiagnostics(
+    command,
+    args,
+    {
+      cwd: workspaceFolderFsPath,
+      env,
+      shell: useShell,
+      encoding: "utf-8",
+      maxBuffer: 1024 * 1024,
+    },
+    binDirs
+  );
+
+  const outputLines = [
+    ...sanitizeTaskOutput(coerceOutput(result.stdout)),
+    ...sanitizeTaskOutput(coerceOutput(result.stderr)),
+  ].slice(-MAX_CAPTURED_TASK_OUTPUT_LINES);
+
+  const exitCode =
+    typeof result.status === "number" ? result.status : result.error ? 1 : undefined;
+
+  return { exitCode, outputLines };
+};
+
+const runPreLaunchTaskFromVscodeTasks = async (params: {
+  workspaceFolderFsPath: string;
+  folder: vscode.WorkspaceFolder;
+  taskLabel: string;
+}): Promise<{ exitCode: number | undefined; outputLines: string[] }> => {
+  const { workspaceFolderFsPath, folder, taskLabel } = params;
+  const tasks = await vscode.tasks.fetchTasks();
+  const matches = tasks.filter((task) => {
+    if (task.name !== taskLabel) {
+      return false;
+    }
+    const scope = task.scope;
+    if (!scope || typeof scope !== "object") {
+      return false;
+    }
+    const scopedFolder = scope as vscode.WorkspaceFolder;
+    return scopedFolder.uri.fsPath === folder.uri.fsPath;
+  });
+  if (matches.length === 0) {
+    return { exitCode: undefined, outputLines: [] };
+  }
+  if (matches.length > 1) {
+    throw new Error(
+      `preLaunchTask '${taskLabel}' is ambiguous: found ${matches.length} tasks with the same name.`
+    );
+  }
+  const task = matches[0];
+  const execution = task.execution as
+    | vscode.ShellExecution
+    | vscode.ProcessExecution
+    | undefined;
+  if (!execution) {
+    return { exitCode: undefined, outputLines: [] };
+  }
+
+  const binDirs = collectNodeBinDirs(workspaceFolderFsPath);
+  const env = mergeEnv(
+    workspaceFolderFsPath,
+    // VS Code task env is additive; mergeEnv already layers process.env + provided overrides.
+    (execution.options?.env as Record<string, string> | undefined) ?? undefined,
+    binDirs
+  );
+
+  // Prefer the cwd requested by the task, otherwise the workspace folder.
+  const cwd = execution.options?.cwd
+    ? path.isAbsolute(execution.options.cwd)
+      ? execution.options.cwd
+      : path.join(workspaceFolderFsPath, execution.options.cwd)
+    : workspaceFolderFsPath;
+
+  // ShellExecution in VS Code may be represented as commandLine or command+args.
+  const asAny = execution as unknown as Record<string, unknown>;
+  const commandLine =
+    typeof asAny.commandLine === "string" ? (asAny.commandLine as string) : undefined;
+  if (commandLine && commandLine.trim()) {
+    const result = runCommandForDiagnostics(
+      commandLine,
+      [],
+      {
+        cwd,
+        env,
+        shell: true,
+        encoding: "utf-8",
+        maxBuffer: 1024 * 1024,
+      },
+      binDirs
+    );
+    const outputLines = [
+      ...sanitizeTaskOutput(coerceOutput(result.stdout)),
+      ...sanitizeTaskOutput(coerceOutput(result.stderr)),
+    ].slice(-MAX_CAPTURED_TASK_OUTPUT_LINES);
+    const exitCode =
+      typeof result.status === "number" ? result.status : result.error ? 1 : undefined;
+    return { exitCode, outputLines };
+  }
+
+  const shellCommand = (execution as vscode.ShellExecution).command;
+  const shellArgs = ((execution as vscode.ShellExecution).args ?? []).map((arg) => String(arg));
+  if (shellCommand) {
+    const result = runCommandForDiagnostics(
+      String(shellCommand),
+      shellArgs,
+      {
+        cwd,
+        env,
+        shell: process.platform === "win32",
+        encoding: "utf-8",
+        maxBuffer: 1024 * 1024,
+      },
+      binDirs
+    );
+    const outputLines = [
+      ...sanitizeTaskOutput(coerceOutput(result.stdout)),
+      ...sanitizeTaskOutput(coerceOutput(result.stderr)),
+    ].slice(-MAX_CAPTURED_TASK_OUTPUT_LINES);
+    const exitCode =
+      typeof result.status === "number" ? result.status : result.error ? 1 : undefined;
+    return { exitCode, outputLines };
+  }
+
+  const processCommand = (execution as vscode.ProcessExecution).process;
+  const processArgs = ((execution as vscode.ProcessExecution).args ?? []).map((arg) => String(arg));
+  if (processCommand) {
+    const result = runCommandForDiagnostics(
+      String(processCommand),
+      processArgs,
+      {
+        cwd,
+        env,
+        shell: false,
+        encoding: "utf-8",
+        maxBuffer: 1024 * 1024,
+      },
+      binDirs
+    );
+    const outputLines = [
+      ...sanitizeTaskOutput(coerceOutput(result.stdout)),
+      ...sanitizeTaskOutput(coerceOutput(result.stderr)),
+    ].slice(-MAX_CAPTURED_TASK_OUTPUT_LINES);
+    const exitCode =
+      typeof result.status === "number" ? result.status : result.error ? 1 : undefined;
+    return { exitCode, outputLines };
+  }
+
+  return { exitCode: undefined, outputLines: [] };
+};
+
+const runPreLaunchTaskManually = async (params: {
+  workspaceFolderFsPath: string;
+  folder: vscode.WorkspaceFolder;
+  taskLabel: string;
+}): Promise<{ exitCode: number | undefined; outputLines: string[] }> => {
+  const { workspaceFolderFsPath, folder, taskLabel } = params;
+
+  const fromTasksJson = runPreLaunchTaskFromTasksJson(workspaceFolderFsPath, taskLabel);
+  if (
+    typeof fromTasksJson.exitCode === "number" ||
+    fromTasksJson.outputLines.length > 0
+  ) {
+    return fromTasksJson;
+  }
+
+  const fromVscode = await runPreLaunchTaskFromVscodeTasks({
+    workspaceFolderFsPath,
+    folder,
+    taskLabel,
+  });
+  if (typeof fromVscode.exitCode === "number" || fromVscode.outputLines.length > 0) {
+    return fromVscode;
+  }
+
+  throw new Error(
+    `preLaunchTask '${taskLabel}' could not be resolved to a runnable task. Ensure it exists in .vscode/tasks.json (with a command) or is discoverable via VS Code tasks.`
+  );
+};
 
 const configureExceptions = async (session: vscode.DebugSession) => {
   // Wait a short moment for capabilities to be populated by the tracker
@@ -2134,24 +2531,58 @@ export const startDebuggingAndWaitForStop = async (
       folder.uri,
       effectiveMaxBuildErrors
     );
+    const terminalLinesSnapshot = terminalCapture.snapshot();
     const taskResults = await Promise.all(trackedTaskPromises);
+    const taskResultsWithTerminalOutput = taskResults.map((result) => {
+      if (
+        typeof result.exitCode === "number" &&
+        result.exitCode !== 0 &&
+        result.outputLines.length === 0 &&
+        terminalLinesSnapshot.length > 0
+      ) {
+        return {
+          ...result,
+          outputLines: terminalLinesSnapshot,
+        };
+      }
+      return result;
+    });
     const shouldCaptureTypescriptCli =
       !!typescriptCliPath &&
-      taskResults.some((result) => result.name.toLowerCase().includes("tsc")) &&
-      taskResults.every((result) => result.outputLines.length === 0);
+      taskResultsWithTerminalOutput.some((result) =>
+        result.name.toLowerCase().includes("tsc")
+      ) &&
+      taskResultsWithTerminalOutput.every(
+        (result) => result.outputLines.length === 0
+      );
     const typescriptCliLines = shouldCaptureTypescriptCli
       ? collectTypescriptCliOutput(folderFsPath)
       : [];
     const augmentedTaskResults = typescriptCliLines.length
-      ? [
-          {
+      ? (() => {
+          const updated = [...taskResultsWithTerminalOutput];
+          const index = updated.findIndex((result) =>
+            result.name.toLowerCase().includes("tsc")
+          );
+          if (index >= 0 && updated[index].outputLines.length === 0) {
+            const existing = updated[index];
+            updated[index] = {
+              ...existing,
+              exitCode:
+                typeof existing.exitCode === "number" ? existing.exitCode : 1,
+              outputLines: typescriptCliLines,
+            };
+            return updated;
+          }
+          // If we can't attribute the output to a specific task, include it as its own entry.
+          updated.push({
             name: "TypeScript CLI (--noEmit)",
             exitCode: 1,
             outputLines: typescriptCliLines,
-          } as TaskCompletionResult,
-          ...taskResults,
-        ]
-      : taskResults;
+          } as TaskCompletionResult);
+          return updated;
+        })()
+      : taskResultsWithTerminalOutput;
     const trackedAnyTasks = trackedTaskPromises.length > 0;
     const hasTaskFailures = augmentedTaskResults.some(
       (result) => typeof result.exitCode === "number" && result.exitCode !== 0
@@ -2160,8 +2591,29 @@ export const startDebuggingAndWaitForStop = async (
     if (!hasTaskFailures && !hasDiagnostics) {
       return undefined;
     }
+
+    // Ensure we have best-effort stdout/stderr for any failed tasks.
+    // Some task execution modes do not expose execution details until after completion;
+    // capturing here reduces flakiness in error reporting.
+    const finalizedTaskResults = await Promise.all(
+      augmentedTaskResults.map(async (result) => {
+        if (
+          typeof result.exitCode === "number" &&
+          result.exitCode !== 0 &&
+          result.outputLines.length === 0 &&
+          result.taskExecution
+        ) {
+          const outputLines = await captureTaskOutputLinesAsync(
+            result.taskExecution,
+            folderFsPath
+          );
+          return outputLines.length ? { ...result, outputLines } : result;
+        }
+        return result;
+      })
+    );
     const diagnosticText = formatBuildErrors(diagnostics);
-    const taskFailureText = formatTaskFailures(augmentedTaskResults);
+    const taskFailureText = formatTaskFailures(finalizedTaskResults);
     return `${baseMessage}\n${diagnosticText}${taskFailureText}`
       .trim()
       .replace(/\n{3,}/g, "\n\n");
@@ -2172,6 +2624,7 @@ export const startDebuggingAndWaitForStop = async (
       : typeof settingTimeout === "number" && settingTimeout > 0
       ? settingTimeout
       : 60;
+  let entryStopTimeoutMs = effectiveTimeoutSeconds * 1000;
 
   // Resolve launch configuration name: provided -> setting -> single config auto-select
   let effectiveLaunchName = nameOrConfiguration;
@@ -2206,6 +2659,48 @@ export const startDebuggingAndWaitForStop = async (
   // Always force stopOnEntry true (adapter may ignore)
   (resolvedConfig as Record<string, unknown>).stopOnEntry = true;
 
+  // Always run preLaunchTask manually so we can deterministically capture stdout/stderr.
+  // After a successful run, remove it from the resolved config to prevent VS Code from running it again.
+  const preLaunchTask = (resolvedConfig as Record<string, unknown>).preLaunchTask;
+  if (typeof preLaunchTask === "string" && preLaunchTask.trim()) {
+    const preLaunchStart = Date.now();
+    const run = await runPreLaunchTaskManually({
+      workspaceFolderFsPath: folderFsPath,
+      folder,
+      taskLabel: preLaunchTask,
+    });
+    const preLaunchElapsedMs = Date.now() - preLaunchStart;
+    entryStopTimeoutMs = Math.max(0, entryStopTimeoutMs - preLaunchElapsedMs);
+    if (entryStopTimeoutMs <= 0) {
+      const err = new EntryStopTimeoutError(
+        `Timed out waiting for entry stop after ${effectiveTimeoutSeconds}s (preLaunchTask '${preLaunchTask}' consumed the entire timeout budget).`,
+        { timeoutMs: effectiveTimeoutSeconds * 1000, sessions: [] }
+      );
+      const report = describeEntryTimeout(err, {
+        launchRequest: {
+          type: typeof resolvedConfig.type === "string" ? resolvedConfig.type : undefined,
+          request:
+            typeof resolvedConfig.request === "string" ? resolvedConfig.request : undefined,
+          name: typeof resolvedConfig.name === "string" ? resolvedConfig.name : undefined,
+        },
+        serverReadyAction: { configured: false },
+      });
+      throw new EntryStopTimeoutError(report.message, err.details);
+    }
+    if (typeof run.exitCode === "number" && run.exitCode !== 0) {
+      const lines = run.outputLines.slice(-5);
+      const details = lines.length
+        ? `\nLast ${lines.length} line(s):\n${lines
+            .map((line) => `  ${line}`)
+            .join("\n")}`
+        : "";
+      throw new Error(
+        `preLaunchTask '${preLaunchTask}' failed (exit ${run.exitCode}).${details}`
+      );
+    }
+    delete (resolvedConfig as Record<string, unknown>).preLaunchTask;
+  }
+
   const effectiveSessionName = sessionName || resolvedConfig.name || "";
   logger.info(
     `Starting debugger with configuration '${resolvedConfig.name}' (stopOnEntry forced to true). Waiting for first stop event.`
@@ -2214,7 +2709,7 @@ export const startDebuggingAndWaitForStop = async (
   const existingIds = activeSessions.map((s) => s.id);
   const entryStopPromise = waitForEntryStop({
     excludeSessionIds: existingIds,
-    timeout: effectiveTimeoutSeconds * 1000,
+    timeout: entryStopTimeoutMs,
   });
   // Prevent unhandled rejection warning (error is rethrown via awaited path below)
   void entryStopPromise.catch(() => {});
@@ -2336,10 +2831,11 @@ export const startDebuggingAndWaitForStop = async (
           threadId: entryStop.threadId,
         });
       } catch (e) {
-        logger.warn(
-          `Failed to continue after entry stop: ${
-            e instanceof Error ? e.message : String(e)
-          }`
+        const msg = e instanceof Error ? e.message : String(e);
+        // If we can't continue, waiting for a subsequent stop will usually hang until timeout.
+        // Fail fast with an actionable error.
+        throw new Error(
+          `Failed to continue after entry stop (DAP 'continue'): ${msg}`
         );
       }
       const firstPostEntryStop = await waitForDebuggerStopBySessionId({
@@ -2374,12 +2870,10 @@ export const startDebuggingAndWaitForStop = async (
               threadId: nextStop.threadId,
             });
           } catch (e) {
-            logger.warn(
-              `Failed to continue after non-user stop: ${
-                e instanceof Error ? e.message : String(e)
-              }`
+            const msg = e instanceof Error ? e.message : String(e);
+            throw new Error(
+              `Failed to continue after non-user stop (DAP 'continue'): ${msg}`
             );
-            break;
           }
           nextStop = await waitForDebuggerStopBySessionId({
             sessionId,
@@ -2422,10 +2916,9 @@ export const startDebuggingAndWaitForStop = async (
           threadId: finalStop.threadId,
         });
       } catch (contErr) {
-        logger.warn(
-          `Failed to continue after late serverReady processing: ${
-            contErr instanceof Error ? contErr.message : String(contErr)
-          }`
+        const msg = contErr instanceof Error ? contErr.message : String(contErr);
+        throw new Error(
+          `Failed to continue after late serverReady processing (DAP 'continue'): ${msg}`
         );
       }
       // Wait for the actual user breakpoint

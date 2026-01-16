@@ -1,0 +1,14 @@
+{
+  "folders": [
+    {
+      "name": "copilot-breakpoint-debugger",
+      "path": "."
+    }
+  ],
+  "settings": {
+    "git.openRepositoryInParentFolders": "never"
+  },
+  "extensions": {
+    "recommendations": ["emeraldwalk.RunOnSave"]
+  }
+}

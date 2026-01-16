@@ -25,6 +25,7 @@ export default defineConfig({
     require: ["esbuild-register"],
     bail: true,
   },
+  
   // Allow extensions to load; we install required ones below via the 'extensions' field.
   // Run with a temporary profile for isolation between test runs.
   launchArgs: [

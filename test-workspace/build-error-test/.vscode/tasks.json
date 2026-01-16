@@ -16,6 +16,13 @@
         "focus": false,
         "panel": "shared"
       }
+    },
+    {
+      "label": "sh: fail build on stdout",
+      "type": "process",
+      "command": "/bin/sh",
+      "args": ["${workspaceFolder}/fail-build.sh"],
+      "problemMatcher": []
     }
   ]
 }

@@ -4,7 +4,8 @@ import path from "node:path";
 import { expect, test } from "vscode-test-playwright";
 
 test("Copilot Breakpoint Debugger demo", async ({ workbox }, testInfo) => {
-  test.setTimeout(3 * 60_000);
+  // Copilot responses can be slow depending on model/network.
+  test.setTimeout(5 * 60_000);
 
   // Playwright's built-in video recording does not apply to Electron apps.
   // Instead, we capture periodic screenshots and stitch them into a .webm with ffmpeg.
@@ -37,7 +38,12 @@ test("Copilot Breakpoint Debugger demo", async ({ workbox }, testInfo) => {
       }
 
       // ~4 FPS keeps files small while still looking like a video.
-      await workbox.waitForTimeout(250);
+      try {
+        await workbox.waitForTimeout(250);
+      }
+      catch {
+        break;
+      }
     }
   })();
 
@@ -82,7 +88,7 @@ test("Copilot Breakpoint Debugger demo", async ({ workbox }, testInfo) => {
     await expect(chatSendIcon.first()).toBeVisible({ timeout: 30_000 });
 
     // Some VS Code surfaces intercept pointer events; a direct DOM click focuses the editor reliably.
-    await chatEditable.evaluate(el => (el as HTMLElement).click());
+    await chatEditable.evaluate((el: Element) => (el as HTMLElement).click());
     await workbox.keyboard.insertText(
       "Use the #startDebugger tool to start the 'Run b/server.js' launch configuration from the workspace. "
       + "Then confirm the server is running by watching for a 'Server listening on http://localhost:' message. "
@@ -117,7 +123,9 @@ test("Copilot Breakpoint Debugger demo", async ({ workbox }, testInfo) => {
     //
     // Busy -> idle (stop icon appears while processing, then send icon returns).
     await expect(chatStopIcon.first()).toBeVisible({ timeout: 30_000 });
-    await expect(chatSendIcon.first()).toBeVisible({ timeout: 180_000 });
+    // Some VS Code builds/themes render the idle state without the same codicon-send
+    // selector, so use the disappearance of the stop icon as the stable signal.
+    await expect(chatStopIcon.first()).toBeHidden({ timeout: 240_000 });
 
     // Final grace period to let the response render fully (and for manual runs).
     await workbox.waitForTimeout(5000);

@@ -43,8 +43,6 @@ npm run compile
 
 ## 🎥 Demo Video
 
-The README can auto-inject Playwright-recorded demo videos using the `external/playwright-test-videos` submodule.
-
 <!-- pw-videos:start -->
 <video src="docs/pw-videos/demo.mp4" controls muted playsinline style="max-width: 100%;"></video>
 <!-- pw-videos:end -->

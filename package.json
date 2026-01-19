@@ -532,8 +532,9 @@
     "demo:pw": "npm run demo:pw:prep && cross-env NODE_OPTIONS= npx playwright test -c playwright-demo.config.ts",
     "demo:pw:videos": "npm --prefix external/playwright-test-videos install && npm --prefix external/playwright-test-videos run build && cross-env NODE_OPTIONS= node external/playwright-test-videos/dist/cli.js --from test-results --to docs/pw-videos --readme README.md --max 1 --name demo.mp4",
     "demo:pw:update-readme": "npm run demo:pw && npm run demo:pw:videos",
+    "typecheck:playwright": "tsc --noEmit -p playwright/tsconfig.json",
     "compile-tests": "tsc -p ./",
-    "pretest": "npm run lint && npm run compile-tests && npm run build:dist",
+    "pretest": "npm run lint && npm run compile-tests && npm run typecheck:playwright && npm run build:dist",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "cross-env NODE_OPTIONS= node scripts/clean-vscode-test-user-data.cjs && cross-env NODE_OPTIONS= npx vscode-test --config .vscode-test.mjs",
@@ -577,7 +578,8 @@
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
     "typescript": "^5.8.3",
-    "vscode-ext-gen": "^1.4.0"
+    "vscode-ext-gen": "^1.4.0",
+    "vscode-test-playwright": "file:external/vscode-test-playwright"
   },
   "overrides": {
     "glob": "10.5.0"

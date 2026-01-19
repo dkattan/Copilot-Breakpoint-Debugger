@@ -537,7 +537,7 @@
     "demo:pw": "npm run demo:pw:prep && cross-env NODE_OPTIONS= npx playwright test playwright/demo.spec.ts",
     "demo:pw:videos": "npm --prefix external/playwright-test-videos install && npm --prefix external/playwright-test-videos run build && cross-env NODE_OPTIONS= node external/playwright-test-videos/dist/cli.js --from test-results --to docs/pw-videos --readme README.md --max 1 --name demo.mp4",
     "demo:pw:update-readme": "npm run demo:pw && npm run demo:pw:videos",
-    "typecheck:playwright": "tsc --noEmit -p playwright/tsconfig.json",
+    "typecheck:playwright": "npm run demo:pw:prep && tsc --noEmit -p playwright/tsconfig.json",
     "compile-tests": "tsc -p ./",
     "pretest": "npm run lint && npm run compile-tests && npm run typecheck:playwright && npm run build:dist",
     "lint": "eslint .",

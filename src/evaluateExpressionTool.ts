@@ -4,86 +4,85 @@ import type {
   LanguageModelToolInvocationPrepareOptions,
   LanguageModelToolResult,
   ProviderResult,
-} from 'vscode';
-import * as vscode from 'vscode';
-import { activeSessions } from './common';
-import { DAPHelpers } from './debugUtils';
-import { logger } from './logger';
-import { createTruncatedToolResult } from './outputTruncation';
+} from "vscode";
+import * as vscode from "vscode";
+import { activeSessions } from "./common";
+import { DAPHelpers } from "./debugUtils";
+import { logger } from "./logger";
+import { createTruncatedToolResult } from "./outputTruncation";
 
 export interface EvaluateExpressionToolParameters {
-  expression: string; // Expression to evaluate like in Debug Console
-  sessionId: string; // Optional explicit session id; otherwise uses active debug session
-  threadId: number; // Optional thread id for context
-  frameId?: number; // Optional frame id for context
+  expression: string // Expression to evaluate like in Debug Console
+  sessionId: string // Optional explicit session id; otherwise uses active debug session
+  threadId: number // Optional thread id for context
+  frameId?: number // Optional frame id for context
 }
 
 // DAP Evaluate Request Arguments
 interface EvaluateArguments {
-  expression: string;
-  frameId?: number;
-  context?: string;
+  expression: string
+  frameId?: number
+  context?: string
   format?: {
-    hex?: boolean;
-  };
+    hex?: boolean
+  }
 }
 
 // DAP Evaluate Response
 interface EvaluateResponse {
-  result: string;
-  type?: string;
+  result: string
+  type?: string
   presentationHint?: {
-    kind?: string;
-    attributes?: string[];
-    visibility?: string;
-  };
-  variablesReference: number;
-  namedVariables?: number;
-  indexedVariables?: number;
-  memoryReference?: string;
+    kind?: string
+    attributes?: string[]
+    visibility?: string
+  }
+  variablesReference: number
+  namedVariables?: number
+  indexedVariables?: number
+  memoryReference?: string
 }
 
-export class EvaluateExpressionTool
-  implements LanguageModelTool<EvaluateExpressionToolParameters>
-{
+export class EvaluateExpressionTool implements LanguageModelTool<EvaluateExpressionToolParameters> {
   async invoke(
-    options: LanguageModelToolInvocationOptions<EvaluateExpressionToolParameters>
+    options: LanguageModelToolInvocationOptions<EvaluateExpressionToolParameters>,
   ): Promise<LanguageModelToolResult> {
     const { expression, sessionId, threadId } = options.input;
     try {
       // Resolve session
       let session: vscode.DebugSession | undefined;
       if (sessionId) {
-        session = activeSessions.find((s) => s.id === sessionId);
+        session = activeSessions.find(s => s.id === sessionId);
       }
       if (!session) {
         session = vscode.debug.activeDebugSession || activeSessions[0];
       }
       if (!session) {
         return createTruncatedToolResult(
-          'Error: No active debug session found to evaluate expression.'
+          "Error: No active debug session found to evaluate expression.",
         );
       }
 
       // Gather context (need frame id when paused). If not paused evaluation may still work for some adapters.
       const debugContext = await DAPHelpers.getDebugContext(session, threadId);
 
-      const evalArgs: EvaluateArguments = { expression, context: 'watch' };
+      const evalArgs: EvaluateArguments = { expression, context: "watch" };
       if (debugContext?.frame?.id !== undefined) {
         evalArgs.frameId = debugContext.frame.id;
       }
 
       logger.debug(
-        `EvaluateExpressionTool: evaluating '${expression}' in session '${session.name}'.`
+        `EvaluateExpressionTool: evaluating '${expression}' in session '${session.name}'.`,
       );
       let evalResponse: EvaluateResponse;
       try {
-        evalResponse = await session.customRequest('evaluate', evalArgs);
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : JSON.stringify(err);
+        evalResponse = await session.customRequest("evaluate", evalArgs);
+      }
+      catch (err) {
+        const message
+          = err instanceof Error ? err.message : JSON.stringify(err);
         return createTruncatedToolResult(
-          `Error evaluating expression '${expression}': ${message}`
+          `Error evaluating expression '${expression}': ${message}`,
         );
       }
 
@@ -95,17 +94,18 @@ export class EvaluateExpressionTool
         variablesReference: evalResponse?.variablesReference,
       };
       return createTruncatedToolResult(JSON.stringify(resultJson));
-    } catch (error) {
+    }
+    catch (error) {
       return createTruncatedToolResult(
         `Unexpected error evaluating expression: ${
           error instanceof Error ? error.message : String(error)
-        }`
+        }`,
       );
     }
   }
 
   prepareInvocation?(
-    options: LanguageModelToolInvocationPrepareOptions<EvaluateExpressionToolParameters>
+    options: LanguageModelToolInvocationPrepareOptions<EvaluateExpressionToolParameters>,
   ): ProviderResult<vscode.PreparedToolInvocation> {
     return {
       invocationMessage: `Evaluating expression '${options.input.expression}' in debug session`,

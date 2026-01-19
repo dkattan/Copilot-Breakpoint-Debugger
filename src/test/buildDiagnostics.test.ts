@@ -10,15 +10,14 @@ const testRequire = createRequire(__filename);
 describe("build diagnostics integration tests", () => {
   const testWorkspaceRoot = path.resolve(
     __dirname,
-    "../../test-workspace/build-error-test"
+    "../../test-workspace/build-error-test",
   );
-
 
   it("should capture build errors from problem matcher when preLaunchTask fails", async function () {
     this.timeout(60000);
 
     const workspaceFolder = vscode.workspace.workspaceFolders?.find(
-      (f) => f.uri.fsPath === testWorkspaceRoot
+      f => f.uri.fsPath === testWorkspaceRoot,
     );
 
     if (!workspaceFolder) {
@@ -31,7 +30,7 @@ describe("build diagnostics integration tests", () => {
     await debugConfig.update(
       "onTaskErrors",
       "abort",
-      vscode.ConfigurationTarget.Workspace
+      vscode.ConfigurationTarget.Workspace,
     );
 
     // Attempt to start debugging with build errors
@@ -56,7 +55,8 @@ describe("build diagnostics integration tests", () => {
         nameOrConfiguration: "Build Error Test",
         timeoutSeconds: 45,
       });
-    } catch (error) {
+    }
+    catch (error) {
       caughtError = error as Error;
     }
 
@@ -66,35 +66,35 @@ describe("build diagnostics integration tests", () => {
     // Verify error message contains build diagnostics
     const errorMsg = caughtError!.message;
     assert.ok(
-      errorMsg.includes("preLaunchTask") ||
-        errorMsg.includes("terminated before hitting entry") ||
-        errorMsg.includes("Failed to start debug session"),
-      `Error should mention preLaunchTask failure, entry stop failure, or start failure. Got: ${errorMsg}`
+      errorMsg.includes("preLaunchTask")
+      || errorMsg.includes("terminated before hitting entry")
+      || errorMsg.includes("Failed to start debug session"),
+      `Error should mention preLaunchTask failure, entry stop failure, or start failure. Got: ${errorMsg}`,
     );
 
     // The error message should mention diagnostics or task failure
-    const hasDiagnostics =
-      errorMsg.includes("Build errors:") ||
-      errorMsg.includes("Task") ||
-      errorMsg.includes("exited with code");
+    const hasDiagnostics
+      = errorMsg.includes("Build errors:")
+        || errorMsg.includes("Task")
+        || errorMsg.includes("exited with code");
 
     assert.ok(
       hasDiagnostics,
-      `Error message should include build diagnostics. Got: ${errorMsg}`
+      `Error message should include build diagnostics. Got: ${errorMsg}`,
     );
 
     assert.ok(
       errorMsg.includes("tsc: build with errors"),
-      `Error message should mention the failing task label. Got: ${errorMsg}`
+      `Error message should mention the failing task label. Got: ${errorMsg}`,
     );
 
-    const includesCompilerOutput =
-      errorMsg.includes("TS2304") ||
-      errorMsg.includes("Cannot find name 'undeclaredVariable'");
+    const includesCompilerOutput
+      = errorMsg.includes("TS2304")
+        || errorMsg.includes("Cannot find name 'undeclaredVariable'");
 
     assert.ok(
       includesCompilerOutput,
-      `Error message should include compiler output when problem matcher diagnostics are unavailable. Got: ${errorMsg}`
+      `Error message should include compiler output when problem matcher diagnostics are unavailable. Got: ${errorMsg}`,
     );
   });
 
@@ -102,7 +102,7 @@ describe("build diagnostics integration tests", () => {
     this.timeout(30000);
 
     const workspaceFolder = vscode.workspace.workspaceFolders?.find(
-      (f) => f.uri.fsPath === testWorkspaceRoot
+      f => f.uri.fsPath === testWorkspaceRoot,
     );
 
     if (!workspaceFolder) {
@@ -112,7 +112,7 @@ describe("build diagnostics integration tests", () => {
 
     // Ensure the built-in TypeScript extension is active so diagnostics are available
     const typescriptExtension = vscode.extensions.getExtension(
-      "vscode.typescript-language-features"
+      "vscode.typescript-language-features",
     );
     if (typescriptExtension && !typescriptExtension.isActive) {
       await typescriptExtension.activate();
@@ -134,12 +134,13 @@ describe("build diagnostics integration tests", () => {
         typescriptCliPath,
         "--noEmit",
       ]),
-      "$tsc"
+      "$tsc",
     );
     try {
       await vscode.tasks.executeTask(tscTask);
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-    } catch {
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
+    catch {
       // Task may fail, that's expected
     }
 
@@ -150,24 +151,24 @@ describe("build diagnostics integration tests", () => {
         .getDiagnostics()
         ?.find(
           ([uri]) =>
-            uri.fsPath.includes("broken.ts") &&
-            uri.fsPath.includes("build-error-test")
+            uri.fsPath.includes("broken.ts")
+            && uri.fsPath.includes("build-error-test"),
         );
       if (brokenTsDiags && brokenTsDiags[1].length > 0) {
         break;
       }
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
 
     assert.ok(brokenTsDiags, "Should have diagnostics for broken.ts");
 
     const errorDiags = brokenTsDiags[1].filter(
-      (d) => d.severity === vscode.DiagnosticSeverity.Error
+      d => d.severity === vscode.DiagnosticSeverity.Error,
     );
 
     assert.ok(
       errorDiags.length >= 3,
-      `Should have multiple build errors (got ${errorDiags.length})`
+      `Should have multiple build errors (got ${errorDiags.length})`,
     );
 
     // Verify error messages are truncated to reasonable length
@@ -181,7 +182,7 @@ describe("build diagnostics integration tests", () => {
     this.timeout(60000);
 
     const workspaceFolder = vscode.workspace.workspaceFolders?.find(
-      (f) => f.uri.fsPath === testWorkspaceRoot
+      f => f.uri.fsPath === testWorkspaceRoot,
     );
 
     if (!workspaceFolder) {
@@ -194,23 +195,23 @@ describe("build diagnostics integration tests", () => {
     await debugConfig.update(
       "onTaskErrors",
       "abort",
-      vscode.ConfigurationTarget.Workspace
+      vscode.ConfigurationTarget.Workspace,
     );
 
     // Ensure terminal shell integration is enabled so task output is observable via
     // window.onDidStartTerminalShellExecution / onDidEndTerminalShellExecution.
-    const terminalConfig = vscode.workspace.getConfiguration("terminal.integrated");
+    const terminalConfig = vscode.workspace.getConfiguration(
+      "terminal.integrated",
+    );
     await terminalConfig.update(
       "shellIntegration.enabled",
       true,
-      vscode.ConfigurationTarget.Workspace
+      vscode.ConfigurationTarget.Workspace,
     );
 
     let caughtError: Error | undefined;
     try {
-      const docUri = vscode.Uri.file(
-        path.join(testWorkspaceRoot, "good.js")
-      );
+      const docUri = vscode.Uri.file(path.join(testWorkspaceRoot, "good.js"));
       const openedDoc = await vscode.workspace.openTextDocument(docUri);
       const breakpointSnippet = openedDoc.lineAt(0).text.trim(); // 1-based line 1
 
@@ -230,7 +231,8 @@ describe("build diagnostics integration tests", () => {
         nameOrConfiguration: "Build Error Stdout Test",
         timeoutSeconds: 45,
       });
-    } catch (error) {
+    }
+    catch (error) {
       caughtError = error as Error;
     }
 
@@ -239,12 +241,12 @@ describe("build diagnostics integration tests", () => {
     const errorMsg = caughtError!.message;
     assert.ok(
       errorMsg.includes("Build error on stdout"),
-      `Error message should include failing preLaunchTask stdout. Got: ${errorMsg}`
+      `Error message should include failing preLaunchTask stdout. Got: ${errorMsg}`,
     );
 
     assert.ok(
       errorMsg.includes("sh: fail build on stdout"),
-      `Error message should mention the failing task label. Got: ${errorMsg}`
+      `Error message should mention the failing task label. Got: ${errorMsg}`,
     );
   });
 
@@ -252,7 +254,7 @@ describe("build diagnostics integration tests", () => {
     this.timeout(10000);
 
     const workspaceFolder = vscode.workspace.workspaceFolders?.find(
-      (f) => f.uri.fsPath === testWorkspaceRoot
+      f => f.uri.fsPath === testWorkspaceRoot,
     );
 
     if (!workspaceFolder) {
@@ -265,20 +267,20 @@ describe("build diagnostics integration tests", () => {
     await config.$update(
       "maxBuildErrors",
       2,
-      vscode.ConfigurationTarget.Workspace
+      vscode.ConfigurationTarget.Workspace,
     );
 
     assert.strictEqual(
       config.maxBuildErrors,
       2,
-      "maxBuildErrors should be set to 2"
+      "maxBuildErrors should be set to 2",
     );
 
     // Reset to previous value
     await config.$update(
       "maxBuildErrors",
       originalMaxBuildErrors,
-      vscode.ConfigurationTarget.Workspace
+      vscode.ConfigurationTarget.Workspace,
     );
   });
 
@@ -288,7 +290,7 @@ describe("build diagnostics integration tests", () => {
     await debugConfig.update(
       "onTaskErrors",
       undefined,
-      vscode.ConfigurationTarget.Workspace
+      vscode.ConfigurationTarget.Workspace,
     );
   });
 });

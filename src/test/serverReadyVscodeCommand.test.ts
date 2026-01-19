@@ -26,21 +26,21 @@ describe("serverReady vscodeCommand action", function () {
     const serverDoc = await vscode.workspace.openTextDocument(serverPath);
     await openScriptDocument(serverDoc.uri);
 
-    const readyLine =
-      serverDoc
+    const readyLine
+      = serverDoc
         .getText()
         .split(/\r?\n/)
-        .findIndex((l) => l.includes("LINE_FOR_SERVER_READY")) + 1;
+        .findIndex(l => l.includes("LINE_FOR_SERVER_READY")) + 1;
     assert.ok(readyLine > 0, "Did not find serverReady marker line");
     const userBreakpointSnippet = "TICK_FOR_USER_BREAKPOINT";
-    const userBreakpointLine =
-      serverDoc
+    const userBreakpointLine
+      = serverDoc
         .getText()
         .split(/\r?\n/)
-        .findIndex((l) => l.includes(userBreakpointSnippet)) + 1;
+        .findIndex(l => l.includes(userBreakpointSnippet)) + 1;
     assert.ok(
       userBreakpointLine > 0,
-      "Did not find user breakpoint snippet line"
+      "Did not find user breakpoint snippet line",
     );
 
     const context = await startDebuggingAndWaitForStop({
@@ -72,13 +72,13 @@ describe("serverReady vscodeCommand action", function () {
     assert.strictEqual(
       context.frame.line,
       userBreakpointLine,
-      "Did not pause at expected user breakpoint line after serverReady continue (vscodeCommand)"
+      "Did not pause at expected user breakpoint line after serverReady continue (vscodeCommand)",
     );
     assert.ok(context.hitBreakpoint, "hitBreakpoint missing (vscodeCommand)");
     assert.strictEqual(
       context.hitBreakpoint?.line,
       userBreakpointLine,
-      "hitBreakpoint line mismatch (vscodeCommand)"
+      "hitBreakpoint line mismatch (vscodeCommand)",
     );
   });
 });

@@ -23,7 +23,7 @@ function registerTools(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.lm.registerTool(
       "startDebugSessionWithBreakpoints",
-      new StartDebuggerTool()
+      new StartDebuggerTool(),
     ),
     vscode.lm.registerTool("listDebugSessions", new ListDebugSessionsTool()),
     vscode.lm.registerTool("resumeDebugSession", new ResumeDebugSessionTool()),
@@ -41,7 +41,7 @@ function registerTools(context: vscode.ExtensionContext) {
           return;
         }
         // Prompt user to select the workspace folder instead of defaulting to index 0.
-        const folderItems = workspaceFolders.map((f) => ({
+        const folderItems = workspaceFolders.map(f => ({
           label: f.name,
           description: f.uri.fsPath,
         }));
@@ -50,20 +50,20 @@ function registerTools(context: vscode.ExtensionContext) {
           {
             placeHolder: "Select a workspace folder to use for debugging",
             ignoreFocusOut: true,
-          }
+          },
         );
         if (!pickedFolderItem) {
           vscode.window.showInformationMessage(
-            "Workspace folder selection canceled."
+            "Workspace folder selection canceled.",
           );
           return;
         }
         const selectedFolder = workspaceFolders.find(
-          (f) => f.name === pickedFolderItem.label
+          f => f.name === pickedFolderItem.label,
         );
         if (!selectedFolder) {
           vscode.window.showErrorMessage(
-            "Selected workspace folder could not be resolved."
+            "Selected workspace folder could not be resolved.",
           );
           return;
         }
@@ -71,39 +71,39 @@ function registerTools(context: vscode.ExtensionContext) {
         const folder = folderUri.fsPath;
         // First ensure user has at least one breakpoint set; skip path/line prompts when using existing breakpoints.
         const existingSourceBreakpoints = vscode.debug.breakpoints.filter(
-          (bp) => bp instanceof vscode.SourceBreakpoint
+          bp => bp instanceof vscode.SourceBreakpoint,
         ) as vscode.SourceBreakpoint[];
         if (!existingSourceBreakpoints.length) {
           vscode.window.showInformationMessage(
-            "No breakpoints set. Please set a breakpoint and rerun the command."
+            "No breakpoints set. Please set a breakpoint and rerun the command.",
           );
           return;
         }
         // Only after confirming breakpoints, ask for launch configuration.
         const launchConfig = vscode.workspace.getConfiguration(
           "launch",
-          folderUri
+          folderUri,
         );
-        const allConfigs =
-          (launchConfig.get<unknown>(
-            "configurations"
+        const allConfigs
+          = (launchConfig.get<unknown>(
+            "configurations",
           ) as vscode.DebugConfiguration[]) || [];
         if (!allConfigs.length) {
           vscode.window.showErrorMessage(
-            "No launch configurations found in .vscode/launch.json."
+            "No launch configurations found in .vscode/launch.json.",
           );
           return;
         }
         const picked = await vscode.window.showQuickPick(
-          allConfigs.map((c) => ({ label: c.name })),
+          allConfigs.map(c => ({ label: c.name })),
           {
             placeHolder: "Select a launch configuration to start",
             ignoreFocusOut: true,
-          }
+          },
         );
         if (!picked) {
           vscode.window.showInformationMessage(
-            "Launch configuration selection canceled."
+            "Launch configuration selection canceled.",
           );
           return;
         }
@@ -112,7 +112,7 @@ function registerTools(context: vscode.ExtensionContext) {
           validateInput: (value) => {
             const arr = value
               .split(",")
-              .map((v) => v.trim())
+              .map(v => v.trim())
               .filter(Boolean);
             return arr.length
               ? undefined
@@ -125,23 +125,24 @@ function registerTools(context: vscode.ExtensionContext) {
         }
         const variableFilter = variableFilterInput
           .split(",")
-          .map((v) => v.trim())
+          .map(v => v.trim())
           .filter(Boolean);
         // Convert existing breakpoints into the expected configuration shape.
         // The tool contract is snippet-based; derive a snippet from the source line at each breakpoint.
         const breakpoints = await Promise.all(
           existingSourceBreakpoints.map(async (sb) => {
             const doc = await vscode.workspace.openTextDocument(
-              sb.location.uri
+              sb.location.uri,
             );
             const lineText = doc
               .lineAt(sb.location.range.start.line)
-              .text.trim();
+              .text
+              .trim();
             if (!lineText) {
               throw new Error(
                 `Breakpoint line is empty in ${sb.location.uri.fsPath}:${
                   sb.location.range.start.line + 1
-                }. Move the breakpoint to a non-empty line.`
+                }. Move the breakpoint to a non-empty line.`,
               );
             }
             return {
@@ -150,7 +151,7 @@ function registerTools(context: vscode.ExtensionContext) {
               variableFilter,
               onHit: "break" as const,
             };
-          })
+          }),
         );
         const breakpointConfig = { breakpoints };
         try {
@@ -162,15 +163,16 @@ function registerTools(context: vscode.ExtensionContext) {
             useExistingBreakpoints: true,
           });
           void vscode.window.showInformationMessage(
-            `Started '${picked.label}' and hit breakpoint.`
-          );
-        } catch (e) {
-          void vscode.window.showErrorMessage(
-            `Manual start failed: ${e instanceof Error ? e.message : String(e)}`
+            `Started '${picked.label}' and hit breakpoint.`,
           );
         }
-      }
-    )
+        catch (e) {
+          void vscode.window.showErrorMessage(
+            `Manual start failed: ${e instanceof Error ? e.message : String(e)}`,
+          );
+        }
+      },
+    ),
   );
 
   // Command to set the default launch configuration (workspace scope)
@@ -186,24 +188,24 @@ function registerTools(context: vscode.ExtensionContext) {
         const folderUri = workspaceFolders[0].uri;
         const launchConfig = vscode.workspace.getConfiguration(
           "launch",
-          folderUri
+          folderUri,
         );
-        const allConfigs =
-          (launchConfig.get<unknown>(
-            "configurations"
+        const allConfigs
+          = (launchConfig.get<unknown>(
+            "configurations",
           ) as vscode.DebugConfiguration[]) || [];
         if (!allConfigs.length) {
           vscode.window.showErrorMessage(
-            "No launch configurations found in .vscode/launch.json."
+            "No launch configurations found in .vscode/launch.json.",
           );
           return;
         }
         const picked = await vscode.window.showQuickPick(
-          allConfigs.map((c) => ({ label: c.name })),
+          allConfigs.map(c => ({ label: c.name })),
           {
             placeHolder: "Select a configuration to set as default",
             ignoreFocusOut: true,
-          }
+          },
         );
         if (!picked) {
           vscode.window.showInformationMessage("Selection canceled.");
@@ -212,13 +214,13 @@ function registerTools(context: vscode.ExtensionContext) {
         await config.$update(
           "defaultLaunchConfiguration",
           picked.label,
-          vscode.ConfigurationTarget.Workspace
+          vscode.ConfigurationTarget.Workspace,
         );
         vscode.window.showInformationMessage(
-          `Set default launch configuration to '${picked.label}'.`
+          `Set default launch configuration to '${picked.label}'.`,
         );
-      }
-    )
+      },
+    ),
   );
 
   // Insert sample start debugger payload (opens new untitled JSON doc)
@@ -272,8 +274,8 @@ function registerTools(context: vscode.ExtensionContext) {
           content: JSON.stringify(sample, null, 2),
         });
         await vscode.window.showTextDocument(doc, { preview: false });
-      }
-    )
+      },
+    ),
   );
 }
 

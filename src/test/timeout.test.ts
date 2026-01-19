@@ -1,30 +1,30 @@
-import * as assert from 'node:assert';
-import * as vscode from 'vscode';
-import { config } from '../config';
+import * as assert from "node:assert";
+import * as vscode from "vscode";
+import { config } from "../config";
 import {
   invokeStartDebuggerTool,
   stopAllDebugSessions,
-} from './utils/startDebuggerToolTestUtils';
+} from "./utils/startDebuggerToolTestUtils";
 
 // Test that a very short configured timeout causes StartDebuggerTool to error
 // when the breakpoint line is only executed after a longer delay.
-describe('startDebuggerTool timeout behavior', () => {
+describe("startDebuggerTool timeout behavior", () => {
   let originalTimeout: number | undefined;
 
   before(async () => {
     originalTimeout = config.entryTimeoutSeconds;
     await config.$update(
-      'entryTimeoutSeconds',
+      "entryTimeoutSeconds",
       1,
-      vscode.ConfigurationTarget.Workspace
+      vscode.ConfigurationTarget.Workspace,
     );
   });
 
   after(async () => {
     await config.$update(
-      'entryTimeoutSeconds',
+      "entryTimeoutSeconds",
       originalTimeout ?? 60,
-      vscode.ConfigurationTarget.Workspace
+      vscode.ConfigurationTarget.Workspace,
     );
   });
 
@@ -32,51 +32,53 @@ describe('startDebuggerTool timeout behavior', () => {
     await stopAllDebugSessions();
   });
 
-  it('reports timeout when breakpoint not hit within configured seconds', async () => {
+  it("reports timeout when breakpoint not hit within configured seconds", async () => {
     const result = await invokeStartDebuggerTool({
-      scriptRelativePath: 'test-workspace/b/test.js',
-      configurationName: 'Run test.js with preLaunchTask',
-      variableFilter: ['delayedValue'],
-      breakpointSnippets: ['console.log("Running test.js inside test-workspace/b");'],
-      workspaceFolder: 'test-workspace/b',
+      scriptRelativePath: "test-workspace/b/test.js",
+      configurationName: "Run test.js with preLaunchTask",
+      variableFilter: ["delayedValue"],
+      breakpointSnippets: [
+        'console.log("Running test.js inside test-workspace/b");',
+      ],
+      workspaceFolder: "test-workspace/b",
     });
     const { content } = result;
-    assert.ok(content.length === 1, 'expected single output part');
+    assert.ok(content.length === 1, "expected single output part");
     const text = (content[0] as vscode.LanguageModelTextPart).value as string;
     assert.match(
       text,
       /Success:\s*false/i,
-      'Should mark timeout as unsuccessful'
+      "Should mark timeout as unsuccessful",
     );
     assert.match(
       text,
       /Failure:\s*timeout/i,
-      'Should label failure as timeout'
+      "Should label failure as timeout",
     );
     assert.match(
       text,
       /Timed out|timeout/i,
-      'Expected timeout indication in tool output'
+      "Expected timeout indication in tool output",
     );
     assert.match(
       text,
       /Timeout state analysis:/,
-      'Expected timeout state analysis block'
+      "Expected timeout state analysis block",
     );
     assert.match(
       text,
       /Entry stop observed: NO/i,
-      'Timeout report should mention missing entry stop'
+      "Timeout report should mention missing entry stop",
     );
     assert.match(
       text,
       /serverReadyAction configured: no/i,
-      'Report should include serverReadyAction configuration status'
+      "Report should include serverReadyAction configuration status",
     );
     assert.match(
       text,
       /Only raise 'copilot-debugger\.entryTimeoutSeconds'/,
-      'Report should recommend checking readiness signals before increasing timeout'
+      "Report should recommend checking readiness signals before increasing timeout",
     );
   });
 });

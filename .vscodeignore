@@ -26,8 +26,6 @@ coverage/**
 esbuild.js
 
 # Documentation and project files
-.prettierignore
-.prettierrc
 eslint.config.mjs
 vsc-extension-quickstart.md
 agents.md

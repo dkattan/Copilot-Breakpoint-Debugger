@@ -23,15 +23,15 @@ function runGit(args: string[]): string {
   if (res.status !== 0) {
     const stderr = (res.stderr || "").trim();
     throw new Error(
-      `git ${args.join(" ")} failed${stderr ? `: ${stderr}` : ""}`
+      `git ${args.join(" ")} failed${stderr ? `: ${stderr}` : ""}`,
     );
   }
   return (res.stdout || "").trimEnd();
 }
 
 function computeNextVersion(prevTagRaw: string): {
-  version: string;
-  prevTagRaw: string;
+  version: string
+  prevTagRaw: string
 } {
   if (!prevTagRaw) {
     return { version: "0.0.1", prevTagRaw: "" };
@@ -39,7 +39,7 @@ function computeNextVersion(prevTagRaw: string): {
 
   const prev = prevTagRaw.replace(/^v/, "");
   const parts = prev.split(".");
-  if (parts.length !== 3 || parts.some((p) => Number.isNaN(Number(p)))) {
+  if (parts.length !== 3 || parts.some(p => Number.isNaN(Number(p)))) {
     throw new Error(`Latest tag '${prevTagRaw}' is not semver x.y.z`);
   }
 
@@ -47,7 +47,7 @@ function computeNextVersion(prevTagRaw: string): {
   return { version: parts.join("."), prevTagRaw };
 }
 
-function buildContext(prevTag: string): { commits: string; stats: string } {
+function buildContext(prevTag: string): { commits: string, stats: string } {
   const range = prevTag ? `${prevTag}..HEAD` : "";
   const commits = `${runGit([
     "log",
@@ -56,16 +56,18 @@ function buildContext(prevTag: string): { commits: string; stats: string } {
   ])}\n`;
 
   // Match CI behavior: git diff --stat for a range, else git show --stat.
-  const stats = range ? runGit(["diff", "--stat", range]) : runGit(["show", "--stat"]);
+  const stats = range
+    ? runGit(["diff", "--stat", range])
+    : runGit(["show", "--stat"]);
 
   return { commits, stats };
 }
 
 function getCiContextFromEnv(): {
-  version?: string;
-  prevTag?: string;
-  commits?: string;
-  stats?: string;
+  version?: string
+  prevTag?: string
+  commits?: string
+  stats?: string
 } {
   // These are the same variable names produced/used by the GitHub Actions workflow.
   // If present, we treat them as authoritative so CI and local runs behave consistently.
@@ -87,13 +89,16 @@ function isRunningInGitHubActions(): boolean {
 }
 
 function fillPromptTemplate(params: {
-  workspaceRoot: string;
-  version: string;
-  prevTag: string;
-  commits: string;
-  stats: string;
+  workspaceRoot: string
+  version: string
+  prevTag: string
+  commits: string
+  stats: string
 }): string {
-  const promptPath = path.join(params.workspaceRoot, ".github/prompts/release-notes.md");
+  const promptPath = path.join(
+    params.workspaceRoot,
+    ".github/prompts/release-notes.md",
+  );
   const promptTemplate = fs.readFileSync(promptPath, "utf8");
 
   /* eslint-disable no-template-curly-in-string */
@@ -105,7 +110,7 @@ function fillPromptTemplate(params: {
   /* eslint-enable no-template-curly-in-string */
 }
 
-function updateChangelog(params: { version: string; content: string }): void {
+function updateChangelog(params: { version: string, content: string }): void {
   const changelogPath = "CHANGELOG.md";
   const existing = fs.existsSync(changelogPath)
     ? fs.readFileSync(changelogPath, "utf8")
@@ -117,9 +122,11 @@ function updateChangelog(params: { version: string; content: string }): void {
   let next: string;
   if (existing.includes("# Changelog")) {
     next = existing.replace("# Changelog", `# Changelog\n\n${newEntry}`);
-  } else if (existing.includes("# CHANGELOG")) {
+  }
+  else if (existing.includes("# CHANGELOG")) {
     next = existing.replace("# CHANGELOG", `# CHANGELOG\n\n${newEntry}`);
-  } else {
+  }
+  else {
     next = newEntry + existing;
   }
 
@@ -133,7 +140,7 @@ async function main(): Promise<void> {
 
   if (!apiKey) {
     console.error(
-      "Missing Anthropic credentials: set ANTHROPIC_API_KEY (CI) or ANTHROPIC_TOKEN (local)"
+      "Missing Anthropic credentials: set ANTHROPIC_API_KEY (CI) or ANTHROPIC_TOKEN (local)",
     );
     process.exit(1);
   }
@@ -154,14 +161,15 @@ async function main(): Promise<void> {
   if (isRunningInGitHubActions()) {
     if (!ci.version || ci.prevTag === undefined || !ci.commits || !ci.stats) {
       throw new Error(
-        "CI mode requires VERSION, PREV_TAG, COMMITS, and STATS to be set in the environment."
+        "CI mode requires VERSION, PREV_TAG, COMMITS, and STATS to be set in the environment.",
       );
     }
     version = ci.version;
     prevTag = ci.prevTag;
     commits = ci.commits;
     stats = ci.stats;
-  } else {
+  }
+  else {
     // Local mode: compute everything from git.
     const prevTagRaw = runGit(["describe", "--tags", "--abbrev=0"]);
     const next = computeNextVersion(prevTagRaw);
@@ -180,7 +188,9 @@ async function main(): Promise<void> {
     stats,
   });
 
-  console.log(`Generating release notes with Claude Agent SDK (model=${model})...`);
+  console.log(
+    `Generating release notes with Claude Agent SDK (model=${model})...`,
+  );
 
   const result = await unstable_v2_prompt(prompt, { model });
   if (result.subtype !== "success") {

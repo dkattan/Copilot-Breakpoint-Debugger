@@ -6,38 +6,34 @@ import * as path from "node:path";
 const DEFAULT_START_MARKER = "<!-- pw-videos:start -->";
 const DEFAULT_END_MARKER = "<!-- pw-videos:end -->";
 
-const formatMarkdown = (videosRelPaths: string[]): string =>
-  videosRelPaths
+function formatMarkdown(videosRelPaths: string[]): string {
+  return videosRelPaths
     .map(
-      (v) =>
-        `<video src="${v}" controls muted playsinline style="max-width: 100%;"></video>`
+      v =>
+        `<video src="${v}" controls muted playsinline style="max-width: 100%;"></video>`,
     )
     .join("\n\n");
+}
 
-const replaceBlock = (
-  text: string,
-  newBlock: string,
-  startMarker: string,
-  endMarker: string
-): string => {
+function replaceBlock(text: string, newBlock: string, startMarker: string, endMarker: string): string {
   const startIdx = text.indexOf(startMarker);
   const endIdx = text.indexOf(endMarker);
   if (startIdx < 0 || endIdx < 0 || endIdx < startIdx) {
     throw new Error(
-      `README is missing token block. Expected '${startMarker}' then '${endMarker}'.`
+      `README is missing token block. Expected '${startMarker}' then '${endMarker}'.`,
     );
   }
   const before = text.slice(0, startIdx + startMarker.length);
   const after = text.slice(endIdx);
   return `${before}\n${newBlock}\n${after}`;
-};
+}
 
-const updateReadmeForVideos = (options: {
-  readmePath: string;
-  videoPaths: string[];
-  startMarker?: string;
-  endMarker?: string;
-}): void => {
+function updateReadmeForVideos(options: {
+  readmePath: string
+  videoPaths: string[]
+  startMarker?: string
+  endMarker?: string
+}): void {
   const {
     readmePath,
     videoPaths,
@@ -46,15 +42,15 @@ const updateReadmeForVideos = (options: {
   } = options;
 
   const repoRoot = path.dirname(readmePath);
-  const relPaths = videoPaths.map((p) =>
-    path.relative(repoRoot, p).replaceAll(path.sep, "/")
+  const relPaths = videoPaths.map(p =>
+    path.relative(repoRoot, p).replaceAll(path.sep, "/"),
   );
 
   const readme = fs.readFileSync(readmePath, "utf8");
   const newBlock = formatMarkdown(relPaths);
   const updated = replaceBlock(readme, newBlock, startMarker, endMarker);
   fs.writeFileSync(readmePath, updated);
-};
+}
 
 describe("playwright-test-videos README updater", () => {
   it("does not alter relative paths in import statements outside marker block", () => {
@@ -78,7 +74,7 @@ describe("playwright-test-videos README updater", () => {
         "<!-- pw-videos:end -->",
         "",
       ].join("\n"),
-      "utf8"
+      "utf8",
     );
 
     const fakeVideoAbsPath = path.join(outDir, "demo.mp4");

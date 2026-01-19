@@ -1,7 +1,7 @@
 import type { PlaywrightTestConfig } from "@playwright/test";
 import type {
-	VSCodeTestOptions,
-	VSCodeWorkerOptions,
+  VSCodeTestOptions,
+  VSCodeWorkerOptions,
 } from "vscode-test-playwright";
 import * as path from "node:path";
 
@@ -44,42 +44,42 @@ import * as path from "node:path";
 const repoRoot = __dirname;
 
 const config = {
-	testDir: path.join(repoRoot, "playwright"),
-	globalSetup: path.join(repoRoot, "playwright", "globalSetup"),
-	reporter: [["list"]],
-	timeout: 90_000,
-	expect: {
-		timeout: 15_000,
-	},
-	// Keep this single-worker so the demo is deterministic and doesn't contend for UI.
-	workers: 1,
-	fullyParallel: false,
-	use: {
-		// Electron/VS Code can be slow to show first window on cold start.
-		actionTimeout: 15_000,
-		navigationTimeout: 30_000,
-		// Record a demo video (saved as .webm in test-results) that we later convert
-		// to `docs/pw-videos/demo.mp4` via the `playwright-test-videos` submodule.
-		video: "on",
-		trace: "retain-on-failure",
-	},
-	projects: [
-		{
-			name: "vscode-chat-demo",
-			use: {
-				// The `vscode-test-playwright` fixtures read these options.
-				vscodeVersion: "stable",
-				vscodeTrace: "off",
-				extensionDevelopmentPath: repoRoot,
-				baseDir: path.join(
-					repoRoot,
-					"test-workspace",
-					"test-workspace.code-workspace"
-				),
-				// Intentionally omit: userDataDir, extensionsDir, extensions.
-			},
-		},
-	],
+  testDir: path.join(repoRoot, "playwright"),
+  globalSetup: path.join(repoRoot, "playwright", "globalSetup"),
+  reporter: [["list"]],
+  timeout: 90_000,
+  expect: {
+    timeout: 15_000,
+  },
+  // Keep this single-worker so the demo is deterministic and doesn't contend for UI.
+  workers: 1,
+  fullyParallel: false,
+  use: {
+    // Electron/VS Code can be slow to show first window on cold start.
+    actionTimeout: 15_000,
+    navigationTimeout: 30_000,
+    // Record a demo video (saved as .webm in test-results) that we later convert
+    // to `docs/pw-videos/demo.mp4` via the `playwright-test-videos` submodule.
+    video: "on",
+    trace: "retain-on-failure",
+  },
+  projects: [
+    {
+      name: "vscode-chat-demo",
+      use: {
+        // The `vscode-test-playwright` fixtures read these options.
+        vscodeVersion: "stable",
+        vscodeTrace: "off",
+        extensionDevelopmentPath: repoRoot,
+        baseDir: path.join(
+          repoRoot,
+          "test-workspace",
+          "test-workspace.code-workspace",
+        ),
+        // Intentionally omit: userDataDir, extensionsDir, extensions.
+      },
+    },
+  ],
 } satisfies PlaywrightTestConfig<VSCodeTestOptions, VSCodeWorkerOptions>;
 
 export default config;

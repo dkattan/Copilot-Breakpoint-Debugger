@@ -35,8 +35,8 @@ function loadEnvFileIfPresent(envFilePath: string): void {
 
     let value = line.slice(eq + 1).trim();
     if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
+      (value.startsWith('"') && value.endsWith('"'))
+      || (value.startsWith("'") && value.endsWith("'"))
     ) {
       value = value.slice(1, -1);
     }
@@ -71,7 +71,7 @@ function tryDiscoverVSCodeExecutablePath(): string | undefined {
     if (res.status === 0 && typeof res.stdout === "string") {
       const firstLine = res.stdout
         .split(/\r?\n/)
-        .map((s) => s.trim())
+        .map(s => s.trim())
         .find(Boolean);
       if (firstLine) {
         return firstLine;
@@ -99,8 +99,8 @@ function tryDiscoverVSCodeFromVscodeTestDir(): string | undefined {
       path.join(
         vscodeTestDir,
         "vscode-darwin-arm64-",
-        "Visual Studio Code.app"
-      )
+        "Visual Studio Code.app",
+      ),
     );
     // We don't know the exact versioned folder name ahead of time, so scan.
     try {
@@ -128,12 +128,14 @@ function tryDiscoverVSCodeFromVscodeTestDir(): string | undefined {
                 return wapp;
               }
             }
-          } catch {
+          }
+          catch {
             // Ignore and continue scanning.
           }
         }
       }
-    } catch {
+    }
+    catch {
       // Ignore and continue with other discovery strategies.
     }
   }
@@ -151,7 +153,8 @@ function tryDiscoverVSCodeFromVscodeTestDir(): string | undefined {
           return exe;
         }
       }
-    } catch {
+    }
+    catch {
       // Ignore.
     }
   }
@@ -175,7 +178,8 @@ function tryDiscoverVSCodeFromVscodeTestDir(): string | undefined {
           return nested;
         }
       }
-    } catch {
+    }
+    catch {
       // Ignore.
     }
   }
@@ -233,12 +237,12 @@ export default async function globalSetup(): Promise<void> {
   process.env.PW_VSCODE_AUTO_DISCOVER = "1";
 
   throw new Error(
-    "PW_VSCODE_EXECUTABLE_PATH is not set and VS Code could not be auto-discovered. " +
-      "For the Playwright demo, we need a VS Code executable to launch.\n\n" +
-      "Fix options:\n" +
-      "- Install VS Code to /Applications (macOS) or ensure 'code' is on PATH\n" +
-      "- Or run the extension tests once to populate .vscode-test/ (CI does this automatically)\n" +
-      "- Or set PW_VSCODE_EXECUTABLE_PATH in the environment (recommended for GitHub Actions)\n\n" +
-      "Discovery tried: .vscode-test download, /Applications app bundle (macOS), and PATH lookup ('which code' / 'which code-insiders' or 'where' on Windows)."
+    "PW_VSCODE_EXECUTABLE_PATH is not set and VS Code could not be auto-discovered. "
+    + "For the Playwright demo, we need a VS Code executable to launch.\n\n"
+    + "Fix options:\n"
+    + "- Install VS Code to /Applications (macOS) or ensure 'code' is on PATH\n"
+    + "- Or run the extension tests once to populate .vscode-test/ (CI does this automatically)\n"
+    + "- Or set PW_VSCODE_EXECUTABLE_PATH in the environment (recommended for GitHub Actions)\n\n"
+    + "Discovery tried: .vscode-test download, /Applications app bundle (macOS), and PATH lookup ('which code' / 'which code-insiders' or 'where' on Windows).",
   );
 }

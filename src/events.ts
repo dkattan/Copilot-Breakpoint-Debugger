@@ -1,89 +1,89 @@
-import { useDisposable, useEventEmitter } from 'reactive-vscode';
-import * as vscode from 'vscode';
+import { useDisposable, useEventEmitter } from "reactive-vscode";
+import * as vscode from "vscode";
 import {
   activeSessions,
   type BreakpointHitInfo,
   onSessionTerminate,
-} from './common';
-import { config } from './config';
-import { DAPHelpers, type DebugContext } from './debugUtils';
-import { logger } from './logger';
+} from "./common";
+import { config } from "./config";
+import { DAPHelpers, type DebugContext } from "./debugUtils";
+import { logger } from "./logger";
 
 // Debug Adapter Protocol message types
 interface DebugProtocolMessage {
-  seq: number;
-  type: string;
+  seq: number
+  type: string
 }
 
 interface DebugProtocolResponse extends DebugProtocolMessage {
-  type: 'response';
-  command: string;
-  success: boolean;
-  body?: unknown;
+  type: "response"
+  command: string
+  success: boolean
+  body?: unknown
 }
 
 interface DebugProtocolEvent extends DebugProtocolMessage {
-  type: 'event';
-  event: string;
-  body?: unknown;
+  type: "event"
+  event: string
+  body?: unknown
 }
 
 interface StoppedEventBody {
-  reason: string;
-  description?: string;
-  threadId: number;
-  text?: string;
+  reason: string
+  description?: string
+  threadId: number
+  text?: string
 }
 
 interface OutputEventBody {
-  category: 'console' | 'stdout' | 'stderr' | 'telemetry' | string;
-  output: string;
-  variablesReference?: number;
-  source?: { name?: string; path?: string };
-  line?: number;
-  column?: number;
+  category: "console" | "stdout" | "stderr" | "telemetry" | string
+  output: string
+  variablesReference?: number
+  source?: { name?: string, path?: string }
+  line?: number
+  column?: number
 }
 
 interface ExitedEventBody {
-  exitCode: number;
+  exitCode: number
 }
 
 export interface OutputLine {
-  category: string;
-  text: string;
-  timestamp: number;
+  category: string
+  text: string
+  timestamp: number
 }
 
 export interface SessionExitInfo {
-  sessionId: string;
-  exitCode?: number;
-  signal?: string;
+  sessionId: string
+  exitCode?: number
+  signal?: string
 }
 
 export interface TimeoutSessionSnapshot {
-  id: string;
-  name: string;
-  type?: string;
-  workspaceFolder?: string;
-  configurationName?: string;
-  request?: string;
-  serverReadyAction?: unknown;
-  stopped: boolean;
-  stopError?: string;
+  id: string
+  name: string
+  type?: string
+  workspaceFolder?: string
+  configurationName?: string
+  request?: string
+  serverReadyAction?: unknown
+  stopped: boolean
+  stopError?: string
 }
 
 export interface EntryStopTimeoutDetails {
-  timeoutMs: number;
-  sessions: TimeoutSessionSnapshot[];
+  timeoutMs: number
+  sessions: TimeoutSessionSnapshot[]
 }
 
 export class EntryStopTimeoutError extends Error {
   constructor(
     message: string,
-    public readonly details: EntryStopTimeoutDetails
+    public readonly details: EntryStopTimeoutDetails,
   ) {
     super(message);
-    this.name = 'EntryStopTimeoutError';
+    this.name = "EntryStopTimeoutError";
   }
 }
 
@@ -113,9 +113,9 @@ export function getSessionCapabilities(sessionId: string): unknown | undefined {
 
 // Register debug adapter tracker to monitor debug events
 useDisposable(
-  vscode.debug.registerDebugAdapterTrackerFactory('*', {
+  vscode.debug.registerDebugAdapterTrackerFactory("*", {
     createDebugAdapterTracker: (
-      session: vscode.DebugSession
+      session: vscode.DebugSession,
     ): vscode.ProviderResult<vscode.DebugAdapterTracker> => {
       // Create a class that implements the DebugAdapterTracker interface
       class DebugAdapterTrackerImpl implements vscode.DebugAdapterTracker {
@@ -127,7 +127,8 @@ useDisposable(
           let str: string;
           try {
             str = JSON.stringify(obj);
-          } catch (e) {
+          }
+          catch (e) {
             str = `[unstringifiable: ${
               e instanceof Error ? e.message : String(e)
             }]`;
@@ -144,26 +145,26 @@ useDisposable(
             return;
           }
           logger.trace(
-            `Message received by debug adapter: ${this.safeStringify(message)}`
+            `Message received by debug adapter: ${this.safeStringify(message)}`,
           );
         }
 
         async onDidSendMessage(message: DebugProtocolMessage): Promise<void> {
           // Log all messages sent from the debug adapter to VS Code
-          if (message.type === 'response') {
+          if (message.type === "response") {
             const response = message as DebugProtocolResponse;
-            if (response.command === 'initialize' && response.success) {
+            if (response.command === "initialize" && response.success) {
               sessionCapabilities.set(session.id, response.body);
             }
           }
 
-          if (message.type !== 'event') {
+          if (message.type !== "event") {
             return;
           }
           const event = message as DebugProtocolEvent;
 
           // Handle output events for stderr/stdout capture
-          if (event.event === 'output') {
+          if (event.event === "output") {
             const body = event.body as OutputEventBody;
             const maxLines = config.maxOutputLines ?? 50;
 
@@ -184,26 +185,26 @@ useDisposable(
           }
 
           // Handle exited events for process exit code capture
-          if (event.event === 'exited') {
+          if (event.event === "exited") {
             const body = event.body as ExitedEventBody;
             sessionExitCodes.set(session.id, body.exitCode);
             logger.debug(
-              `Process exited for session ${session.id}: exitCode=${body.exitCode}`
+              `Process exited for session ${session.id}: exitCode=${body.exitCode}`,
             );
             return;
           }
 
-          if (event.event !== 'stopped') {
+          if (event.event !== "stopped") {
             return;
           }
           const body = event.body as StoppedEventBody;
           const validReasons = [
-            'breakpoint',
-            'step',
-            'pause',
-            'exception',
-            'assertion',
-            'entry',
+            "breakpoint",
+            "step",
+            "pause",
+            "exception",
+            "assertion",
+            "entry",
           ];
           if (!validReasons.includes(body.reason)) {
             return;
@@ -211,47 +212,48 @@ useDisposable(
 
           try {
             let exceptionDetails;
-            if (body.reason === 'exception' && body.description) {
+            if (body.reason === "exception" && body.description) {
               exceptionDetails = {
-                description: body.description || 'Unknown exception',
-                details: body.text || 'No additional details available',
+                description: body.description || "Unknown exception",
+                details: body.text || "No additional details available",
               };
             }
 
             // Some debug adapters may send 'stopped' before frames/threads fully available.
             // Retry a few times with incremental backoff.
-            const isEntry = body.reason === 'entry';
+            const isEntry = body.reason === "entry";
             // Entry stops often occur before the thread is fully paused; allow a few more attempts
             const retries = isEntry ? 5 : 3;
             let callStackData: DebugContext | undefined;
             for (let attempt = 0; attempt < retries; attempt++) {
               try {
                 if (attempt > 0) {
-                  await new Promise((r) => setTimeout(r, 50 * attempt));
+                  await new Promise(r => setTimeout(r, 50 * attempt));
                 }
                 callStackData = await DAPHelpers.getDebugContext(
                   session,
-                  body.threadId
+                  body.threadId,
                 );
                 // Some adapters report 'stopped' before a user-code frame exists (or before source paths
                 // are populated). For tool orchestration we primarily need the session id + thread id;
                 // higher-level code can retry context resolution once the adapter is fully paused.
                 // Success
                 break;
-              } catch (err) {
+              }
+              catch (err) {
                 logger.debug(
                   `getDebugContext attempt ${attempt + 1} failed for thread ${
                     body.threadId
-                  }: ${err instanceof Error ? err.message : String(err)}`
+                  }: ${err instanceof Error ? err.message : String(err)}`,
                 );
 
                 // If this was an entry stop and the thread isn't paused yet, treat it as an acceptable
                 // early entry signal. We only need the session id at this stage.
                 if (
-                  isEntry &&
-                  err instanceof Error &&
-                  (/not paused/i.test(err.message) ||
-                    /Invalid thread id/i.test(err.message))
+                  isEntry
+                  && err instanceof Error
+                  && (/not paused/i.test(err.message)
+                    || /Invalid thread id/i.test(err.message))
                 ) {
                   callStackData = undefined;
                   break;
@@ -270,8 +272,8 @@ useDisposable(
               };
               logger.debug(
                 `Firing minimal stop event (no call stack yet): ${JSON.stringify(
-                  eventData
-                )}`
+                  eventData,
+                )}`,
               );
               breakpointEventEmitter.fire(eventData);
               return;
@@ -287,20 +289,21 @@ useDisposable(
               exceptionInfo: exceptionDetails,
             };
             logger.debug(
-              `Firing breakpoint event: ${JSON.stringify(eventData)}`
+              `Firing breakpoint event: ${JSON.stringify(eventData)}`,
             );
             breakpointEventEmitter.fire(eventData);
-          } catch (err) {
+          }
+          catch (err) {
             // Fail fast locally without relying on a global unhandledRejection handler.
             const msg = err instanceof Error ? err.message : String(err);
             logger.error(
-              `[stopped-event-error] ${msg} (reason=${body.reason})`
+              `[stopped-event-error] ${msg} (reason=${body.reason})`,
             );
             // Emit an error reason event so waiting logic can fail early.
             const errorEvent: BreakpointHitInfo = {
               session,
               threadId: body?.threadId ?? 0,
-              reason: 'error',
+              reason: "error",
             };
             breakpointEventEmitter.fire(errorEvent);
           }
@@ -311,7 +314,7 @@ useDisposable(
             return;
           }
           logger.trace(
-            `Message sent to debug adapter: ${this.safeStringify(message)}`
+            `Message sent to debug adapter: ${this.safeStringify(message)}`,
           );
         }
 
@@ -321,8 +324,8 @@ useDisposable(
           }
           logger.trace(
             `Message received from debug adapter: ${this.safeStringify(
-              message
-            )}`
+              message,
+            )}`,
           );
         }
 
@@ -350,7 +353,7 @@ useDisposable(
 
       return new DebugAdapterTrackerImpl();
     },
-  })
+  }),
 );
 
 /**
@@ -382,10 +385,10 @@ export function clearSessionDiagnostics(sessionId: string): void {
  * Wait for a debugger stop event (breakpoint/step/etc.) filtering by session id instead of name.
  * This is useful after acquiring the concrete session id from an initial 'entry' stop.
  */
-export const waitForDebuggerStopBySessionId = async (params: {
-  sessionId: string;
-  timeout?: number;
-}): Promise<BreakpointHitInfo> => {
+export async function waitForDebuggerStopBySessionId(params: {
+  sessionId: string
+  timeout?: number
+}): Promise<BreakpointHitInfo> {
   const { sessionId, timeout = 30000 } = params;
 
   return await new Promise<BreakpointHitInfo>((resolve, reject) => {
@@ -416,7 +419,7 @@ export const waitForDebuggerStopBySessionId = async (params: {
       resolve({
         session: endEvent.session,
         threadId: 0,
-        reason: 'terminated',
+        reason: "terminated",
       });
     });
     timeoutHandle = setTimeout(() => {
@@ -424,28 +427,29 @@ export const waitForDebuggerStopBySessionId = async (params: {
       terminateListener?.dispose();
       timeoutHandle = undefined;
       try {
-        const target = activeSessions.find((s) => s.id === sessionId);
+        const target = activeSessions.find(s => s.id === sessionId);
         if (target) {
           void vscode.debug.stopDebugging(target);
           logger.warn(
-            `Timeout waiting for debugger stop (by session id) for ${target.name} (${target.id}).`
+            `Timeout waiting for debugger stop (by session id) for ${target.name} (${target.id}).`,
           );
         }
-      } catch (e) {
+      }
+      catch (e) {
         logger.warn(
           `Timeout cleanup error (by session id): ${
             e instanceof Error ? e.message : String(e)
-          }`
+          }`,
         );
       }
       reject(
         new Error(
-          `Timed out waiting for breakpoint or termination for session id ${sessionId} (${timeout}ms).`
-        )
+          `Timed out waiting for breakpoint or termination for session id ${sessionId} (${timeout}ms).`,
+        ),
       );
     }, timeout);
   });
-};
+}
 
 /**
  * Wait for the first stopped event ("entry" OR any other valid stop reason such as breakpoint/step/exception)
@@ -458,10 +462,10 @@ export const waitForDebuggerStopBySessionId = async (params: {
  * This updated logic treats the FIRST valid stopped event for a newly created session as the "entry" equivalent
  * for purposes of acquiring the concrete session id. Termination before any stop is still surfaced distinctly.
  */
-export const waitForEntryStop = async (params: {
-  excludeSessionIds?: string[];
-  timeout?: number;
-}): Promise<BreakpointHitInfo> => {
+export async function waitForEntryStop(params: {
+  excludeSessionIds?: string[]
+  timeout?: number
+}): Promise<BreakpointHitInfo> {
   const { excludeSessionIds = [], timeout = 30000 } = params;
   return await new Promise<BreakpointHitInfo>((resolve, reject) => {
     let terminateListener: vscode.Disposable | undefined; // not strictly needed for entry but keep symmetry
@@ -475,7 +479,7 @@ export const waitForEntryStop = async (params: {
         return;
       }
       // Ignore internal error events; wait for a genuine stopped reason
-      if (event.reason === 'error') {
+      if (event.reason === "error") {
         return;
       }
       listener.dispose();
@@ -500,7 +504,7 @@ export const waitForEntryStop = async (params: {
       resolve({
         session: endEvent.session,
         threadId: 0,
-        reason: 'terminated',
+        reason: "terminated",
       });
     });
     timeoutHandle = setTimeout(() => {
@@ -529,12 +533,12 @@ export const waitForEntryStop = async (params: {
         lateStartCleanupTimer = undefined;
         void vscode.debug.stopDebugging(session);
         logger.warn(
-          `Stopped debug session '${session.name}' (${session.id}) that started after entry timeout.`
+          `Stopped debug session '${session.name}' (${session.id}) that started after entry timeout.`,
         );
       });
 
       const candidateSessions = activeSessions.filter(
-        (session) => !excludeSet.has(session.id)
+        session => !excludeSet.has(session.id),
       );
       void (async () => {
         const snapshots: TimeoutSessionSnapshot[] = [];
@@ -554,14 +558,15 @@ export const waitForEntryStop = async (params: {
             snapshot.stopped = stopped ?? false;
             if (snapshot.stopped) {
               logger.warn(
-                `Stopped debug session '${session.name}' (${session.id}) after entry timeout.`
+                `Stopped debug session '${session.name}' (${session.id}) after entry timeout.`,
               );
             }
-          } catch (stopErr) {
-            snapshot.stopError =
-              stopErr instanceof Error ? stopErr.message : String(stopErr);
+          }
+          catch (stopErr) {
+            snapshot.stopError
+              = stopErr instanceof Error ? stopErr.message : String(stopErr);
             logger.warn(
-              `Failed to stop session '${session.name}' (${session.id}) after entry timeout: ${snapshot.stopError}`
+              `Failed to stop session '${session.name}' (${session.id}) after entry timeout: ${snapshot.stopError}`,
             );
           }
           snapshots.push(snapshot);
@@ -571,10 +576,10 @@ export const waitForEntryStop = async (params: {
           {
             timeoutMs: timeout,
             sessions: snapshots,
-          }
+          },
         );
         reject(timeoutError);
       })();
     }, timeout);
   });
-};
+}

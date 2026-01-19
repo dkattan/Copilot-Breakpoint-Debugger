@@ -25,12 +25,13 @@ import { logger } from "./logger";
 const typescriptCliPath = (() => {
   try {
     return require.resolve("typescript/lib/tsc.js");
-  } catch {
+  }
+  catch {
     return undefined;
   }
 })();
 
-const normalizeFsPath = (value: string) => {
+function normalizeFsPath(value: string) {
   // Normalize path, convert backslashes, strip trailing slashes.
   // On Windows, make comparison case-insensitive by lowercasing drive letter + entire path.
   const normalized = path
@@ -38,47 +39,46 @@ const normalizeFsPath = (value: string) => {
     .replace(/\\/g, "/")
     .replace(/\/+$/, "");
   return process.platform === "win32" ? normalized.toLowerCase() : normalized;
-};
+}
 
-const reorderScopesForCapture = <T extends { name?: string }>(
-  scopes: T[]
-): T[] => {
+function reorderScopesForCapture<T extends { name?: string }>(scopes: T[]): T[] {
   const locals: T[] = [];
   const others: T[] = [];
   for (const scope of scopes) {
     const name = scope?.name?.trim();
     if (name && /^locals?$/i.test(name)) {
       locals.push(scope);
-    } else {
+    }
+    else {
       others.push(scope);
     }
   }
   return [...locals, ...others];
-};
+}
 
-const captureScopeVariables = async (params: {
-  session: vscode.DebugSession;
-  scopes: Array<{ name?: string; variablesReference: number }>;
-}): Promise<ScopeVariables[]> => {
+async function captureScopeVariables(params: {
+  session: vscode.DebugSession
+  scopes: Array<{ name?: string, variablesReference: number }>
+}): Promise<ScopeVariables[]> {
   const { session, scopes } = params;
   const scopeVariables: ScopeVariables[] = [];
   for (const scope of scopes) {
     const variables = await DAPHelpers.getVariablesFromReference(
       session,
-      scope.variablesReference
+      scope.variablesReference,
     );
     scopeVariables.push({ scopeName: scope.name ?? "Scope", variables });
   }
   return scopeVariables;
-};
+}
 
 /**
  * Variables grouped by scope
  */
 export interface ScopeVariables {
-  scopeName: string;
-  variables: VariableInfo[];
-  error?: string;
+  scopeName: string
+  variables: VariableInfo[]
+  error?: string
 }
 
 export type ServerReadyPhase = "entry" | "late" | "immediate";
@@ -86,15 +86,15 @@ export type ServerReadyPhase = "entry" | "late" | "immediate";
 export type ServerReadyPatternSource = "debugOutput" | "terminal";
 
 export interface ServerReadyPhaseInfo {
-  phase: ServerReadyPhase;
-  timestamp: number;
+  phase: ServerReadyPhase
+  timestamp: number
 }
 
 export interface ServerReadyInfo {
-  configured: boolean;
-  triggerMode: "pattern" | "breakpoint" | "immediate" | "disabled";
-  phases: ServerReadyPhaseInfo[];
-  triggerSummary?: string;
+  configured: boolean
+  triggerMode: "pattern" | "breakpoint" | "immediate" | "disabled"
+  phases: ServerReadyPhaseInfo[]
+  triggerSummary?: string
 }
 
 export type DebuggerStateStatus = "paused" | "running" | "terminated";
@@ -118,21 +118,21 @@ export interface CopilotDebuggerProtocol {
    * - When paused: only debugger operations are allowed.
    * - When running: external probes may be okay.
    */
-  allowedNextActions: CopilotDebuggerToolAction[];
-  forbiddenNextActions: CopilotDebuggerToolAction[];
-  nextStepSuggestion: string;
+  allowedNextActions: CopilotDebuggerToolAction[]
+  forbiddenNextActions: CopilotDebuggerToolAction[]
+  nextStepSuggestion: string
 }
 
 export interface DebuggerStateSnapshot {
-  status: DebuggerStateStatus;
-  sessionId?: string;
-  sessionName?: string;
+  status: DebuggerStateStatus
+  sessionId?: string
+  sessionName?: string
 }
 
 export interface RuntimeOutputPreview {
-  lines: string[];
-  totalLines: number;
-  truncated: boolean;
+  lines: string[]
+  totalLines: number
+  truncated: boolean
 }
 
 /**
@@ -140,35 +140,35 @@ export interface RuntimeOutputPreview {
  */
 export interface CallStackInfo {
   callStacks: Array<{
-    sessionId: string;
-    sessionName: string;
+    sessionId: string
+    sessionName: string
     threads?: Array<{
-      threadId: number;
-      threadName: string;
+      threadId: number
+      threadName: string
       stackFrames?: Array<{
-        id: number;
-        name: string;
+        id: number
+        name: string
         source?: {
-          name?: string;
-          path?: string;
-        };
-        line: number;
-        column: number;
-      }>;
-      error?: string;
-    }>;
-    error?: string;
-  }>;
+          name?: string
+          path?: string
+        }
+        line: number
+        column: number
+      }>
+      error?: string
+    }>
+    error?: string
+  }>
 }
 
 /**
  * Structured debug information returned when a breakpoint is hit
  */
 export interface DebugInfo {
-  breakpoint: BreakpointHitInfo;
-  callStack: CallStackInfo | null;
-  variables: ScopeVariables[] | null;
-  variablesError: string | null;
+  breakpoint: BreakpointHitInfo
+  callStack: CallStackInfo | null
+  variables: ScopeVariables[] | null
+  variablesError: string | null
 }
 
 /**
@@ -176,38 +176,36 @@ export interface DebugInfo {
  */
 export interface StartDebugSessionResult {
   content: Array<{
-    type: "text" | "json";
-    text?: string;
-    json?: DebugInfo;
-  }>;
-  isError: boolean;
+    type: "text" | "json"
+    text?: string
+    json?: DebugInfo
+  }>
+  isError: boolean
 }
 
 export interface StartDebuggerStopInfo extends DebugContext {
-  scopeVariables: ScopeVariables[];
+  scopeVariables: ScopeVariables[]
   stepOverCapture?: {
-    performed: boolean;
-    fromLine?: number;
-    toLine?: number;
-    before: ScopeVariables[];
-    after: ScopeVariables[];
-  };
-  hitBreakpoint?: BreakpointDefinition;
-  capturedLogMessages?: string[];
-  serverReadyInfo: ServerReadyInfo;
-  debuggerState: DebuggerStateSnapshot;
-  protocol: CopilotDebuggerProtocol;
-  runtimeOutput: RuntimeOutputPreview;
-  reason?: string;
+    performed: boolean
+    fromLine?: number
+    toLine?: number
+    before: ScopeVariables[]
+    after: ScopeVariables[]
+  }
+  hitBreakpoint?: BreakpointDefinition
+  capturedLogMessages?: string[]
+  serverReadyInfo: ServerReadyInfo
+  debuggerState: DebuggerStateSnapshot
+  protocol: CopilotDebuggerProtocol
+  runtimeOutput: RuntimeOutputPreview
+  reason?: string
   exceptionInfo?: {
-    description: string;
-    details: string;
-  };
+    description: string
+    details: string
+  }
 }
 
-const buildProtocol = (
-  state: DebuggerStateSnapshot
-): CopilotDebuggerProtocol => {
+function buildProtocol(state: DebuggerStateSnapshot): CopilotDebuggerProtocol {
   const sessionId = state.sessionId ?? "unknown";
   if (state.status === "paused") {
     return {
@@ -257,14 +255,14 @@ const buildProtocol = (
     nextStepSuggestion:
       "Session is terminated. Start a new session with startDebugSessionWithBreakpoints.",
   };
-};
+}
 
 /**
  * List all active debug sessions in the workspace.
  *
  * Exposes debug session information, including each session's ID, name, and associated launch configuration.
  */
-export const listDebugSessions = () => {
+export function listDebugSessions() {
   // Retrieve all active debug sessions using the activeSessions array.
   const sessions = activeSessions.map((session: vscode.DebugSession) => ({
     id: session.id,
@@ -282,7 +280,7 @@ export const listDebugSessions = () => {
     ],
     isError: false,
   };
-};
+}
 
 export interface DebugSessionListItem {
   /**
@@ -291,39 +289,39 @@ export interface DebugSessionListItem {
    * Intended for LLM ergonomics: you can pass this value to stopDebugSession(sessionId)
    * as an alternative to the VS Code session UUID.
    */
-  toolId: number;
+  toolId: number
   /**
    * Stop-compatible identifier.
    *
    * IMPORTANT: This must be usable as input to stopDebugSession(sessionId).
    */
-  id: string;
-  name: string;
-  isActive: boolean;
-  configurationType?: string;
-  request?: string;
+  id: string
+  name: string
+  isActive: boolean
+  configurationType?: string
+  request?: string
 }
 
-export const mapDebugSessionsForTool = (params: {
-  sessions: Array<{ id?: string; name?: string; configuration?: unknown }>;
-  activeSessionId?: string;
-}): DebugSessionListItem[] => {
+export function mapDebugSessionsForTool(params: {
+  sessions: Array<{ id?: string, name?: string, configuration?: unknown }>
+  activeSessionId?: string
+}): DebugSessionListItem[] {
   const { sessions, activeSessionId } = params;
   return sessions
     .map((session, index) => {
       const id = typeof session.id === "string" ? session.id : "";
       const name = typeof session.name === "string" ? session.name : "";
-      const configuration =
-        session.configuration && typeof session.configuration === "object"
+      const configuration
+        = session.configuration && typeof session.configuration === "object"
           ? (session.configuration as Record<string, unknown>)
           : undefined;
 
-      const configurationType =
-        typeof configuration?.type === "string"
+      const configurationType
+        = typeof configuration?.type === "string"
           ? configuration.type
           : undefined;
-      const request =
-        typeof configuration?.request === "string"
+      const request
+        = typeof configuration?.request === "string"
           ? configuration.request
           : undefined;
 
@@ -336,27 +334,24 @@ export const mapDebugSessionsForTool = (params: {
         request,
       } satisfies DebugSessionListItem;
     })
-    .filter((item) => item.id.trim().length > 0);
-};
+    .filter(item => item.id.trim().length > 0);
+}
 
 /**
  * Session listing intended for LLM consumption.
  *
  * This returns ONLY ids that are valid inputs to stopDebugSession(sessionId).
  */
-export const listDebugSessionsForTool = (): string => {
+export function listDebugSessionsForTool(): string {
   const activeId = vscode.debug.activeDebugSession?.id;
   const items = mapDebugSessionsForTool({
     sessions: activeSessions,
     activeSessionId: activeId,
   });
   return JSON.stringify({ sessions: items }, null, 2);
-};
+}
 
-const collectBuildDiagnostics = (
-  workspaceUri: vscode.Uri,
-  maxErrors: number
-): vscode.Diagnostic[] => {
+function collectBuildDiagnostics(workspaceUri: vscode.Uri, maxErrors: number): vscode.Diagnostic[] {
   const allDiagnostics = vscode.languages.getDiagnostics();
   const errors: vscode.Diagnostic[] = [];
   for (const [uri, diagnostics] of allDiagnostics) {
@@ -373,51 +368,53 @@ const collectBuildDiagnostics = (
     }
   }
   return errors;
-};
+}
 
-const formatBuildErrors = (diagnostics: vscode.Diagnostic[]): string => {
+function formatBuildErrors(diagnostics: vscode.Diagnostic[]): string {
   if (diagnostics.length === 0) {
     return "";
   }
   const formatted = diagnostics
     .map((diag) => {
       const line = diag.range.start.line + 1;
-      const msg =
-        diag.message.length > 80
+      const msg
+        = diag.message.length > 80
           ? `${diag.message.slice(0, 80)}...`
           : diag.message;
       return `Line ${line}: ${msg}`;
     })
     .join(", ");
   return `Build errors: [${formatted}]. `;
-};
+}
 
 const MAX_CAPTURED_TASK_OUTPUT_LINES = 200;
 const MAX_RETURNED_DEBUG_OUTPUT_LINES = 10;
 
-const stripAnsiEscapeCodes = (value: string): string =>
-  value ? stripAnsi(value) : "";
+function stripAnsiEscapeCodes(value: string): string {
+  return value ? stripAnsi(value) : "";
+}
 
-const fireAndForgetHttpRequest = (params: {
-  url: string;
-  method: string;
-  headers?: Record<string, string>;
-  body?: string;
-  timeoutMs: number;
-  onDone?: (statusCode?: number) => void;
-  onError?: (error: unknown) => void;
-}) => {
+function fireAndForgetHttpRequest(params: {
+  url: string
+  method: string
+  headers?: Record<string, string>
+  body?: string
+  timeoutMs: number
+  onDone?: (statusCode?: number) => void
+  onError?: (error: unknown) => void
+}) {
   const { url, method, headers, body, timeoutMs, onDone, onError } = params;
   let parsed: URL;
   try {
     parsed = new URL(url);
-  } catch (err) {
+  }
+  catch (err) {
     onError?.(
       new Error(
         `Invalid URL '${url}': ${
           err instanceof Error ? err.message : String(err)
-        }`
-      )
+        }`,
+      ),
     );
     return;
   }
@@ -440,7 +437,7 @@ const fireAndForgetHttpRequest = (params: {
       res.on("end", () => {
         onDone?.(res.statusCode);
       });
-    }
+    },
   );
 
   req.on("error", (err) => {
@@ -450,7 +447,8 @@ const fireAndForgetHttpRequest = (params: {
   req.setTimeout(timeoutMs, () => {
     try {
       req.destroy(new Error(`Request timed out after ${timeoutMs}ms`));
-    } catch (err) {
+    }
+    catch (err) {
       onError?.(err);
     }
   });
@@ -459,13 +457,13 @@ const fireAndForgetHttpRequest = (params: {
     req.write(body);
   }
   req.end();
-};
+}
 
 interface TaskCompletionResult {
-  name: string;
-  exitCode?: number;
-  outputLines: string[];
-  taskExecution?: vscode.TaskExecution;
+  name: string
+  exitCode?: number
+  outputLines: string[]
+  taskExecution?: vscode.TaskExecution
 }
 
 const missingCommandPatterns = [
@@ -473,9 +471,9 @@ const missingCommandPatterns = [
   /command not found/i,
 ];
 
-const formatTaskFailures = (tasks: TaskCompletionResult[]): string => {
+function formatTaskFailures(tasks: TaskCompletionResult[]): string {
   const failed = tasks.filter(
-    (task) => typeof task.exitCode === "number" && task.exitCode !== 0
+    task => typeof task.exitCode === "number" && task.exitCode !== 0,
   );
   if (!failed.length) {
     return "";
@@ -484,42 +482,41 @@ const formatTaskFailures = (tasks: TaskCompletionResult[]): string => {
   const lines = primary.outputLines.slice(-5);
   const details = lines.length
     ? `\nLast ${lines.length} line(s):\n${lines
-        .map((line) => `  ${line}`)
-        .join("\n")}`
+      .map(line => `  ${line}`)
+      .join("\n")}`
     : "";
   const additional = rest.length
     ? `\nAdditional failed task(s): ${rest
-        .map((task) => `'${task.name}' (exit ${task.exitCode ?? "unknown"})`)
-        .join(", ")}`
+      .map(task => `'${task.name}' (exit ${task.exitCode ?? "unknown"})`)
+      .join(", ")}`
     : "";
   return `Task '${primary.name}' exited with code ${
     primary.exitCode ?? "unknown"
   }.${details}${additional}\n`;
-};
+}
 
-const sanitizeTaskOutput = (text: string): string[] =>
-  stripAnsiEscapeCodes(text)
+function sanitizeTaskOutput(text: string): string[] {
+  return stripAnsiEscapeCodes(text)
     .split(/\r?\n/)
-    .map((line) => line.trimEnd())
-    .filter((line) => line.length > 0);
+    .map(line => line.trimEnd())
+    .filter(line => line.length > 0);
+}
 
 const DEBUG_TERMINAL_NAME_PATTERN = /\bdebug\b/i;
 const SERVER_READY_TERMINAL_PATTERN = /^serverReady-/i;
 
-const truncateLine = (line: string, maxLength = 160): string => {
+function truncateLine(line: string, maxLength = 160): string {
   if (line.length <= maxLength) {
     return line;
   }
   return `${line.slice(0, maxLength - 1)}…`;
-};
+}
 
-const truncateSnippet = (snippet: string, maxLength = 80): string =>
-  truncateLine(snippet.replace(/\s+/g, " ").trim(), maxLength);
+function truncateSnippet(snippet: string, maxLength = 80): string {
+  return truncateLine(snippet.replace(/\s+/g, " ").trim(), maxLength);
+}
 
-const findAllLineNumbersForSnippet = (
-  doc: vscode.TextDocument,
-  snippet: string
-): number[] => {
+function findAllLineNumbersForSnippet(doc: vscode.TextDocument, snippet: string): number[] {
   const text = doc.getText();
   if (!snippet || !snippet.trim()) {
     return [];
@@ -538,32 +535,29 @@ const findAllLineNumbersForSnippet = (
     fromIndex = idx + Math.max(1, needles.length);
   }
   return Array.from(lines).sort((a, b) => a - b);
-};
+}
 
 interface TerminalOutputCapture {
-  snapshot: () => string[];
-  dispose: () => void;
+  snapshot: () => string[]
+  dispose: () => void
 }
 
 interface TerminalOutputCaptureOptions {
-  onLine?: (line: string) => void;
+  onLine?: (line: string) => void
 }
 
-export const createTerminalOutputCapture = (
-  maxLines: number,
-  options?: TerminalOutputCaptureOptions
-): TerminalOutputCapture => {
+export function createTerminalOutputCapture(maxLines: number, options?: TerminalOutputCaptureOptions): TerminalOutputCapture {
   type TerminalShellWindow = typeof vscode.window & {
-    onDidStartTerminalShellExecution?: vscode.Event<vscode.TerminalShellExecutionStartEvent>;
-    onDidEndTerminalShellExecution?: vscode.Event<vscode.TerminalShellExecutionEndEvent>;
+    onDidStartTerminalShellExecution?: vscode.Event<vscode.TerminalShellExecutionStartEvent>
+    onDidEndTerminalShellExecution?: vscode.Event<vscode.TerminalShellExecutionEndEvent>
   };
   const terminalShellWindow = vscode.window as TerminalShellWindow;
   const startEvent = terminalShellWindow.onDidStartTerminalShellExecution;
   const endEvent = terminalShellWindow.onDidEndTerminalShellExecution;
   if (
-    maxLines <= 0 ||
-    typeof startEvent !== "function" ||
-    typeof endEvent !== "function"
+    maxLines <= 0
+    || typeof startEvent !== "function"
+    || typeof endEvent !== "function"
   ) {
     return { snapshot: () => [], dispose: () => undefined };
   }
@@ -586,13 +580,14 @@ export const createTerminalOutputCapture = (
     if (options?.onLine) {
       try {
         options.onLine(sanitized);
-      } catch (callbackErr) {
+      }
+      catch (callbackErr) {
         logger.warn(
           `terminal capture onLine callback failed: ${
             callbackErr instanceof Error
               ? callbackErr.message
               : String(callbackErr)
-          }`
+          }`,
         );
       }
     }
@@ -613,9 +608,9 @@ export const createTerminalOutputCapture = (
       return true;
     }
     if (
-      !initialTerminals.has(terminal) ||
-      DEBUG_TERMINAL_NAME_PATTERN.test(terminal.name) ||
-      SERVER_READY_TERMINAL_PATTERN.test(terminal.name)
+      !initialTerminals.has(terminal)
+      || DEBUG_TERMINAL_NAME_PATTERN.test(terminal.name)
+      || SERVER_READY_TERMINAL_PATTERN.test(terminal.name)
     ) {
       trackedTerminals.add(terminal);
       return true;
@@ -639,13 +634,13 @@ export const createTerminalOutputCapture = (
   disposables.push(
     vscode.window.onDidOpenTerminal((terminal) => {
       if (
-        !initialTerminals.has(terminal) ||
-        DEBUG_TERMINAL_NAME_PATTERN.test(terminal.name) ||
-        SERVER_READY_TERMINAL_PATTERN.test(terminal.name)
+        !initialTerminals.has(terminal)
+        || DEBUG_TERMINAL_NAME_PATTERN.test(terminal.name)
+        || SERVER_READY_TERMINAL_PATTERN.test(terminal.name)
       ) {
         trackedTerminals.add(terminal);
       }
-    })
+    }),
   );
   disposables.push(
     startEvent((event) => {
@@ -655,11 +650,12 @@ export const createTerminalOutputCapture = (
       let stream: AsyncIterable<string>;
       try {
         stream = event.execution.read();
-      } catch (err) {
+      }
+      catch (err) {
         logger.warn(
           `Failed to read terminal shell execution data: ${
             err instanceof Error ? err.message : String(err)
-          }`
+          }`,
         );
         return;
       }
@@ -672,19 +668,21 @@ export const createTerminalOutputCapture = (
             }
             appendChunk(event.terminal, chunk);
           }
-        } catch (streamErr) {
+        }
+        catch (streamErr) {
           logger.warn(
             `Terminal shell execution stream failed: ${
               streamErr instanceof Error ? streamErr.message : String(streamErr)
-            }`
+            }`,
           );
-        } finally {
+        }
+        finally {
           activeExecutions.delete(event.execution);
         }
       })();
       pumpTasks.add(pump);
       void pump.finally(() => pumpTasks.delete(pump));
-    })
+    }),
   );
   disposables.push(
     endEvent((event) => {
@@ -693,7 +691,7 @@ export const createTerminalOutputCapture = (
         return;
       }
       flushPending(terminal);
-    })
+    }),
   );
   return {
     snapshot: () => {
@@ -709,12 +707,9 @@ export const createTerminalOutputCapture = (
       trackedTerminals.clear();
     },
   };
-};
+}
 
-const formatRuntimeDiagnosticsMessage = (
-  baseMessage: string,
-  options: { sessionId?: string; terminalLines: string[]; maxLines: number }
-): string => {
+function formatRuntimeDiagnosticsMessage(baseMessage: string, options: { sessionId?: string, terminalLines: string[], maxLines: number }): string {
   const { sessionId, terminalLines, maxLines } = options;
   const sections: string[] = [];
   if (sessionId) {
@@ -725,22 +720,23 @@ const formatRuntimeDiagnosticsMessage = (
     const sessionOutput = getSessionOutput(sessionId);
     if (sessionOutput.length) {
       const stderrLines = sessionOutput
-        .filter((line) => line.category === "stderr")
+        .filter(line => line.category === "stderr")
         .slice(-maxLines)
-        .map((line) => truncateLine(stripAnsiEscapeCodes(line.text).trim()))
-        .filter((line) => line.length > 0);
+        .map(line => truncateLine(stripAnsiEscapeCodes(line.text).trim()))
+        .filter(line => line.length > 0);
       if (stderrLines.length) {
         sections.push(`stderr: ${stderrLines.join(" | ")}`);
-      } else {
+      }
+      else {
         const otherLines = sessionOutput
           .slice(-maxLines)
           .map(
-            (line) =>
+            line =>
               `${line.category}: ${truncateLine(
-                stripAnsiEscapeCodes(line.text).trim()
-              )}`
+                stripAnsiEscapeCodes(line.text).trim(),
+              )}`,
           )
-          .filter((line) => line.length > 0);
+          .filter(line => line.length > 0);
         if (otherLines.length) {
           sections.push(`output: ${otherLines.join(" | ")}`);
         }
@@ -749,8 +745,8 @@ const formatRuntimeDiagnosticsMessage = (
   }
   const sanitizedTerminal = terminalLines
     .slice(-maxLines)
-    .map((line) => truncateLine(stripAnsiEscapeCodes(line).trim()))
-    .filter((line) => line.length > 0);
+    .map(line => truncateLine(stripAnsiEscapeCodes(line).trim()))
+    .filter(line => line.length > 0);
   if (sanitizedTerminal.length) {
     sections.push(`terminal: ${sanitizedTerminal.join(" | ")}`);
   }
@@ -758,16 +754,16 @@ const formatRuntimeDiagnosticsMessage = (
     return baseMessage;
   }
   return `${baseMessage}\nRuntime diagnostics:\n- ${sections.join("\n- ")}`;
-};
+}
 
-const resolveCwd = (cwd: string | undefined, baseDir: string) => {
+function resolveCwd(cwd: string | undefined, baseDir: string) {
   if (!cwd) {
     return baseDir;
   }
   return path.isAbsolute(cwd) ? cwd : path.join(baseDir, cwd);
-};
+}
 
-const collectNodeBinDirs = (startDir: string) => {
+function collectNodeBinDirs(startDir: string) {
   const bins: string[] = [];
   let current = startDir;
   const seen = new Set<string>();
@@ -788,13 +784,9 @@ const collectNodeBinDirs = (startDir: string) => {
     current = parent;
   }
   return bins;
-};
+}
 
-const mergeEnv = (
-  baseDir: string,
-  env?: Record<string, string>,
-  existingBins?: string[]
-): NodeJS.ProcessEnv => {
+function mergeEnv(baseDir: string, env?: Record<string, string>, existingBins?: string[]): NodeJS.ProcessEnv {
   const merged: NodeJS.ProcessEnv = {
     ...process.env,
     ...env,
@@ -802,13 +794,13 @@ const mergeEnv = (
   const binDirs = existingBins ?? collectNodeBinDirs(baseDir);
   if (binDirs.length) {
     const existingKey = Object.keys(merged).find(
-      (key) => key.toLowerCase() === "path"
+      key => key.toLowerCase() === "path",
     );
-    const pathKey =
-      existingKey || (process.platform === "win32" ? "Path" : "PATH");
+    const pathKey
+      = existingKey || (process.platform === "win32" ? "Path" : "PATH");
     const current = merged[pathKey] ?? "";
     const segments = current
-      ? current.split(path.delimiter).filter((segment) => segment.length > 0)
+      ? current.split(path.delimiter).filter(segment => segment.length > 0)
       : [];
     for (let i = binDirs.length - 1; i >= 0; i -= 1) {
       const dir = binDirs[i];
@@ -818,25 +810,25 @@ const mergeEnv = (
     }
     merged[pathKey] = segments.join(path.delimiter);
     logger.debug(
-      `Augmented PATH for diagnostic capture with ${binDirs.length} node_modules/.bin directories(s).`
+      `Augmented PATH for diagnostic capture with ${binDirs.length} node_modules/.bin directories(s).`,
     );
   }
   return merged;
-};
+}
 
-const coerceOutput = (value?: string | Buffer | null) => {
+function coerceOutput(value?: string | Buffer | null) {
   if (typeof value === "string") {
     return value;
   }
   return value ? value.toString("utf-8") : "";
-};
+}
 
-const resolveCommandFromBins = (command: string, binDirs: string[]) => {
+function resolveCommandFromBins(command: string, binDirs: string[]) {
   if (/[\\/\s]/.test(command)) {
     return undefined;
   }
-  const extensions =
-    process.platform === "win32" ? [".cmd", ".bat", ".exe", ""] : ["", ".sh"];
+  const extensions
+    = process.platform === "win32" ? [".cmd", ".bat", ".exe", ""] : ["", ".sh"];
   for (const dir of binDirs) {
     for (const ext of extensions) {
       const candidate = path.join(dir, `${command}${ext}`);
@@ -846,44 +838,41 @@ const resolveCommandFromBins = (command: string, binDirs: string[]) => {
     }
   }
   return undefined;
-};
+}
 
-const isTscCommand = (command: string) => {
+function isTscCommand(command: string) {
   const normalized = path.basename(command).toLowerCase();
   return normalized === "tsc" || normalized === "tsc.cmd";
-};
+}
 
-const isNodeCommand = (command: string) => {
+function isNodeCommand(command: string) {
   const normalized = path.basename(command).toLowerCase();
   return normalized === "node" || normalized === "node.exe";
-};
+}
 
-const trimWrappedQuotes = (value: string) => {
+function trimWrappedQuotes(value: string) {
   if (
-    (value.startsWith('"') && value.endsWith('"')) ||
-    (value.startsWith("'") && value.endsWith("'"))
+    (value.startsWith('"') && value.endsWith('"'))
+    || (value.startsWith("'") && value.endsWith("'"))
   ) {
     return value.slice(1, -1);
   }
   return value;
-};
+}
 
-const parseShellCommandLine = (commandLine: string) => {
+function parseShellCommandLine(commandLine: string) {
   const tokens = commandLine.match(/"[^"]+"|'[^']+'|\S+/g);
   if (!tokens || tokens.length === 0) {
     return undefined;
   }
-  const normalized = tokens.map((token) => trimWrappedQuotes(token));
+  const normalized = tokens.map(token => trimWrappedQuotes(token));
   return {
     command: normalized[0],
     args: normalized.slice(1),
   };
-};
+}
 
-const shouldRetryWithNpx = (
-  command: string,
-  result: ReturnType<typeof spawnSync>
-) => {
+function shouldRetryWithNpx(command: string, result: ReturnType<typeof spawnSync>) {
   if (/[\\/\s]/.test(command)) {
     return false;
   }
@@ -892,15 +881,10 @@ const shouldRetryWithNpx = (
     return true;
   }
   const stderr = (result.stderr ?? "").toString();
-  return missingCommandPatterns.some((pattern) => pattern.test(stderr));
-};
+  return missingCommandPatterns.some(pattern => pattern.test(stderr));
+}
 
-const runCommandForDiagnostics = (
-  command: string,
-  args: string[],
-  options: Parameters<typeof spawnSync>[2],
-  binDirs: string[]
-) => {
+function runCommandForDiagnostics(command: string, args: string[], options: Parameters<typeof spawnSync>[2], binDirs: string[]) {
   let resolvedCommand = command;
   let resolvedArgs = args;
   let routedToTypescript = false;
@@ -908,11 +892,13 @@ const runCommandForDiagnostics = (
     // In extension hosts (especially during tests), PATH can be restricted.
     // Use the Node runtime running the extension host to make diagnostic capture deterministic.
     resolvedCommand = process.execPath;
-  } else if (typescriptCliPath && isTscCommand(command)) {
+  }
+  else if (typescriptCliPath && isTscCommand(command)) {
     resolvedCommand = process.execPath;
     resolvedArgs = [typescriptCliPath, ...args];
     routedToTypescript = true;
-  } else {
+  }
+  else {
     resolvedCommand = resolveCommandFromBins(command, binDirs) ?? command;
   }
 
@@ -920,8 +906,8 @@ const runCommandForDiagnostics = (
   // parentheses (e.g. "Code Helper (Plugin)"). If we pass shell:true, Node wraps in /bin/sh -c
   // and the unquoted parens cause syntax errors. When we explicitly route to process.execPath,
   // always run it directly without a shell.
-  const effectiveOptions =
-    options?.shell === true && resolvedCommand === process.execPath
+  const effectiveOptions
+    = options?.shell === true && resolvedCommand === process.execPath
       ? { ...options, shell: false }
       : options;
 
@@ -930,16 +916,16 @@ const runCommandForDiagnostics = (
     return direct;
   }
   logger.warn(
-    `Command '${command}' unavailable when capturing diagnostics. Retrying via npx.`
+    `Command '${command}' unavailable when capturing diagnostics. Retrying via npx.`,
   );
   const npxExecutable = process.platform === "win32" ? "npx.cmd" : "npx";
   return spawnSync(npxExecutable, [command, ...args], {
     ...options,
     shell: true,
   });
-};
+}
 
-const collectTypescriptCliOutput = (cwd: string) => {
+function collectTypescriptCliOutput(cwd: string) {
   if (!typescriptCliPath) {
     return [];
   }
@@ -951,36 +937,35 @@ const collectTypescriptCliOutput = (cwd: string) => {
         cwd,
         encoding: "utf-8",
         maxBuffer: 1024 * 1024,
-      }
+      },
     );
     const lines = [
       ...sanitizeTaskOutput(coerceOutput(result.stdout)),
       ...sanitizeTaskOutput(coerceOutput(result.stderr)),
     ];
     return lines.slice(-MAX_CAPTURED_TASK_OUTPUT_LINES);
-  } catch (err) {
+  }
+  catch (err) {
     logger.warn(
       `Failed to collect TypeScript CLI output: ${
         err instanceof Error ? err.message : String(err)
-      }`
+      }`,
     );
     return [];
   }
-};
+}
 
-const captureShellExecutionOutput = (
-  execution: vscode.ShellExecution,
-  baseCwd: string
-): string[] => {
+function captureShellExecutionOutput(execution: vscode.ShellExecution, baseCwd: string): string[] {
   const cwd = resolveCwd(execution.options?.cwd, baseCwd);
   const binDirs = collectNodeBinDirs(baseCwd);
   const env = mergeEnv(baseCwd, execution.options?.env, binDirs);
   const workspaceFolderVar = "$" + "{workspaceFolder}";
-  const substitute = (value: string) => value.replaceAll(workspaceFolderVar, baseCwd);
+  const substitute = (value: string) =>
+    value.replaceAll(workspaceFolderVar, baseCwd);
   let result: ReturnType<typeof spawnSync> | undefined;
   if (execution.command) {
-    const command =
-      typeof execution.command === "string"
+    const command
+      = typeof execution.command === "string"
         ? substitute(execution.command)
         : execution.command.value;
     const args = (execution.args || []).map((arg) => {
@@ -997,14 +982,15 @@ const captureShellExecutionOutput = (
         encoding: "utf-8",
         maxBuffer: 1024 * 1024,
       },
-      binDirs
+      binDirs,
     );
-  } else if (execution.commandLine) {
+  }
+  else if (execution.commandLine) {
     const parsed = parseShellCommandLine(substitute(execution.commandLine));
     if (parsed) {
       result = runCommandForDiagnostics(
         substitute(parsed.command),
-        parsed.args.map((arg) => substitute(arg)),
+        parsed.args.map(arg => substitute(arg)),
         {
           cwd,
           env,
@@ -1012,9 +998,10 @@ const captureShellExecutionOutput = (
           encoding: "utf-8",
           maxBuffer: 1024 * 1024,
         },
-        binDirs
+        binDirs,
       );
-    } else {
+    }
+    else {
       result = spawnSync(execution.commandLine, {
         cwd,
         env,
@@ -1032,20 +1019,18 @@ const captureShellExecutionOutput = (
     ...sanitizeTaskOutput(coerceOutput(result.stderr)),
   ];
   return lines.slice(-MAX_CAPTURED_TASK_OUTPUT_LINES);
-};
+}
 
-const captureProcessExecutionOutput = (
-  execution: vscode.ProcessExecution,
-  baseCwd: string
-): string[] => {
+function captureProcessExecutionOutput(execution: vscode.ProcessExecution, baseCwd: string): string[] {
   const cwd = resolveCwd(execution.options?.cwd, baseCwd);
   const binDirs = collectNodeBinDirs(baseCwd);
   const env = mergeEnv(baseCwd, execution.options?.env, binDirs);
   const workspaceFolderVar = "$" + "{workspaceFolder}";
-  const substitute = (value: string) => value.replaceAll(workspaceFolderVar, baseCwd);
+  const substitute = (value: string) =>
+    value.replaceAll(workspaceFolderVar, baseCwd);
   const result = runCommandForDiagnostics(
     substitute(execution.process),
-    (execution.args || []).map((arg) => substitute(String(arg))),
+    (execution.args || []).map(arg => substitute(String(arg))),
     {
       cwd,
       env,
@@ -1053,37 +1038,34 @@ const captureProcessExecutionOutput = (
       encoding: "utf-8",
       maxBuffer: 1024 * 1024,
     },
-    binDirs
+    binDirs,
   );
   const lines = [
     ...sanitizeTaskOutput(coerceOutput(result.stdout)),
     ...sanitizeTaskOutput(coerceOutput(result.stderr)),
   ];
   return lines.slice(-MAX_CAPTURED_TASK_OUTPUT_LINES);
-};
+}
 
-const captureTaskOutputLines = (
-  taskExecution: vscode.TaskExecution,
-  baseCwd: string
-): string[] => {
+function captureTaskOutputLines(taskExecution: vscode.TaskExecution, baseCwd: string): string[] {
   const execution = taskExecution.task.execution;
   if (!execution) {
     logger.warn(
-      `Task ${taskExecution.task.name} does not expose execution details; unable to capture output.`
+      `Task ${taskExecution.task.name} does not expose execution details; unable to capture output.`,
     );
     return [];
   }
   const isShellExecution = (
-    candidate: typeof execution
+    candidate: typeof execution,
   ): candidate is vscode.ShellExecution => {
     const shellCandidate = candidate as vscode.ShellExecution;
     return (
-      typeof shellCandidate.commandLine === "string" ||
-      typeof shellCandidate.command !== "undefined"
+      typeof shellCandidate.commandLine === "string"
+      || typeof shellCandidate.command !== "undefined"
     );
   };
   const isProcessExecution = (
-    candidate: typeof execution
+    candidate: typeof execution,
   ): candidate is vscode.ProcessExecution => {
     return typeof (candidate as vscode.ProcessExecution).process === "string";
   };
@@ -1095,22 +1077,20 @@ const captureTaskOutputLines = (
       return captureProcessExecutionOutput(execution, baseCwd);
     }
     logger.warn(
-      `Task ${taskExecution.task.name} uses unsupported execution type; unable to capture output.`
+      `Task ${taskExecution.task.name} uses unsupported execution type; unable to capture output.`,
     );
-  } catch (err) {
+  }
+  catch (err) {
     logger.warn(
       `Failed to capture task output for ${taskExecution.task.name}: ${
         err instanceof Error ? err.message : String(err)
-      }`
+      }`,
     );
   }
   return [];
-};
+}
 
-const captureTaskOutputLinesAsync = async (
-  taskExecution: vscode.TaskExecution,
-  baseCwd: string
-): Promise<string[]> => {
+async function captureTaskOutputLinesAsync(taskExecution: vscode.TaskExecution, baseCwd: string): Promise<string[]> {
   const direct = captureTaskOutputLines(taskExecution, baseCwd);
   if (direct.length > 0) {
     return direct;
@@ -1131,9 +1111,9 @@ const captureTaskOutputLinesAsync = async (
       }
       if (scope && typeof scope === "object") {
         return (
-          candidate.scope &&
-          typeof candidate.scope === "object" &&
-          candidate.scope.uri.fsPath === scope.uri.fsPath
+          candidate.scope
+          && typeof candidate.scope === "object"
+          && candidate.scope.uri.fsPath === scope.uri.fsPath
         );
       }
       return true;
@@ -1141,24 +1121,29 @@ const captureTaskOutputLinesAsync = async (
 
     const resolvedTask = scopedTasks.length
       ? scopedTasks[0]
-      : allTasks.find((candidate) => candidate.name === taskExecution.task.name);
+      : allTasks.find(
+          candidate => candidate.name === taskExecution.task.name,
+        );
     const resolvedExecution = resolvedTask?.execution;
     if (!resolvedExecution) {
       // Fall through to tasks.json parsing below.
-    } else {
+    }
+    else {
       const isShellExecution = (
-        candidate: typeof resolvedExecution
+        candidate: typeof resolvedExecution,
       ): candidate is vscode.ShellExecution => {
         const shellCandidate = candidate as vscode.ShellExecution;
         return (
-          typeof shellCandidate.commandLine === "string" ||
-          typeof shellCandidate.command !== "undefined"
+          typeof shellCandidate.commandLine === "string"
+          || typeof shellCandidate.command !== "undefined"
         );
       };
       const isProcessExecution = (
-        candidate: typeof resolvedExecution
+        candidate: typeof resolvedExecution,
       ): candidate is vscode.ProcessExecution => {
-        return typeof (candidate as vscode.ProcessExecution).process === "string";
+        return (
+          typeof (candidate as vscode.ProcessExecution).process === "string"
+        );
       };
       if (isShellExecution(resolvedExecution)) {
         return captureShellExecutionOutput(resolvedExecution, baseCwd);
@@ -1167,11 +1152,12 @@ const captureTaskOutputLinesAsync = async (
         return captureProcessExecutionOutput(resolvedExecution, baseCwd);
       }
     }
-  } catch (err) {
+  }
+  catch (err) {
     logger.warn(
       `Failed to resolve task definition for output capture (${taskExecution.task.name}): ${
         err instanceof Error ? err.message : String(err)
-      }`
+      }`,
     );
   }
 
@@ -1185,19 +1171,20 @@ const captureTaskOutputLinesAsync = async (
     const raw = fs.readFileSync(tasksJsonPath, "utf-8");
     const parsed = JSON.parse(raw) as {
       tasks?: Array<{
-        label?: string;
-        command?: string;
-        args?: unknown[];
-      }>;
+        label?: string
+        command?: string
+        args?: unknown[]
+      }>
     };
-    const task = parsed.tasks?.find((t) => t.label === taskExecution.task.name);
+    const task = parsed.tasks?.find(t => t.label === taskExecution.task.name);
     if (!task?.command) {
       return [];
     }
     const workspaceFolderVar = "$" + "{workspaceFolder}";
-    const substitute = (value: string) => value.replaceAll(workspaceFolderVar, baseCwd);
+    const substitute = (value: string) =>
+      value.replaceAll(workspaceFolderVar, baseCwd);
     const command = substitute(task.command);
-    const args = (task.args ?? []).map((arg) => substitute(String(arg)));
+    const args = (task.args ?? []).map(arg => substitute(String(arg)));
     const binDirs = collectNodeBinDirs(baseCwd);
     const env = mergeEnv(baseCwd, undefined, binDirs);
     const result = runCommandForDiagnostics(
@@ -1210,27 +1197,25 @@ const captureTaskOutputLinesAsync = async (
         encoding: "utf-8",
         maxBuffer: 1024 * 1024,
       },
-      binDirs
+      binDirs,
     );
     const lines = [
       ...sanitizeTaskOutput(coerceOutput(result.stdout)),
       ...sanitizeTaskOutput(coerceOutput(result.stderr)),
     ];
     return lines.slice(-MAX_CAPTURED_TASK_OUTPUT_LINES);
-  } catch (err) {
+  }
+  catch (err) {
     logger.warn(
       `Failed to capture task output via tasks.json (${taskExecution.task.name}): ${
         err instanceof Error ? err.message : String(err)
-      }`
+      }`,
     );
   }
   return [];
-};
+}
 
-const monitorTask = (
-  taskExecution: vscode.TaskExecution,
-  baseCwd: string
-): Promise<TaskCompletionResult> => {
+function monitorTask(taskExecution: vscode.TaskExecution, baseCwd: string): Promise<TaskCompletionResult> {
   return new Promise((resolve, reject) => {
     let settled = false;
     const disposables: vscode.Disposable[] = [];
@@ -1274,7 +1259,7 @@ const monitorTask = (
                 logger.warn(
                   `Failed to capture task output for ${taskExecution.task.name}: ${
                     err instanceof Error ? err.message : String(err)
-                  }`
+                  }`,
                 );
                 complete({
                   name: taskExecution.task.name,
@@ -1293,7 +1278,7 @@ const monitorTask = (
             taskExecution,
           });
         }
-      })
+      }),
     );
 
     disposables.push(
@@ -1317,25 +1302,25 @@ const monitorTask = (
               });
             });
         }
-      })
+      }),
     );
 
     disposables.push(
       vscode.tasks.onDidStartTaskProcess((event) => {
         if (
-          event.execution === taskExecution &&
-          event.processId === undefined
+          event.execution === taskExecution
+          && event.processId === undefined
         ) {
           fail(
             new Error(
-              `Failed to start task ${taskExecution.task.name}. Terminal could not be created.`
-            )
+              `Failed to start task ${taskExecution.task.name}. Terminal could not be created.`,
+            ),
           );
         }
-      })
+      }),
     );
   });
-};
+}
 
 /**
  * Start a new debug session using either a named configuration from .vscode/launch.json or a direct configuration object,
@@ -1357,42 +1342,42 @@ const monitorTask = (
  * @param params.useExistingBreakpoints - When true, caller intends to use already-set workspace breakpoints (manual command).
  */
 export interface StartDebuggingAndWaitForStopParams {
-  sessionName: string;
-  workspaceFolder: string; // absolute path to open workspace folder
-  nameOrConfiguration?: string; // may be omitted; auto-selection logic will attempt resolution
-  timeoutSeconds?: number; // optional override; falls back to workspace setting copilot-debugger.entryTimeoutSeconds
+  sessionName: string
+  workspaceFolder: string // absolute path to open workspace folder
+  nameOrConfiguration?: string // may be omitted; auto-selection logic will attempt resolution
+  timeoutSeconds?: number // optional override; falls back to workspace setting copilot-debugger.entryTimeoutSeconds
   /**
    * Tool mode:
    * - 'singleShot' (default): tool will terminate the debug session before returning.
    * - 'inspect': tool may return with the session paused so the caller can inspect state and resume.
    */
-  mode?: "singleShot" | "inspect";
+  mode?: "singleShot" | "inspect"
   breakpointConfig: {
-    breakpoints: Array<BreakpointDefinition>;
-  };
+    breakpoints: Array<BreakpointDefinition>
+  }
   serverReady?: {
-    trigger?: { path?: string; line?: number; pattern?: string };
+    trigger?: { path?: string, line?: number, pattern?: string }
     action:
       | { shellCommand: string }
       | {
-          httpRequest: {
-            url: string;
-            method?: string;
-            headers?: Record<string, string>;
-            body?: string;
-          };
+        httpRequest: {
+          url: string
+          method?: string
+          headers?: Record<string, string>
+          body?: string
         }
-      | { vscodeCommand: { command: string; args?: unknown[] } }
+      }
+      | { vscodeCommand: { command: string, args?: unknown[] } }
       | {
-          type: "httpRequest";
-          url: string;
-          method?: string;
-          headers?: Record<string, string>;
-          body?: string;
-        }
-      | { type: "shellCommand"; shellCommand: string }
-      | { type: "vscodeCommand"; command: string; args?: unknown[] };
-  };
+        type: "httpRequest"
+        url: string
+        method?: string
+        headers?: Record<string, string>
+        body?: string
+      }
+      | { type: "shellCommand", shellCommand: string }
+      | { type: "vscodeCommand", command: string, args?: unknown[] }
+  }
   /**
    * When true, the caller indicates the debug session should use the user's existing breakpoints
    * (e.g. from the UI) instead of prompting for a single file+line. The current implementation expects
@@ -1400,27 +1385,28 @@ export interface StartDebuggingAndWaitForStopParams {
    * documents intent and allows future internal logic changes without altering the call sites.
    * Defaults to false.
    */
-  useExistingBreakpoints?: boolean;
+  useExistingBreakpoints?: boolean
 }
 
-const runPreLaunchTaskFromTasksJson = (
-  workspaceFolderFsPath: string,
-  taskLabel: string
-): { exitCode: number | undefined; outputLines: string[] } => {
-  const tasksJsonPath = path.join(workspaceFolderFsPath, ".vscode", "tasks.json");
+function runPreLaunchTaskFromTasksJson(workspaceFolderFsPath: string, taskLabel: string): { exitCode: number | undefined, outputLines: string[] } {
+  const tasksJsonPath = path.join(
+    workspaceFolderFsPath,
+    ".vscode",
+    "tasks.json",
+  );
   if (!fs.existsSync(tasksJsonPath)) {
     return { exitCode: undefined, outputLines: [] };
   }
   const raw = fs.readFileSync(tasksJsonPath, "utf-8");
   const parsed = JSON.parse(raw) as {
     tasks?: Array<{
-      label?: string;
-      type?: string;
-      command?: string;
-      args?: unknown[];
-    }>;
+      label?: string
+      type?: string
+      command?: string
+      args?: unknown[]
+    }>
   };
-  const task = parsed.tasks?.find((t) => t.label === taskLabel);
+  const task = parsed.tasks?.find(t => t.label === taskLabel);
   if (!task?.command) {
     return { exitCode: undefined, outputLines: [] };
   }
@@ -1430,7 +1416,7 @@ const runPreLaunchTaskFromTasksJson = (
     value.replaceAll(workspaceFolderVar, workspaceFolderFsPath);
 
   const command = substitute(task.command);
-  const args = (task.args ?? []).map((arg) => substitute(String(arg)));
+  const args = (task.args ?? []).map(arg => substitute(String(arg)));
   const binDirs = collectNodeBinDirs(workspaceFolderFsPath);
   const env = mergeEnv(workspaceFolderFsPath, undefined, binDirs);
 
@@ -1449,7 +1435,7 @@ const runPreLaunchTaskFromTasksJson = (
       encoding: "utf-8",
       maxBuffer: 1024 * 1024,
     },
-    binDirs
+    binDirs,
   );
 
   const outputLines = [
@@ -1457,17 +1443,21 @@ const runPreLaunchTaskFromTasksJson = (
     ...sanitizeTaskOutput(coerceOutput(result.stderr)),
   ].slice(-MAX_CAPTURED_TASK_OUTPUT_LINES);
 
-  const exitCode =
-    typeof result.status === "number" ? result.status : result.error ? 1 : undefined;
+  const exitCode
+    = typeof result.status === "number"
+      ? result.status
+      : result.error
+        ? 1
+        : undefined;
 
   return { exitCode, outputLines };
-};
+}
 
-const runPreLaunchTaskFromVscodeTasks = async (params: {
-  workspaceFolderFsPath: string;
-  folder: vscode.WorkspaceFolder;
-  taskLabel: string;
-}): Promise<{ exitCode: number | undefined; outputLines: string[] }> => {
+async function runPreLaunchTaskFromVscodeTasks(params: {
+  workspaceFolderFsPath: string
+  folder: vscode.WorkspaceFolder
+  taskLabel: string
+}): Promise<{ exitCode: number | undefined, outputLines: string[] }> {
   const { workspaceFolderFsPath, folder, taskLabel } = params;
   const tasks = await vscode.tasks.fetchTasks();
   const matches = tasks.filter((task) => {
@@ -1486,7 +1476,7 @@ const runPreLaunchTaskFromVscodeTasks = async (params: {
   }
   if (matches.length > 1) {
     throw new Error(
-      `preLaunchTask '${taskLabel}' is ambiguous: found ${matches.length} tasks with the same name.`
+      `preLaunchTask '${taskLabel}' is ambiguous: found ${matches.length} tasks with the same name.`,
     );
   }
   const task = matches[0];
@@ -1503,7 +1493,7 @@ const runPreLaunchTaskFromVscodeTasks = async (params: {
     workspaceFolderFsPath,
     // VS Code task env is additive; mergeEnv already layers process.env + provided overrides.
     (execution.options?.env as Record<string, string> | undefined) ?? undefined,
-    binDirs
+    binDirs,
   );
 
   // Prefer the cwd requested by the task, otherwise the workspace folder.
@@ -1515,8 +1505,10 @@ const runPreLaunchTaskFromVscodeTasks = async (params: {
 
   // ShellExecution in VS Code may be represented as commandLine or command+args.
   const asAny = execution as unknown as Record<string, unknown>;
-  const commandLine =
-    typeof asAny.commandLine === "string" ? (asAny.commandLine as string) : undefined;
+  const commandLine
+    = typeof asAny.commandLine === "string"
+      ? (asAny.commandLine as string)
+      : undefined;
   if (commandLine && commandLine.trim()) {
     const result = runCommandForDiagnostics(
       commandLine,
@@ -1528,19 +1520,25 @@ const runPreLaunchTaskFromVscodeTasks = async (params: {
         encoding: "utf-8",
         maxBuffer: 1024 * 1024,
       },
-      binDirs
+      binDirs,
     );
     const outputLines = [
       ...sanitizeTaskOutput(coerceOutput(result.stdout)),
       ...sanitizeTaskOutput(coerceOutput(result.stderr)),
     ].slice(-MAX_CAPTURED_TASK_OUTPUT_LINES);
-    const exitCode =
-      typeof result.status === "number" ? result.status : result.error ? 1 : undefined;
+    const exitCode
+      = typeof result.status === "number"
+        ? result.status
+        : result.error
+          ? 1
+          : undefined;
     return { exitCode, outputLines };
   }
 
   const shellCommand = (execution as vscode.ShellExecution).command;
-  const shellArgs = ((execution as vscode.ShellExecution).args ?? []).map((arg) => String(arg));
+  const shellArgs = ((execution as vscode.ShellExecution).args ?? []).map(
+    arg => String(arg),
+  );
   if (shellCommand) {
     const result = runCommandForDiagnostics(
       String(shellCommand),
@@ -1552,19 +1550,25 @@ const runPreLaunchTaskFromVscodeTasks = async (params: {
         encoding: "utf-8",
         maxBuffer: 1024 * 1024,
       },
-      binDirs
+      binDirs,
     );
     const outputLines = [
       ...sanitizeTaskOutput(coerceOutput(result.stdout)),
       ...sanitizeTaskOutput(coerceOutput(result.stderr)),
     ].slice(-MAX_CAPTURED_TASK_OUTPUT_LINES);
-    const exitCode =
-      typeof result.status === "number" ? result.status : result.error ? 1 : undefined;
+    const exitCode
+      = typeof result.status === "number"
+        ? result.status
+        : result.error
+          ? 1
+          : undefined;
     return { exitCode, outputLines };
   }
 
   const processCommand = (execution as vscode.ProcessExecution).process;
-  const processArgs = ((execution as vscode.ProcessExecution).args ?? []).map((arg) => String(arg));
+  const processArgs = ((execution as vscode.ProcessExecution).args ?? []).map(
+    arg => String(arg),
+  );
   if (processCommand) {
     const result = runCommandForDiagnostics(
       String(processCommand),
@@ -1576,31 +1580,38 @@ const runPreLaunchTaskFromVscodeTasks = async (params: {
         encoding: "utf-8",
         maxBuffer: 1024 * 1024,
       },
-      binDirs
+      binDirs,
     );
     const outputLines = [
       ...sanitizeTaskOutput(coerceOutput(result.stdout)),
       ...sanitizeTaskOutput(coerceOutput(result.stderr)),
     ].slice(-MAX_CAPTURED_TASK_OUTPUT_LINES);
-    const exitCode =
-      typeof result.status === "number" ? result.status : result.error ? 1 : undefined;
+    const exitCode
+      = typeof result.status === "number"
+        ? result.status
+        : result.error
+          ? 1
+          : undefined;
     return { exitCode, outputLines };
   }
 
   return { exitCode: undefined, outputLines: [] };
-};
+}
 
-const runPreLaunchTaskManually = async (params: {
-  workspaceFolderFsPath: string;
-  folder: vscode.WorkspaceFolder;
-  taskLabel: string;
-}): Promise<{ exitCode: number | undefined; outputLines: string[] }> => {
+async function runPreLaunchTaskManually(params: {
+  workspaceFolderFsPath: string
+  folder: vscode.WorkspaceFolder
+  taskLabel: string
+}): Promise<{ exitCode: number | undefined, outputLines: string[] }> {
   const { workspaceFolderFsPath, folder, taskLabel } = params;
 
-  const fromTasksJson = runPreLaunchTaskFromTasksJson(workspaceFolderFsPath, taskLabel);
+  const fromTasksJson = runPreLaunchTaskFromTasksJson(
+    workspaceFolderFsPath,
+    taskLabel,
+  );
   if (
-    typeof fromTasksJson.exitCode === "number" ||
-    fromTasksJson.outputLines.length > 0
+    typeof fromTasksJson.exitCode === "number"
+    || fromTasksJson.outputLines.length > 0
   ) {
     return fromTasksJson;
   }
@@ -1610,31 +1621,34 @@ const runPreLaunchTaskManually = async (params: {
     folder,
     taskLabel,
   });
-  if (typeof fromVscode.exitCode === "number" || fromVscode.outputLines.length > 0) {
+  if (
+    typeof fromVscode.exitCode === "number"
+    || fromVscode.outputLines.length > 0
+  ) {
     return fromVscode;
   }
 
   throw new Error(
-    `preLaunchTask '${taskLabel}' could not be resolved to a runnable task. Ensure it exists in .vscode/tasks.json (with a command) or is discoverable via VS Code tasks.`
+    `preLaunchTask '${taskLabel}' could not be resolved to a runnable task. Ensure it exists in .vscode/tasks.json (with a command) or is discoverable via VS Code tasks.`,
   );
-};
+}
 
-const configureExceptions = async (session: vscode.DebugSession) => {
+async function configureExceptions(session: vscode.DebugSession) {
   // Wait a short moment for capabilities to be populated by the tracker
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  await new Promise(resolve => setTimeout(resolve, 500));
 
   const capabilities = getSessionCapabilities(session.id) as {
     exceptionBreakpointFilters?: Array<{
-      filter: string;
-      label: string;
-      default?: boolean;
-    }>;
-    supportsExceptionOptions?: boolean;
+      filter: string
+      label: string
+      default?: boolean
+    }>
+    supportsExceptionOptions?: boolean
   };
 
   if (!capabilities?.exceptionBreakpointFilters) {
     logger.debug(
-      `No exception breakpoint filters found for session ${session.id}`
+      `No exception breakpoint filters found for session ${session.id}`,
     );
     return;
   }
@@ -1662,27 +1676,29 @@ const configureExceptions = async (session: vscode.DebugSession) => {
         filter.default === true || preferredExceptionFilterIds.has(filterId)
       );
     })
-    .map((filter) => filter.filter);
+    .map(filter => filter.filter);
 
   try {
-    const supportsExceptionOptions =
-      capabilities.supportsExceptionOptions === true;
+    const supportsExceptionOptions
+      = capabilities.supportsExceptionOptions === true;
     const summaryParts: string[] = [];
     if (filtersToEnable.length) {
       summaryParts.push(`filters=[${filtersToEnable.join(", ")}]`);
-    } else {
+    }
+    else {
       summaryParts.push("filters=[]");
     }
     if (supportsExceptionOptions) {
       summaryParts.push("exceptionOptions=[userUnhandled]");
-    } else {
+    }
+    else {
       summaryParts.push("exceptionOptions=<not supported>");
     }
 
     logger.info(
       `Enabling exception breakpoints for session ${
         session.id
-      }: ${summaryParts.join(", ")}`
+      }: ${summaryParts.join(", ")}`,
     );
 
     await session.customRequest("setExceptionBreakpoints", {
@@ -1691,18 +1707,17 @@ const configureExceptions = async (session: vscode.DebugSession) => {
         ? { exceptionOptions: [{ breakMode: "userUnhandled" }] }
         : {}),
     });
-  } catch (err) {
+  }
+  catch (err) {
     logger.warn(
       `Failed to set exception breakpoints: ${
         err instanceof Error ? err.message : String(err)
-      }`
+      }`,
     );
   }
-};
+}
 
-export const startDebuggingAndWaitForStop = async (
-  params: StartDebuggingAndWaitForStopParams
-): Promise<StartDebuggerStopInfo> => {
+export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWaitForStopParams): Promise<StartDebuggerStopInfo> {
   const {
     sessionName,
     workspaceFolder,
@@ -1718,11 +1733,11 @@ export const startDebuggingAndWaitForStop = async (
 
   if (mode === "singleShot" && breakpointConfig?.breakpoints) {
     const invalidBp = breakpointConfig.breakpoints.find(
-      (bp) => bp.onHit === "captureAndContinue"
+      bp => bp.onHit === "captureAndContinue",
     );
     if (invalidBp) {
       throw new Error(
-        `'captureAndContinue' onHit action is not supported in singleShot mode. Use 'inspect' mode or 'break'/'captureAndStopDebugging' action.`
+        "'captureAndContinue' onHit action is not supported in singleShot mode. Use 'inspect' mode or 'break'/'captureAndStopDebugging' action.",
       );
     }
   }
@@ -1730,7 +1745,7 @@ export const startDebuggingAndWaitForStop = async (
   const serverReadyEnabled = config.serverReadyEnabled !== false;
   if (serverReadyParam && !serverReadyEnabled) {
     logger.info(
-      "serverReady payload ignored because copilot-debugger.serverReadyEnabled is false."
+      "serverReady payload ignored because copilot-debugger.serverReadyEnabled is false.",
     );
   }
   const serverReady = serverReadyEnabled ? serverReadyParam : undefined;
@@ -1739,11 +1754,12 @@ export const startDebuggingAndWaitForStop = async (
   if (serverReady?.trigger?.pattern) {
     try {
       serverReadyPatternRegex = new RegExp(serverReady.trigger.pattern);
-    } catch (err) {
+    }
+    catch (err) {
       throw new Error(
         `Invalid serverReady trigger pattern '${
           serverReady.trigger.pattern
-        }': ${err instanceof Error ? err.message : String(err)}`
+        }': ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }
@@ -1759,19 +1775,20 @@ export const startDebuggingAndWaitForStop = async (
     | "breakpoint"
     | "immediate"
     | "disabled" = !serverReady
-    ? "disabled"
-    : serverReadyPatternRegex
-    ? "pattern"
-    : serverReady.trigger?.path && typeof serverReady.trigger.line === "number"
-    ? "breakpoint"
-    : "immediate";
+      ? "disabled"
+      : serverReadyPatternRegex
+        ? "pattern"
+        : serverReady.trigger?.path
+          && typeof serverReady.trigger.line === "number"
+          ? "breakpoint"
+          : "immediate";
   const serverReadyPhaseExecutions: Array<{
-    phase: "entry" | "late" | "immediate";
-    when: number;
+    phase: "entry" | "late" | "immediate"
+    when: number
   }> = [];
   // Helper to execute configured serverReady action
   const executeServerReadyAction = async (
-    phase: "entry" | "late" | "immediate"
+    phase: "entry" | "late" | "immediate",
   ) => {
     if (!serverReady) {
       return;
@@ -1781,25 +1798,25 @@ export const startDebuggingAndWaitForStop = async (
       // Determine action shape (new flat with type discriminator OR legacy union)
       type FlatAction =
         | {
-            type: "httpRequest";
-            url: string;
-            method?: string;
-            headers?: Record<string, string>;
-            body?: string;
-          }
-        | { type: "shellCommand"; shellCommand: string }
-        | { type: "vscodeCommand"; command: string; args?: unknown[] };
+          type: "httpRequest"
+          url: string
+          method?: string
+          headers?: Record<string, string>
+          body?: string
+        }
+        | { type: "shellCommand", shellCommand: string }
+        | { type: "vscodeCommand", command: string, args?: unknown[] };
       type LegacyAction =
         | { shellCommand: string }
         | {
-            httpRequest: {
-              url: string;
-              method?: string;
-              headers?: Record<string, string>;
-              body?: string;
-            };
+          httpRequest: {
+            url: string
+            method?: string
+            headers?: Record<string, string>
+            body?: string
           }
-        | { vscodeCommand: { command: string; args?: unknown[] } };
+        }
+        | { vscodeCommand: { command: string, args?: unknown[] } };
       const actionAny: FlatAction | LegacyAction = serverReady.action as
         | FlatAction
         | LegacyAction;
@@ -1807,15 +1824,15 @@ export const startDebuggingAndWaitForStop = async (
       if ("type" in (actionAny as object)) {
         discriminator = (actionAny as { type: string }).type;
       }
-      const kind =
-        discriminator ||
-        ("shellCommand" in actionAny
-          ? "shellCommand"
-          : "httpRequest" in actionAny
-          ? "httpRequest"
-          : "vscodeCommand" in actionAny
-          ? "vscodeCommand"
-          : undefined);
+      const kind
+        = discriminator
+          || ("shellCommand" in actionAny
+            ? "shellCommand"
+            : "httpRequest" in actionAny
+              ? "httpRequest"
+              : "vscodeCommand" in actionAny
+                ? "vscodeCommand"
+                : undefined);
       switch (kind) {
         case "shellCommand": {
           const cmd = discriminator
@@ -1833,13 +1850,14 @@ export const startDebuggingAndWaitForStop = async (
           const autoDisposeTimer = setTimeout(() => {
             try {
               terminal.dispose();
-            } catch (disposeErr) {
+            }
+            catch (disposeErr) {
               logger.debug(
                 `serverReady shellCommand auto-dispose failed: ${
                   disposeErr instanceof Error
                     ? disposeErr.message
                     : String(disposeErr)
-                }`
+                }`,
               );
             }
           }, 60_000);
@@ -1849,7 +1867,7 @@ export const startDebuggingAndWaitForStop = async (
                 clearTimeout(autoDisposeTimer);
                 closeListener.dispose();
               }
-            }
+            },
           );
           terminal.sendText(cmd, true);
           logger.info(`Executed serverReady shellCommand (${phase}): ${cmd}`);
@@ -1858,30 +1876,27 @@ export const startDebuggingAndWaitForStop = async (
         case "httpRequest": {
           const url = discriminator
             ? (actionAny as FlatAction & { url: string }).url
-            : (actionAny as { httpRequest?: { url?: string } }).httpRequest
-                ?.url;
+            : (actionAny as { httpRequest?: { url?: string } }).httpRequest?.url;
           if (!url) {
             logger.warn("serverReady httpRequest missing url.");
             return;
           }
           const method = discriminator
-            ? (actionAny as FlatAction & { method?: string }).method ?? "GET"
-            : (actionAny as { httpRequest?: { method?: string } }).httpRequest
-                ?.method ?? "GET";
+            ? ((actionAny as FlatAction & { method?: string }).method ?? "GET")
+            : ((actionAny as { httpRequest?: { method?: string } }).httpRequest?.method ?? "GET");
           const headers = discriminator
             ? (actionAny as FlatAction & { headers?: Record<string, string> })
                 .headers
             : (
                 actionAny as {
-                  httpRequest?: { headers?: Record<string, string> };
+                  httpRequest?: { headers?: Record<string, string> }
                 }
               ).httpRequest?.headers;
           const body = discriminator
             ? (actionAny as FlatAction & { body?: string }).body
-            : (actionAny as { httpRequest?: { body?: string } }).httpRequest
-                ?.body;
+            : (actionAny as { httpRequest?: { body?: string } }).httpRequest?.body;
           logger.info(
-            `Dispatching serverReady httpRequest (${phase}) to ${url} method=${method}`
+            `Dispatching serverReady httpRequest (${phase}) to ${url} method=${method}`,
           );
           // IMPORTANT: do not await the response.
           // If the request handler hits a break breakpoint, the debuggee pauses and
@@ -1897,14 +1912,14 @@ export const startDebuggingAndWaitForStop = async (
               logger.info(
                 `serverReady httpRequest (${phase}) response status=${
                   statusCode ?? "unknown"
-                }`
+                }`,
               );
             },
             onError: (httpErr) => {
               logger.error(
                 `serverReady httpRequest (${phase}) failed: ${
                   httpErr instanceof Error ? httpErr.message : String(httpErr)
-                }`
+                }`,
               );
             },
           });
@@ -1914,33 +1929,36 @@ export const startDebuggingAndWaitForStop = async (
           const command = discriminator
             ? (actionAny as FlatAction & { command: string }).command
             : (actionAny as { vscodeCommand?: { command?: string } })
-                .vscodeCommand?.command;
+                .vscodeCommand
+                ?.command;
           if (!command) {
             logger.warn("serverReady vscodeCommand missing command id.");
             return;
           }
           const args = discriminator
-            ? (actionAny as FlatAction & { args?: unknown[] }).args ?? []
-            : (actionAny as { vscodeCommand?: { args?: unknown[] } })
-                .vscodeCommand?.args ?? [];
+            ? ((actionAny as FlatAction & { args?: unknown[] }).args ?? [])
+            : ((actionAny as { vscodeCommand?: { args?: unknown[] } })
+                .vscodeCommand
+                ?.args ?? []);
           logger.info(
-            `Executing serverReady vscodeCommand (${phase}): ${command}`
+            `Executing serverReady vscodeCommand (${phase}): ${command}`,
           );
           try {
             const result = await vscode.commands.executeCommand(
               command,
-              ...args
+              ...args,
             );
             logger.debug(
               `serverReady vscodeCommand (${phase}) result: ${JSON.stringify(
-                result
-              )}`
+                result,
+              )}`,
             );
-          } catch (cmdErr) {
+          }
+          catch (cmdErr) {
             logger.error(
               `serverReady vscodeCommand (${phase}) failed: ${
                 cmdErr instanceof Error ? cmdErr.message : String(cmdErr)
-              }`
+              }`,
             );
           }
           break;
@@ -1948,11 +1966,12 @@ export const startDebuggingAndWaitForStop = async (
         default:
           logger.warn("serverReady action type not recognized; skipping.");
       }
-    } catch (err) {
+    }
+    catch (err) {
       logger.error(
         `Failed executing serverReady action (${phase}): ${
           err instanceof Error ? err.message : String(err)
-        }`
+        }`,
       );
     }
   };
@@ -1963,12 +1982,12 @@ export const startDebuggingAndWaitForStop = async (
   }
   if (breakpointConfig.breakpoints.length === 0) {
     throw new Error(
-      "Provide at least one breakpoint (path + code snippet) before starting the debugger."
+      "Provide at least one breakpoint (path + code snippet) before starting the debugger.",
     );
   }
   if (!path.isAbsolute(workspaceFolder)) {
     throw new Error(
-      `workspaceFolder must be an absolute path to an open workspace folder. Received '${workspaceFolder}'.`
+      `workspaceFolder must be an absolute path to an open workspace folder. Received '${workspaceFolder}'.`,
     );
   }
   const resolvedWorkspaceFolder = workspaceFolder.trim();
@@ -1981,26 +2000,26 @@ export const startDebuggingAndWaitForStop = async (
 
   logger.debug(
     `Available workspace folders: ${workspaceFolders
-      .map((f) => `${f.name} -> ${f.uri.fsPath}`)
-      .join(", ")}`
+      .map(f => `${f.name} -> ${f.uri.fsPath}`)
+      .join(", ")}`,
   );
   logger.debug(
-    `Looking for workspace folder (resolved): ${resolvedWorkspaceFolder}`
+    `Looking for workspace folder (resolved): ${resolvedWorkspaceFolder}`,
   );
 
-  const normalizedFolders = workspaceFolders.map((f) => ({
+  const normalizedFolders = workspaceFolders.map(f => ({
     folder: f,
     normalized: normalizeFsPath(f.uri.fsPath),
   }));
   const folderEntry = normalizedFolders.find(
-    (f) => f.normalized === normalizedRequestedFolder
+    f => f.normalized === normalizedRequestedFolder,
   );
   const folder = folderEntry?.folder;
   if (!folder) {
     throw new Error(
       `Workspace folder '${workspaceFolder}' is not currently open. Open folders: ${workspaceFolders
-        .map((f) => f.uri.fsPath)
-        .join(", ")}`
+        .map(f => f.uri.fsPath)
+        .join(", ")}`,
     );
   }
   const folderFsPath = folder.uri.fsPath;
@@ -2031,7 +2050,7 @@ export const startDebuggingAndWaitForStop = async (
   const originalBreakpoints = [...vscode.debug.breakpoints];
   if (originalBreakpoints.length) {
     logger.debug(
-      `Backing up and removing ${originalBreakpoints.length} existing breakpoint(s) for isolated debug session.`
+      `Backing up and removing ${originalBreakpoints.length} existing breakpoint(s) for isolated debug session.`,
     );
     vscode.debug.removeBreakpoints(originalBreakpoints);
   }
@@ -2039,9 +2058,9 @@ export const startDebuggingAndWaitForStop = async (
   const seen = new Set<string>();
   // Keep association between original request and created SourceBreakpoint
   const validated: Array<{
-    bp: (typeof breakpointConfig.breakpoints)[number];
-    sb: vscode.SourceBreakpoint;
-    resolvedLine: number;
+    bp: (typeof breakpointConfig.breakpoints)[number]
+    sb: vscode.SourceBreakpoint
+    resolvedLine: number
   }> = [];
   for (const bp of breakpointConfig.breakpoints) {
     const absolutePath = path.isAbsolute(bp.path)
@@ -2049,18 +2068,18 @@ export const startDebuggingAndWaitForStop = async (
       : path.join(folderFsPath, bp.path);
     if (!bp.code || !bp.code.trim()) {
       throw new Error(
-        `Breakpoint for '${absolutePath}' is missing required 'code' snippet.`
+        `Breakpoint for '${absolutePath}' is missing required 'code' snippet.`,
       );
     }
     const doc = await vscode.workspace.openTextDocument(
-      vscode.Uri.file(absolutePath)
+      vscode.Uri.file(absolutePath),
     );
     const lines = findAllLineNumbersForSnippet(doc, bp.code);
     if (lines.length === 0) {
       throw new Error(
         `Breakpoint snippet not found in '${absolutePath}': '${truncateSnippet(
-          bp.code
-        )}'`
+          bp.code,
+        )}'`,
       );
     }
 
@@ -2073,25 +2092,25 @@ export const startDebuggingAndWaitForStop = async (
       seen.add(key);
       const uri = vscode.Uri.file(absolutePath);
       const location = new vscode.Position(line - 1, 0);
-      const effectiveHitCondition =
-        bp.hitCount !== undefined ? String(bp.hitCount) : undefined;
+      const effectiveHitCondition
+        = bp.hitCount !== undefined ? String(bp.hitCount) : undefined;
       // For onHit 'captureAndContinue' we intentionally do NOT pass bp.logMessage to SourceBreakpoint.
       // Passing a logMessage turns the breakpoint into a logpoint (non-pausing) in many adapters.
       // captureAndContinue semantics require a real pause to gather variables, then we auto-continue.
-      const adapterLogMessage =
-        bp.onHit === "captureAndContinue" ? undefined : bp.logMessage;
+      const adapterLogMessage
+        = bp.onHit === "captureAndContinue" ? undefined : bp.logMessage;
       const sourceBp = new vscode.SourceBreakpoint(
         new vscode.Location(uri, location),
         true,
         bp.condition,
         effectiveHitCondition,
-        adapterLogMessage
+        adapterLogMessage,
       );
       validated.push({ bp, sb: sourceBp, resolvedLine: line });
     }
   }
   const updateResolvedBreakpointLine = (source: vscode.SourceBreakpoint) => {
-    const match = validated.find((entry) => entry.sb === source);
+    const match = validated.find(entry => entry.sb === source);
     if (!match) {
       return;
     }
@@ -2100,7 +2119,7 @@ export const startDebuggingAndWaitForStop = async (
       return;
     }
     logger.debug(
-      `Breakpoint ${source.location.uri.fsPath} resolved line changed from ${match.resolvedLine} to ${nextResolvedLine}.`
+      `Breakpoint ${source.location.uri.fsPath} resolved line changed from ${match.resolvedLine} to ${nextResolvedLine}.`,
     );
     match.resolvedLine = nextResolvedLine;
   };
@@ -2110,66 +2129,69 @@ export const startDebuggingAndWaitForStop = async (
       (event) => {
         const candidates = [...event.added, ...event.changed].filter(
           (bp): bp is vscode.SourceBreakpoint =>
-            bp instanceof vscode.SourceBreakpoint
+            bp instanceof vscode.SourceBreakpoint,
         );
         for (const bp of candidates) {
           updateResolvedBreakpointLine(bp);
         }
-      }
+      },
     );
   }
   // Optional serverReady breakpoint (declare early so scope is available later)
   let serverReadySource: vscode.SourceBreakpoint | undefined;
   if (
-    serverReady?.trigger?.path &&
-    typeof serverReady.trigger.line === "number"
+    serverReady?.trigger?.path
+    && typeof serverReady.trigger.line === "number"
   ) {
     const serverReadyPath = path.isAbsolute(serverReady.trigger.path)
       ? serverReady.trigger.path!
       : path.join(folderFsPath, serverReady.trigger.path!);
     try {
       const doc = await vscode.workspace.openTextDocument(
-        vscode.Uri.file(serverReadyPath)
+        vscode.Uri.file(serverReadyPath),
       );
       const lineCount = doc.lineCount;
       const duplicate = validated.some((v) => {
         const existingPath = v.sb.location.uri.fsPath;
         const existingLine = v.sb.location.range.start.line + 1;
         return (
-          existingPath === serverReadyPath &&
-          existingLine === serverReady.trigger!.line
+          existingPath === serverReadyPath
+          && existingLine === serverReady.trigger!.line
         );
       });
       if (
-        serverReady.trigger.line! < 1 ||
-        serverReady.trigger.line! > lineCount ||
-        duplicate
+        serverReady.trigger.line! < 1
+        || serverReady.trigger.line! > lineCount
+        || duplicate
       ) {
         logger.warn(
-          `ServerReady breakpoint invalid or duplicate (${serverReadyPath}:${serverReady.trigger.line}); ignoring.`
+          `ServerReady breakpoint invalid or duplicate (${serverReadyPath}:${serverReady.trigger.line}); ignoring.`,
         );
-      } else {
+      }
+      else {
         serverReadySource = new vscode.SourceBreakpoint(
           new vscode.Location(
             vscode.Uri.file(serverReadyPath),
-            new vscode.Position(serverReady.trigger.line! - 1, 0)
+            new vscode.Position(serverReady.trigger.line! - 1, 0),
           ),
-          true
+          true,
         );
       }
-    } catch (e) {
+    }
+    catch (e) {
       logger.error(
         `Failed to open serverReady file ${serverReadyPath}: ${
           e instanceof Error ? e.message : String(e)
-        }`
+        }`,
       );
     }
   }
   if (validated.length) {
-    vscode.debug.addBreakpoints(validated.map((v) => v.sb));
+    vscode.debug.addBreakpoints(validated.map(v => v.sb));
     logger.info(`Added ${validated.length} validated breakpoint(s).`);
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  } else {
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+  else {
     logger.warn("No valid breakpoints to add after validation.");
   }
   if (serverReadySource) {
@@ -2177,7 +2199,7 @@ export const startDebuggingAndWaitForStop = async (
     logger.info(
       `Added serverReady breakpoint at ${
         serverReadySource.location.uri.fsPath
-      }:$${serverReadySource.location.range.start.line + 1}`
+      }:$${serverReadySource.location.range.start.line + 1}`,
     );
   }
 
@@ -2194,7 +2216,7 @@ export const startDebuggingAndWaitForStop = async (
   };
   const evaluateServerReadyPatternCandidate = (
     source: ServerReadyPatternSource,
-    line: string
+    line: string,
   ) => {
     if (!serverReady || !serverReadyPatternRegex || serverReadyPatternMatched) {
       return;
@@ -2212,7 +2234,7 @@ export const startDebuggingAndWaitForStop = async (
       source === "terminal" ? "Terminal" : "Debug output"
     } matched: ${truncateLine(normalized)}`;
     logger.info(
-      `serverReady trigger pattern matched via ${source}: ${normalized}`
+      `serverReady trigger pattern matched via ${source}: ${normalized}`,
     );
     stopServerReadyPatternTimer();
     pendingTerminalPatternLines.length = 0;
@@ -2280,7 +2302,7 @@ export const startDebuggingAndWaitForStop = async (
     return scan;
   };
   const terminalCapture = createTerminalOutputCapture(maxRuntimeOutputLines, {
-    onLine: (line) => enqueueTerminalPatternLine(line),
+    onLine: line => enqueueTerminalPatternLine(line),
   });
   const withRuntimeDiagnostics = (message: string, sessionId?: string) =>
     formatRuntimeDiagnosticsMessage(message, {
@@ -2289,31 +2311,31 @@ export const startDebuggingAndWaitForStop = async (
       maxLines: maxRuntimeOutputLines,
     });
   interface ServerReadyMatch {
-    source: ServerReadyPatternSource;
-    sample: string;
-    captureGroups: string[];
-    formattedUri?: string;
+    source: ServerReadyPatternSource
+    sample: string
+    captureGroups: string[]
+    formattedUri?: string
   }
   interface ServerReadyActionAnalysis {
-    configured: boolean;
-    actionKind?: string;
-    pattern?: string;
-    patternError?: string;
-    uriFormat?: string;
-    match?: ServerReadyMatch;
+    configured: boolean
+    actionKind?: string
+    pattern?: string
+    patternError?: string
+    uriFormat?: string
+    match?: ServerReadyMatch
   }
   interface EntryTimeoutContext {
-    launchRequest?: { type?: string; request?: string; name?: string };
-    serverReadyAction?: ServerReadyActionAnalysis;
+    launchRequest?: { type?: string, request?: string, name?: string }
+    serverReadyAction?: ServerReadyActionAnalysis
     copilotServerReady?: {
-      triggerMode: "pattern" | "breakpoint" | "immediate" | "disabled";
-      executedPhases: Array<"entry" | "late" | "immediate">;
-    };
+      triggerMode: "pattern" | "breakpoint" | "immediate" | "disabled"
+      executedPhases: Array<"entry" | "late" | "immediate">
+    }
   }
   const analyzeServerReadyAction = (
     actionConfig: unknown,
     sessionId: string | undefined,
-    terminalLines: string[]
+    terminalLines: string[],
   ): ServerReadyActionAnalysis => {
     const analysis: ServerReadyActionAnalysis = {
       configured: !!actionConfig,
@@ -2337,18 +2359,19 @@ export const startDebuggingAndWaitForStop = async (
     let regex: RegExp;
     try {
       regex = new RegExp(analysis.pattern);
-    } catch (err) {
+    }
+    catch (err) {
       analysis.patternError = err instanceof Error ? err.message : String(err);
       return analysis;
     }
     const sanitize = (value: string | undefined) =>
       value ? stripAnsiEscapeCodes(value).trim() : "";
     const sessionLines = sessionId
-      ? getSessionOutput(sessionId).map((line) => sanitize(line.text))
+      ? getSessionOutput(sessionId).map(line => sanitize(line.text))
       : [];
     const searchLines = (
       lines: string[],
-      source: ServerReadyPatternSource
+      source: ServerReadyPatternSource,
     ): ServerReadyMatch | undefined => {
       for (const raw of lines) {
         if (!raw) {
@@ -2388,7 +2411,7 @@ export const startDebuggingAndWaitForStop = async (
         const groups = match.captureGroups;
         match.formattedUri = analysis.uriFormat.replace(
           /%s/g,
-          () => groups[index++] ?? ""
+          () => groups[index++] ?? "",
         );
       }
       analysis.match = match;
@@ -2397,7 +2420,7 @@ export const startDebuggingAndWaitForStop = async (
   };
   const describeEntryTimeout = (
     err: EntryStopTimeoutError,
-    context?: EntryTimeoutContext
+    context?: EntryTimeoutContext,
   ) => {
     const seconds = (err.details.timeoutMs / 1000)
       .toFixed(1)
@@ -2409,8 +2432,8 @@ export const startDebuggingAndWaitForStop = async (
           const status = session.stopped
             ? "stopped after timeout"
             : session.stopError
-            ? `could not stop (${session.stopError})`
-            : "still running when timeout fired";
+              ? `could not stop (${session.stopError})`
+              : "still running when timeout fired";
           const request = session.request ?? "unknown";
           const cfgName = session.configurationName
             ? ` launch='${session.configurationName}'`
@@ -2424,7 +2447,7 @@ export const startDebuggingAndWaitForStop = async (
         })
       : [];
     const stoppedAny = hasSessions
-      ? err.details.sessions.some((session) => session.stopped)
+      ? err.details.sessions.some(session => session.stopped)
       : false;
     const footer = hasSessions
       ? stoppedAny
@@ -2437,52 +2460,55 @@ export const startDebuggingAndWaitForStop = async (
       stateLines.push(
         `Launch configuration '${name ?? "<unnamed>"}' (type=${
           type ?? "unknown"
-        }, request=${request ?? "unknown"}) resolved before timeout.`
+        }, request=${request ?? "unknown"}) resolved before timeout.`,
       );
     }
     stateLines.push(
-      "Entry stop observed: NO (debug adapter never paused before timeout)."
+      "Entry stop observed: NO (debug adapter never paused before timeout).",
     );
     if (context?.serverReadyAction) {
       const diag = context.serverReadyAction;
       stateLines.push(
-        `serverReadyAction configured: ${diag.configured ? "yes" : "no"}.`
+        `serverReadyAction configured: ${diag.configured ? "yes" : "no"}.`,
       );
       if (diag.configured) {
         if (diag.patternError) {
           stateLines.push(
             `serverReadyAction.pattern error: ${diag.patternError} (pattern='${
               diag.pattern ?? "<unset>"
-            }').`
+            }').`,
           );
-        } else if (diag.pattern) {
+        }
+        else if (diag.pattern) {
           if (diag.match) {
             const captureSummary = diag.match.captureGroups.length
               ? `captures=${JSON.stringify(diag.match.captureGroups)}`
               : "no capture groups";
             stateLines.push(
-              `serverReadyAction.pattern '${diag.pattern}' matched ${diag.match.source} output (${captureSummary}). Sample: ${diag.match.sample}`
+              `serverReadyAction.pattern '${diag.pattern}' matched ${diag.match.source} output (${captureSummary}). Sample: ${diag.match.sample}`,
             );
             if (diag.uriFormat) {
               stateLines.push(
                 `serverReadyAction.uriFormat '${diag.uriFormat}' => '${
                   diag.match.formattedUri ?? "<unresolved>"
-                }'.`
-              );
-            }
-          } else {
-            stateLines.push(
-              `serverReadyAction.pattern '${diag.pattern}' has NOT appeared in debug/task output yet. Confirm your app logs this line (case-sensitive) before increasing the timeout.`
-            );
-            if (diag.uriFormat) {
-              stateLines.push(
-                `serverReadyAction.uriFormat '${diag.uriFormat}' cannot be resolved until the pattern captures a value. Double-check the capture group in your log output.`
+                }'.`,
               );
             }
           }
-        } else {
+          else {
+            stateLines.push(
+              `serverReadyAction.pattern '${diag.pattern}' has NOT appeared in debug/task output yet. Confirm your app logs this line (case-sensitive) before increasing the timeout.`,
+            );
+            if (diag.uriFormat) {
+              stateLines.push(
+                `serverReadyAction.uriFormat '${diag.uriFormat}' cannot be resolved until the pattern captures a value. Double-check the capture group in your log output.`,
+              );
+            }
+          }
+        }
+        else {
           stateLines.push(
-            "serverReadyAction.pattern not provided; VS Code will only run the action when tasks report readiness manually."
+            "serverReadyAction.pattern not provided; VS Code will only run the action when tasks report readiness manually.",
           );
         }
         if (diag.actionKind) {
@@ -2491,7 +2517,7 @@ export const startDebuggingAndWaitForStop = async (
               diag.match?.formattedUri
                 ? ` (verify the browser/command opened '${diag.match.formattedUri}')`
                 : ""
-            }`
+            }`,
           );
         }
       }
@@ -2501,44 +2527,44 @@ export const startDebuggingAndWaitForStop = async (
       stateLines.push(
         `Copilot serverReady trigger: ${triggerMode}. Phases executed: ${
           executedPhases.length ? executedPhases.join(", ") : "<none>"
-        }.`
+        }.`,
       );
       if (triggerMode === "pattern" && executedPhases.length === 0) {
         stateLines.push(
-          "serverReady trigger pattern was not hit before timeout; ensure the monitored log line is emitted."
+          "serverReady trigger pattern was not hit before timeout; ensure the monitored log line is emitted.",
         );
       }
     }
     stateLines.push(
-      "Only raise 'copilot-debugger.entryTimeoutSeconds' after confirming the above readiness signals are working."
+      "Only raise 'copilot-debugger.entryTimeoutSeconds' after confirming the above readiness signals are working.",
     );
     const analysisBlock = stateLines.length
       ? `\nTimeout state analysis:\n- ${stateLines.join("\n- ")}`
       : "";
     return {
       message: `${header}\n${sessionLines.join(
-        "\n"
+        "\n",
       )}\n${footer}${analysisBlock}`,
       sessionId: err.details.sessions[0]?.id,
     };
   };
-  const effectiveMaxBuildErrors =
-    typeof settingMaxBuildErrors === "number" && settingMaxBuildErrors > 0
+  const effectiveMaxBuildErrors
+    = typeof settingMaxBuildErrors === "number" && settingMaxBuildErrors > 0
       ? settingMaxBuildErrors
       : 5;
   const buildFailureDetails = async (baseMessage: string) => {
     const diagnostics = collectBuildDiagnostics(
       folder.uri,
-      effectiveMaxBuildErrors
+      effectiveMaxBuildErrors,
     );
     const terminalLinesSnapshot = terminalCapture.snapshot();
     const taskResults = await Promise.all(trackedTaskPromises);
     const taskResultsWithTerminalOutput = taskResults.map((result) => {
       if (
-        typeof result.exitCode === "number" &&
-        result.exitCode !== 0 &&
-        result.outputLines.length === 0 &&
-        terminalLinesSnapshot.length > 0
+        typeof result.exitCode === "number"
+        && result.exitCode !== 0
+        && result.outputLines.length === 0
+        && terminalLinesSnapshot.length > 0
       ) {
         return {
           ...result,
@@ -2547,22 +2573,22 @@ export const startDebuggingAndWaitForStop = async (
       }
       return result;
     });
-    const shouldCaptureTypescriptCli =
-      !!typescriptCliPath &&
-      taskResultsWithTerminalOutput.some((result) =>
-        result.name.toLowerCase().includes("tsc")
-      ) &&
-      taskResultsWithTerminalOutput.every(
-        (result) => result.outputLines.length === 0
-      );
+    const shouldCaptureTypescriptCli
+      = !!typescriptCliPath
+        && taskResultsWithTerminalOutput.some(result =>
+          result.name.toLowerCase().includes("tsc"),
+        )
+        && taskResultsWithTerminalOutput.every(
+          result => result.outputLines.length === 0,
+        );
     const typescriptCliLines = shouldCaptureTypescriptCli
       ? collectTypescriptCliOutput(folderFsPath)
       : [];
     const augmentedTaskResults = typescriptCliLines.length
       ? (() => {
           const updated = [...taskResultsWithTerminalOutput];
-          const index = updated.findIndex((result) =>
-            result.name.toLowerCase().includes("tsc")
+          const index = updated.findIndex(result =>
+            result.name.toLowerCase().includes("tsc"),
           );
           if (index >= 0 && updated[index].outputLines.length === 0) {
             const existing = updated[index];
@@ -2585,7 +2611,7 @@ export const startDebuggingAndWaitForStop = async (
       : taskResultsWithTerminalOutput;
     const trackedAnyTasks = trackedTaskPromises.length > 0;
     const hasTaskFailures = augmentedTaskResults.some(
-      (result) => typeof result.exitCode === "number" && result.exitCode !== 0
+      result => typeof result.exitCode === "number" && result.exitCode !== 0,
     );
     const hasDiagnostics = trackedAnyTasks && diagnostics.length > 0;
     if (!hasTaskFailures && !hasDiagnostics) {
@@ -2598,19 +2624,19 @@ export const startDebuggingAndWaitForStop = async (
     const finalizedTaskResults = await Promise.all(
       augmentedTaskResults.map(async (result) => {
         if (
-          typeof result.exitCode === "number" &&
-          result.exitCode !== 0 &&
-          result.outputLines.length === 0 &&
-          result.taskExecution
+          typeof result.exitCode === "number"
+          && result.exitCode !== 0
+          && result.outputLines.length === 0
+          && result.taskExecution
         ) {
           const outputLines = await captureTaskOutputLinesAsync(
             result.taskExecution,
-            folderFsPath
+            folderFsPath,
           );
           return outputLines.length ? { ...result, outputLines } : result;
         }
         return result;
-      })
+      }),
     );
     const diagnosticText = formatBuildErrors(diagnostics);
     const taskFailureText = formatTaskFailures(finalizedTaskResults);
@@ -2618,12 +2644,12 @@ export const startDebuggingAndWaitForStop = async (
       .trim()
       .replace(/\n{3,}/g, "\n\n");
   };
-  const effectiveTimeoutSeconds =
-    typeof timeoutOverride === "number" && timeoutOverride > 0
+  const effectiveTimeoutSeconds
+    = typeof timeoutOverride === "number" && timeoutOverride > 0
       ? timeoutOverride
       : typeof settingTimeout === "number" && settingTimeout > 0
-      ? settingTimeout
-      : 60;
+        ? settingTimeout
+        : 60;
   let entryStopTimeoutMs = effectiveTimeoutSeconds * 1000;
 
   // Resolve launch configuration name: provided -> setting -> single config auto-select
@@ -2632,26 +2658,27 @@ export const startDebuggingAndWaitForStop = async (
     effectiveLaunchName = config.defaultLaunchConfiguration;
   }
   const launchConfig = vscode.workspace.getConfiguration("launch", folder.uri);
-  const allConfigs =
-    (launchConfig.get<unknown>(
-      "configurations"
+  const allConfigs
+    = (launchConfig.get<unknown>(
+      "configurations",
     ) as vscode.DebugConfiguration[]) || [];
   if (!effectiveLaunchName) {
     if (allConfigs.length === 1 && allConfigs[0].name) {
       effectiveLaunchName = allConfigs[0].name;
       logger.info(
-        `[startDebuggingAndWaitForStop] Auto-selected sole launch configuration '${effectiveLaunchName}'.`
+        `[startDebuggingAndWaitForStop] Auto-selected sole launch configuration '${effectiveLaunchName}'.`,
       );
-    } else {
+    }
+    else {
       throw new Error(
-        "No launch configuration specified. Provide nameOrConfiguration, set copilot-debugger.defaultLaunchConfiguration, or define exactly one configuration."
+        "No launch configuration specified. Provide nameOrConfiguration, set copilot-debugger.defaultLaunchConfiguration, or define exactly one configuration.",
       );
     }
   }
-  const found = allConfigs.find((c) => c.name === effectiveLaunchName);
+  const found = allConfigs.find(c => c.name === effectiveLaunchName);
   if (!found) {
     throw new Error(
-      `Launch configuration '${effectiveLaunchName}' not found in ${folder.uri.fsPath}. Add it to .vscode/launch.json.`
+      `Launch configuration '${effectiveLaunchName}' not found in ${folder.uri.fsPath}. Add it to .vscode/launch.json.`,
     );
   }
   const resolvedConfig = { ...found };
@@ -2661,7 +2688,8 @@ export const startDebuggingAndWaitForStop = async (
 
   // Always run preLaunchTask manually so we can deterministically capture stdout/stderr.
   // After a successful run, remove it from the resolved config to prevent VS Code from running it again.
-  const preLaunchTask = (resolvedConfig as Record<string, unknown>).preLaunchTask;
+  const preLaunchTask = (resolvedConfig as Record<string, unknown>)
+    .preLaunchTask;
   if (typeof preLaunchTask === "string" && preLaunchTask.trim()) {
     const preLaunchStart = Date.now();
     const run = await runPreLaunchTaskManually({
@@ -2674,14 +2702,22 @@ export const startDebuggingAndWaitForStop = async (
     if (entryStopTimeoutMs <= 0) {
       const err = new EntryStopTimeoutError(
         `Timed out waiting for entry stop after ${effectiveTimeoutSeconds}s (preLaunchTask '${preLaunchTask}' consumed the entire timeout budget).`,
-        { timeoutMs: effectiveTimeoutSeconds * 1000, sessions: [] }
+        { timeoutMs: effectiveTimeoutSeconds * 1000, sessions: [] },
       );
       const report = describeEntryTimeout(err, {
         launchRequest: {
-          type: typeof resolvedConfig.type === "string" ? resolvedConfig.type : undefined,
+          type:
+            typeof resolvedConfig.type === "string"
+              ? resolvedConfig.type
+              : undefined,
           request:
-            typeof resolvedConfig.request === "string" ? resolvedConfig.request : undefined,
-          name: typeof resolvedConfig.name === "string" ? resolvedConfig.name : undefined,
+            typeof resolvedConfig.request === "string"
+              ? resolvedConfig.request
+              : undefined,
+          name:
+            typeof resolvedConfig.name === "string"
+              ? resolvedConfig.name
+              : undefined,
         },
         serverReadyAction: { configured: false },
       });
@@ -2691,11 +2727,11 @@ export const startDebuggingAndWaitForStop = async (
       const lines = run.outputLines.slice(-5);
       const details = lines.length
         ? `\nLast ${lines.length} line(s):\n${lines
-            .map((line) => `  ${line}`)
-            .join("\n")}`
+          .map(line => `  ${line}`)
+          .join("\n")}`
         : "";
       throw new Error(
-        `preLaunchTask '${preLaunchTask}' failed (exit ${run.exitCode}).${details}`
+        `preLaunchTask '${preLaunchTask}' failed (exit ${run.exitCode}).${details}`,
       );
     }
     delete (resolvedConfig as Record<string, unknown>).preLaunchTask;
@@ -2703,10 +2739,10 @@ export const startDebuggingAndWaitForStop = async (
 
   const effectiveSessionName = sessionName || resolvedConfig.name || "";
   logger.info(
-    `Starting debugger with configuration '${resolvedConfig.name}' (stopOnEntry forced to true). Waiting for first stop event.`
+    `Starting debugger with configuration '${resolvedConfig.name}' (stopOnEntry forced to true). Waiting for first stop event.`,
   );
   // Prepare entry stop listener BEFORE starting debugger to capture session id.
-  const existingIds = activeSessions.map((s) => s.id);
+  const existingIds = activeSessions.map(s => s.id);
   const entryStopPromise = waitForEntryStop({
     excludeSessionIds: existingIds,
     timeout: entryStopTimeoutMs,
@@ -2731,14 +2767,14 @@ export const startDebuggingAndWaitForStop = async (
           logger.warn(
             `Task monitoring failed for ${event.execution.task.name}: ${
               err instanceof Error ? err.message : String(err)
-            }`
+            }`,
           );
           return {
             name: event.execution.task.name,
             exitCode: undefined,
             outputLines: [],
           } as TaskCompletionResult;
-        }
+        },
       );
       trackedTaskPromises.push(monitored);
     });
@@ -2755,9 +2791,9 @@ export const startDebuggingAndWaitForStop = async (
     throw new Error(augmented ?? baseMessage);
   }
   if (
-    serverReady &&
-    copilotServerReadyTriggerMode === "immediate" &&
-    (!resolvedConfig.request || resolvedConfig.request === "attach")
+    serverReady
+    && copilotServerReadyTriggerMode === "immediate"
+    && (!resolvedConfig.request || resolvedConfig.request === "attach")
   ) {
     if (!serverReadyTriggerSummary) {
       serverReadyTriggerSummary = "Immediate trigger invoked (attach request).";
@@ -2780,8 +2816,8 @@ export const startDebuggingAndWaitForStop = async (
       throw new Error(
         withRuntimeDiagnostics(
           `Debug session '${effectiveSessionName}' terminated before hitting entry (unexpected: user cancelled or app exited).`,
-          entryStop.session.id
-        )
+          entryStop.session.id,
+        ),
       );
     }
     enableTerminalPatternEvaluation();
@@ -2797,21 +2833,21 @@ export const startDebuggingAndWaitForStop = async (
     // might also be hit first in some adapters. We only require line equality; path mismatch is
     // highly unlikely and path normalization differences previously caused false negatives.
     // This broadened check ensures we properly detect and continue past serverReady to user breakpoint.
-    const isServerReadyHit =
-      !!serverReadySource && entryStop.line === serverReady?.trigger?.line;
+    const isServerReadyHit
+      = !!serverReadySource && entryStop.line === serverReady?.trigger?.line;
     // Decide whether to continue immediately (entry not at user breakpoint OR serverReady hit)
     const entryLineOneBased = entryStop.line ?? -1;
-    const hitRequestedBreakpoint =
-      entryLineOneBased > 0 &&
-      validated.some((v) => v.resolvedLine === entryLineOneBased);
+    const hitRequestedBreakpoint
+      = entryLineOneBased > 0
+        && validated.some(v => v.resolvedLine === entryLineOneBased);
     logger.info(
-      `EntryStop diagnostics: line=${entryStop.line} serverReadyLine=${serverReady?.trigger?.line} isServerReadyHit=${isServerReadyHit} hitRequestedBreakpoint=${hitRequestedBreakpoint}`
+      `EntryStop diagnostics: line=${entryStop.line} serverReadyLine=${serverReady?.trigger?.line} isServerReadyHit=${isServerReadyHit} hitRequestedBreakpoint=${hitRequestedBreakpoint}`,
     );
     if (!hitRequestedBreakpoint || isServerReadyHit) {
       logger.debug(
         isServerReadyHit
-          ? `Entry stop is serverReady breakpoint; executing command then continuing.`
-          : `Entry stop for session ${sessionId} not at requested breakpoint; continuing to first user breakpoint.`
+          ? "Entry stop is serverReady breakpoint; executing command then continuing."
+          : `Entry stop for session ${sessionId} not at requested breakpoint; continuing to first user breakpoint.`,
       );
       if (isServerReadyHit && serverReady) {
         if (!serverReadyTriggerSummary) {
@@ -2830,12 +2866,13 @@ export const startDebuggingAndWaitForStop = async (
         await entryStop.session.customRequest("continue", {
           threadId: entryStop.threadId,
         });
-      } catch (e) {
+      }
+      catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         // If we can't continue, waiting for a subsequent stop will usually hang until timeout.
         // Fail fast with an actionable error.
         throw new Error(
-          `Failed to continue after entry stop (DAP 'continue'): ${msg}`
+          `Failed to continue after entry stop (DAP 'continue'): ${msg}`,
         );
       }
       const firstPostEntryStop = await waitForDebuggerStopBySessionId({
@@ -2851,28 +2888,29 @@ export const startDebuggingAndWaitForStop = async (
         const maxHops = 10;
         let hops = 0;
         while (
-          nextStop.reason !== "terminated" &&
-          nextStop.reason !== "exception" &&
-          !(
-            typeof nextStop.line === "number" &&
-            validated.some((v) => v.resolvedLine === nextStop.line)
-          ) &&
-          hops < maxHops
+          nextStop.reason !== "terminated"
+          && nextStop.reason !== "exception"
+          && !(
+            typeof nextStop.line === "number"
+            && validated.some(v => v.resolvedLine === nextStop.line)
+          )
+          && hops < maxHops
         ) {
           hops++;
           const elapsed = Date.now() - loopStart;
           const remaining = Math.max(0, remainingMs - elapsed);
           logger.debug(
-            `Continuing past non-user stop (reason=${nextStop.reason} line=${nextStop.line}); hop ${hops}/${maxHops}.`
+            `Continuing past non-user stop (reason=${nextStop.reason} line=${nextStop.line}); hop ${hops}/${maxHops}.`,
           );
           try {
             await nextStop.session.customRequest("continue", {
               threadId: nextStop.threadId,
             });
-          } catch (e) {
+          }
+          catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
             throw new Error(
-              `Failed to continue after non-user stop (DAP 'continue'): ${msg}`
+              `Failed to continue after non-user stop (DAP 'continue'): ${msg}`,
             );
           }
           nextStop = await waitForDebuggerStopBySessionId({
@@ -2882,26 +2920,27 @@ export const startDebuggingAndWaitForStop = async (
         }
         finalStop = nextStop;
       }
-    } else {
+    }
+    else {
       finalStop = entryStop; // entry coincides with user breakpoint
     }
     if (finalStop.reason === "terminated") {
       throw new Error(
         withRuntimeDiagnostics(
           `Debug session '${effectiveSessionName}' terminated before hitting a user breakpoint (unexpected: user cancelled or app exited).`,
-          finalStop.session.id
-        )
+          finalStop.session.id,
+        ),
       );
     }
     // If serverReady was NOT the entry stop but becomes the first user stop, process it now then continue.
     if (
-      !isServerReadyHit &&
-      serverReady &&
-      serverReadySource &&
-      finalStop.line === serverReady.trigger?.line
+      !isServerReadyHit
+      && serverReady
+      && serverReadySource
+      && finalStop.line === serverReady.trigger?.line
     ) {
       logger.info(
-        `Processing serverReady breakpoint post-entry at line ${finalStop.line}. Executing serverReady action then continuing to user breakpoint.`
+        `Processing serverReady breakpoint post-entry at line ${finalStop.line}. Executing serverReady action then continuing to user breakpoint.`,
       );
       if (!serverReadyTriggerSummary) {
         serverReadyTriggerSummary = serverReady.trigger?.path
@@ -2915,10 +2954,12 @@ export const startDebuggingAndWaitForStop = async (
         await finalStop.session.customRequest("continue", {
           threadId: finalStop.threadId,
         });
-      } catch (contErr) {
-        const msg = contErr instanceof Error ? contErr.message : String(contErr);
+      }
+      catch (contErr) {
+        const msg
+          = contErr instanceof Error ? contErr.message : String(contErr);
         throw new Error(
-          `Failed to continue after late serverReady processing (DAP 'continue'): ${msg}`
+          `Failed to continue after late serverReady processing (DAP 'continue'): ${msg}`,
         );
       }
       // Wait for the actual user breakpoint
@@ -2930,8 +2971,8 @@ export const startDebuggingAndWaitForStop = async (
         throw new Error(
           withRuntimeDiagnostics(
             `Debug session '${effectiveSessionName}' terminated after serverReady processing before hitting a user breakpoint (unexpected: user cancelled or app exited).`,
-            finalStop.session.id
-          )
+            finalStop.session.id,
+          ),
         );
       }
       finalStop = nextStop;
@@ -2939,28 +2980,29 @@ export const startDebuggingAndWaitForStop = async (
     // Deterministic advancement: some adapters may re-stop on the serverReady line after continue.
     // If still on serverReady and a user breakpoint exists immediately after, perform explicit step(s) to reach it.
     if (
-      isServerReadyHit &&
-      serverReady?.trigger?.line &&
-      finalStop.line === serverReady.trigger.line
+      isServerReadyHit
+      && serverReady?.trigger?.line
+      && finalStop.line === serverReady.trigger.line
     ) {
       const userNextLine = serverReady.trigger.line + 1;
       const hasUserNext = validated.some(
-        (v) => v.sb.location.range.start.line === userNextLine - 1
+        v => v.sb.location.range.start.line === userNextLine - 1,
       );
       if (hasUserNext) {
         logger.info(
-          `Advancing from serverReady line ${serverReady.trigger.line} to user breakpoint line ${userNextLine} via step(s).`
+          `Advancing from serverReady line ${serverReady.trigger.line} to user breakpoint line ${userNextLine} via step(s).`,
         );
         for (let attempt = 0; attempt < 3; attempt++) {
           try {
             await finalStop.session.customRequest("next", {
               threadId: finalStop.threadId,
             });
-          } catch (stepErr) {
+          }
+          catch (stepErr) {
             logger.warn(
               `Step attempt ${attempt + 1} failed: ${
                 stepErr instanceof Error ? stepErr.message : String(stepErr)
-              }`
+              }`,
             );
             break;
           }
@@ -2971,7 +3013,7 @@ export const startDebuggingAndWaitForStop = async (
             });
             if (stepped.reason === "terminated") {
               logger.warn(
-                "Session terminated during serverReady advancement step."
+                "Session terminated during serverReady advancement step.",
               );
               finalStop = stepped;
               break;
@@ -2981,15 +3023,16 @@ export const startDebuggingAndWaitForStop = async (
               logger.info(
                 `Reached user breakpoint line ${userNextLine} after ${
                   attempt + 1
-                } step(s).`
+                } step(s).`,
               );
               break;
             }
-          } catch (waitErr) {
+          }
+          catch (waitErr) {
             logger.warn(
               `Wait after step attempt ${attempt + 1} failed: ${
                 waitErr instanceof Error ? waitErr.message : String(waitErr)
-              }`
+              }`,
             );
             break;
           }
@@ -2998,7 +3041,7 @@ export const startDebuggingAndWaitForStop = async (
     }
     debugContext = await DAPHelpers.getDebugContext(
       finalStop.session,
-      finalStop.threadId
+      finalStop.threadId,
     );
     const orderedScopes = reorderScopesForCapture(debugContext.scopes ?? []);
     debugContext = { ...debugContext, scopes: orderedScopes };
@@ -3048,11 +3091,12 @@ export const startDebuggingAndWaitForStop = async (
         await finalStop.session.customRequest("next", {
           threadId: finalStop.threadId,
         });
-      } catch (err) {
+      }
+      catch (err) {
         throw new Error(
           `autoStepOver failed: debug adapter did not accept step-over request (DAP 'next'): ${
             err instanceof Error ? err.message : String(err)
-          }`
+          }`,
         );
       }
 
@@ -3064,15 +3108,15 @@ export const startDebuggingAndWaitForStop = async (
         throw new Error(
           withRuntimeDiagnostics(
             "autoStepOver requested, but the debug session terminated during step-over.",
-            finalStop.session.id
-          )
+            finalStop.session.id,
+          ),
         );
       }
 
       finalStop = stepped;
       debugContext = await DAPHelpers.getDebugContext(
         finalStop.session,
-        finalStop.threadId
+        finalStop.threadId,
       );
       const steppedScopes = reorderScopesForCapture(debugContext.scopes ?? []);
       debugContext = { ...debugContext, scopes: steppedScopes };
@@ -3090,7 +3134,8 @@ export const startDebuggingAndWaitForStop = async (
         before,
         after,
       };
-    } else {
+    }
+    else {
       scopeVariables = await captureScopeVariables({
         session: finalStop.session,
         scopes: orderedScopes,
@@ -3118,29 +3163,31 @@ export const startDebuggingAndWaitForStop = async (
       }
     }
     if (hitBreakpoint?.onHit === "captureAndStopDebugging") {
-      logger.info(`Terminating all debug sessions per breakpoint action.`);
+      logger.info("Terminating all debug sessions per breakpoint action.");
       await vscode.debug.stopDebugging();
       const now = Date.now();
       while (vscode.debug.activeDebugSession) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
       const waitTime = Date.now() - now;
       logger.info(`All debug sessions terminated after ${waitTime}ms.`);
-    } else if (hitBreakpoint?.onHit === "captureAndContinue") {
+    }
+    else if (hitBreakpoint?.onHit === "captureAndContinue") {
       try {
         logger.debug(
-          `Continuing debug session ${finalStop.session.id} after capture action.`
+          `Continuing debug session ${finalStop.session.id} after capture action.`,
         );
         await finalStop.session.customRequest("continue", {
           threadId: finalStop.threadId,
         });
-      } catch (continueErr) {
+      }
+      catch (continueErr) {
         logger.warn(
           `Failed to continue after capture action: ${
             continueErr instanceof Error
               ? continueErr.message
               : String(continueErr)
-          }`
+          }`,
         );
       }
     }
@@ -3148,7 +3195,7 @@ export const startDebuggingAndWaitForStop = async (
     const serverReadyInfo: ServerReadyInfo = {
       configured: !!serverReady,
       triggerMode: copilotServerReadyTriggerMode,
-      phases: serverReadyPhaseExecutions.map((entry) => ({
+      phases: serverReadyPhaseExecutions.map(entry => ({
         phase: entry.phase,
         timestamp: entry.when,
       })),
@@ -3157,13 +3204,15 @@ export const startDebuggingAndWaitForStop = async (
     let debuggerState: DebuggerStateSnapshot;
     if (hitBreakpoint?.onHit === "captureAndStopDebugging") {
       debuggerState = { status: "terminated" };
-    } else if (hitBreakpoint?.onHit === "captureAndContinue") {
+    }
+    else if (hitBreakpoint?.onHit === "captureAndContinue") {
       debuggerState = {
         status: "running",
         sessionId: finalStop.session.id,
         sessionName: finalStop.session.name,
       };
-    } else {
+    }
+    else {
       debuggerState = {
         status: "paused",
         sessionId: finalStop.session.id,
@@ -3177,14 +3226,15 @@ export const startDebuggingAndWaitForStop = async (
     if (mode === "singleShot" && debuggerState.status === "paused") {
       try {
         logger.info(
-          `singleShot mode: terminating debug session '${finalStop.session.name}' (id=${finalStop.session.id}) before returning.`
+          `singleShot mode: terminating debug session '${finalStop.session.name}' (id=${finalStop.session.id}) before returning.`,
         );
         await vscode.debug.stopDebugging(finalStop.session);
-      } catch (stopErr) {
+      }
+      catch (stopErr) {
         logger.warn(
           `singleShot mode: failed to stop debug session before return: ${
             stopErr instanceof Error ? stopErr.message : String(stopErr)
-          }`
+          }`,
         );
       }
       debuggerState = { status: "terminated" };
@@ -3224,7 +3274,8 @@ export const startDebuggingAndWaitForStop = async (
       reason: finalStop.reason,
       exceptionInfo: finalStop.exceptionInfo,
     };
-  } catch (error) {
+  }
+  catch (error) {
     taskTrackingArmed = false;
     if (error instanceof EntryStopTimeoutError) {
       const terminalLinesForAnalysis = terminalCapture.snapshot();
@@ -3232,23 +3283,23 @@ export const startDebuggingAndWaitForStop = async (
       const serverReadyActionAnalysis = analyzeServerReadyAction(
         (resolvedConfig as Record<string, unknown>).serverReadyAction,
         firstSessionId,
-        terminalLinesForAnalysis
+        terminalLinesForAnalysis,
       );
       const summary = describeEntryTimeout(error, {
         launchRequest: {
           type: (resolvedConfig as Record<string, unknown>).type as
-            | string
-            | undefined,
+          | string
+          | undefined,
           request: (resolvedConfig as Record<string, unknown>).request as
-            | string
-            | undefined,
+          | string
+          | undefined,
           name: resolvedConfig.name,
         },
         serverReadyAction: serverReadyActionAnalysis,
         copilotServerReady: {
           triggerMode: copilotServerReadyTriggerMode,
           executedPhases: serverReadyPhaseExecutions.map(
-            (entry) => entry.phase
+            entry => entry.phase,
           ),
         },
       });
@@ -3265,7 +3316,8 @@ export const startDebuggingAndWaitForStop = async (
       throw new Error(augmented);
     }
     throw error;
-  } finally {
+  }
+  finally {
     taskTrackingArmed = false;
     stopServerReadyPatternTimer();
     activeDebugPatternScan = undefined;
@@ -3277,35 +3329,37 @@ export const startDebuggingAndWaitForStop = async (
     if (current.length) {
       // Remove only the breakpoints we added (avoid touching restored originals twice)
       const currentSource = current.filter(
-        (bp) => bp instanceof vscode.SourceBreakpoint
+        bp => bp instanceof vscode.SourceBreakpoint,
       ) as vscode.SourceBreakpoint[];
       const addedKeys = new Set(
         validated.map(
-          (v) => `${v.sb.location.uri.fsPath}:${v.sb.location.range.start.line}`
-        )
+          v =>
+            `${v.sb.location.uri.fsPath}:${v.sb.location.range.start.line}`,
+        ),
       );
-      const toRemove = currentSource.filter((sb) =>
+      const toRemove = currentSource.filter(sb =>
         addedKeys.has(
-          `${sb.location.uri.fsPath}:${sb.location.range.start.line}`
-        )
+          `${sb.location.uri.fsPath}:${sb.location.range.start.line}`,
+        ),
       );
       if (toRemove.length) {
         vscode.debug.removeBreakpoints(toRemove);
         logger.debug(
-          `Removed ${toRemove.length} session breakpoint(s) before restoring originals.`
+          `Removed ${toRemove.length} session breakpoint(s) before restoring originals.`,
         );
       }
     }
     if (originalBreakpoints.length) {
       vscode.debug.addBreakpoints(originalBreakpoints);
       logger.debug(
-        `Restored ${originalBreakpoints.length} original breakpoint(s).`
+        `Restored ${originalBreakpoints.length} original breakpoint(s).`,
       );
-    } else {
+    }
+    else {
       logger.debug("No original breakpoints to restore.");
     }
   }
-};
+}
 
 /**
  * Stop debug sessions that match the provided session id.
@@ -3313,7 +3367,7 @@ export const startDebuggingAndWaitForStop = async (
  * @param params - Object containing the sessionId to stop.
  * @param params.sessionId - ID of the debug session(s) to stop.
  */
-export const stopDebugSession = async (params: { sessionId: string }) => {
+export async function stopDebugSession(params: { sessionId: string }) {
   const { sessionId } = params;
   const trimmed = typeof sessionId === "string" ? sessionId.trim() : "";
   if (!trimmed) {
@@ -3322,7 +3376,7 @@ export const stopDebugSession = async (params: { sessionId: string }) => {
 
   // 1) Exact VS Code session UUID match.
   let matchingSessions = activeSessions.filter(
-    (session: vscode.DebugSession) => session.id === trimmed
+    (session: vscode.DebugSession) => session.id === trimmed,
   );
 
   // 2) If not found, allow passing the listDebugSessions toolId (1-based index).
@@ -3332,34 +3386,35 @@ export const stopDebugSession = async (params: { sessionId: string }) => {
       sessions: activeSessions,
       activeSessionId: vscode.debug.activeDebugSession?.id,
     });
-    const item = mapped.find((i) => i.toolId === toolId);
+    const item = mapped.find(i => i.toolId === toolId);
     if (item) {
-      matchingSessions = activeSessions.filter((s) => s.id === item.id);
+      matchingSessions = activeSessions.filter(s => s.id === item.id);
     }
   }
 
   // 3) If still not found, allow exact name match when unambiguous.
   if (matchingSessions.length === 0) {
-    const byName = activeSessions.filter((s) => s.name === trimmed);
+    const byName = activeSessions.filter(s => s.name === trimmed);
     if (byName.length === 1) {
       matchingSessions = byName;
-    } else if (byName.length > 1) {
+    }
+    else if (byName.length > 1) {
       throw new Error(
-        `Multiple debug sessions share the name '${trimmed}'. Use listDebugSessions and pass the session 'id' (UUID) or 'toolId'.`
+        `Multiple debug sessions share the name '${trimmed}'. Use listDebugSessions and pass the session 'id' (UUID) or 'toolId'.`,
       );
     }
   }
 
   if (matchingSessions.length === 0) {
     throw new Error(
-      `No debug session(s) found for '${trimmed}'. Use listDebugSessions and pass either the session 'id' (UUID) or 'toolId'.`
+      `No debug session(s) found for '${trimmed}'. Use listDebugSessions and pass either the session 'id' (UUID) or 'toolId'.`,
     );
   }
 
   for (const session of matchingSessions) {
     await vscode.debug.stopDebugging(session);
   }
-};
+}
 /**
  * Resume execution of a debug session that has been paused (e.g., by a breakpoint).
  *
@@ -3368,21 +3423,21 @@ export const stopDebugSession = async (params: { sessionId: string }) => {
  * @param params.breakpointConfig - Optional configuration for managing breakpoints when resuming.
  * @param params.breakpointConfig.breakpoints - Array of breakpoint configurations to set before resuming.
  */
-export const resumeDebugSession = async (params: {
-  sessionId: string;
+export async function resumeDebugSession(params: {
+  sessionId: string
   breakpointConfig?: {
-    breakpoints?: Array<BreakpointDefinition>;
-  };
-}) => {
+    breakpoints?: Array<BreakpointDefinition>
+  }
+}) {
   const { sessionId, breakpointConfig } = params;
 
   // Find the session with the given ID
-  let session = activeSessions.find((s) => s.id === sessionId);
+  let session = activeSessions.find(s => s.id === sessionId);
 
   // If not found by ID, try to find by name pattern (VSCode creates child sessions with modified names)
   if (!session) {
     // Look for a session whose name contains the session ID
-    session = activeSessions.find((s) => s.name.includes(sessionId));
+    session = activeSessions.find(s => s.name.includes(sessionId));
   }
 
   if (!session) {
@@ -3390,51 +3445,53 @@ export const resumeDebugSession = async (params: {
   }
 
   // Used to resolve relative breakpoint paths.
-  const workspaceFolder =
-    session.workspaceFolder?.uri.fsPath ||
-    vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  const workspaceFolder
+    = session.workspaceFolder?.uri.fsPath
+      || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
   // Handle breakpoint configuration if provided
   if (breakpointConfig) {
     // Add new breakpoints if provided
     if (
-      breakpointConfig.breakpoints &&
-      breakpointConfig.breakpoints.length > 0
+      breakpointConfig.breakpoints
+      && breakpointConfig.breakpoints.length > 0
     ) {
       if (!workspaceFolder) {
         throw new Error(
-          "Cannot determine workspace folder for breakpoint paths"
+          "Cannot determine workspace folder for breakpoint paths",
         );
       }
 
       const resolved = [] as Array<{
-        bp: BreakpointDefinition;
-        absPath: string;
-        lines: number[];
+        bp: BreakpointDefinition
+        absPath: string
+        lines: number[]
       }>;
       for (const bp of breakpointConfig.breakpoints) {
         let absPath: string;
         if (path.isAbsolute(bp.path)) {
           absPath = bp.path;
-        } else {
+        }
+        else {
           // Try to resolve relative path against session folder, then any workspace folder
           const candidates = [
             session.workspaceFolder?.uri.fsPath,
             ...(vscode.workspace.workspaceFolders ?? []).map(
-              (f) => f.uri.fsPath
+              f => f.uri.fsPath,
             ),
           ].filter((p): p is string => !!p);
 
-          const found = candidates.find((base) =>
-            fs.existsSync(path.join(base, bp.path))
+          const found = candidates.find(base =>
+            fs.existsSync(path.join(base, bp.path)),
           );
           if (found) {
             absPath = path.join(found, bp.path);
-          } else {
+          }
+          else {
             // Legacy determination
             if (!workspaceFolder) {
               throw new Error(
-                `Cannot determine workspace folder for '${bp.path}'`
+                `Cannot determine workspace folder for '${bp.path}'`,
               );
             }
             absPath = path.join(workspaceFolder, bp.path);
@@ -3443,18 +3500,18 @@ export const resumeDebugSession = async (params: {
 
         if (!bp.code || !bp.code.trim()) {
           throw new Error(
-            `Breakpoint for '${absPath}' is missing required 'code' snippet.`
+            `Breakpoint for '${absPath}' is missing required 'code' snippet.`,
           );
         }
         const doc = await vscode.workspace.openTextDocument(
-          vscode.Uri.file(absPath)
+          vscode.Uri.file(absPath),
         );
         const lines = findAllLineNumbersForSnippet(doc, bp.code);
         if (lines.length === 0) {
           throw new Error(
             `Breakpoint snippet not found in '${absPath}': '${truncateSnippet(
-              bp.code
-            )}'`
+              bp.code,
+            )}'`,
           );
         }
         resolved.push({ bp, absPath, lines });
@@ -3465,8 +3522,8 @@ export const resumeDebugSession = async (params: {
         for (const line of entry.lines) {
           const uri = vscode.Uri.file(entry.absPath);
           const location = new vscode.Position(line - 1, 0);
-          const hitCond =
-            entry.bp.hitCount !== undefined
+          const hitCond
+            = entry.bp.hitCount !== undefined
               ? String(entry.bp.hitCount)
               : undefined;
           newBreakpoints.push(
@@ -3475,8 +3532,8 @@ export const resumeDebugSession = async (params: {
               true,
               entry.bp.condition,
               hitCond,
-              entry.bp.logMessage
-            )
+              entry.bp.logMessage,
+            ),
           );
         }
       }
@@ -3497,13 +3554,13 @@ export const resumeDebugSession = async (params: {
   // If session terminated without hitting breakpoint, return termination stopInfo
   if (stopInfo.reason === "terminated") {
     throw new Error(
-      `Debug session '${session.name}' terminated before hitting a breakpoint.`
+      `Debug session '${session.name}' terminated before hitting a breakpoint.`,
     );
   }
   // Otherwise resolve full breakpoint stopInfo (align with startDebuggingAndWaitForStop output)
   const debugContext = await DAPHelpers.getDebugContext(
     stopInfo.session,
-    stopInfo.threadId
+    stopInfo.threadId,
   );
 
   const orderedScopes = reorderScopesForCapture(debugContext.scopes ?? []);
@@ -3513,7 +3570,7 @@ export const resumeDebugSession = async (params: {
   for (const scope of orderedScopes) {
     const variables = await DAPHelpers.getVariablesFromReference(
       stopInfo.session,
-      scope.variablesReference
+      scope.variablesReference,
     );
     scopeVariables.push({ scopeName: scope.name, variables });
   }
@@ -3523,28 +3580,30 @@ export const resumeDebugSession = async (params: {
   const framePath = normalizedContext.frame?.source?.path;
   const frameLine = normalizedContext.frame?.line;
   if (
-    framePath &&
-    typeof frameLine === "number" &&
-    breakpointConfig?.breakpoints?.length
+    framePath
+    && typeof frameLine === "number"
+    && breakpointConfig?.breakpoints?.length
   ) {
     const normalizedFramePath = normalizeFsPath(framePath);
     for (const bp of breakpointConfig.breakpoints) {
       let absPath: string;
       if (path.isAbsolute(bp.path)) {
         absPath = bp.path;
-      } else {
+      }
+      else {
         // Smart resolution to find correct workspace folder
         const candidates = [
           session.workspaceFolder?.uri.fsPath,
-          ...(vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath),
+          ...(vscode.workspace.workspaceFolders ?? []).map(f => f.uri.fsPath),
         ].filter((p): p is string => !!p);
 
-        const found = candidates.find((base) =>
-          fs.existsSync(path.join(base, bp.path))
+        const found = candidates.find(base =>
+          fs.existsSync(path.join(base, bp.path)),
         );
         if (found) {
           absPath = path.join(found, bp.path);
-        } else {
+        }
+        else {
           // Default resolution
           absPath = path.join(workspaceFolder ?? candidates[0] ?? "", bp.path);
         }
@@ -3554,7 +3613,7 @@ export const resumeDebugSession = async (params: {
       }
       // Identify hit breakpoint by checking whether the frame line is one of the resolved snippet matches.
       const doc = await vscode.workspace.openTextDocument(
-        vscode.Uri.file(absPath)
+        vscode.Uri.file(absPath),
       );
       const resolvedLines = findAllLineNumbersForSnippet(doc, bp.code);
       if (!resolvedLines.includes(frameLine)) {
@@ -3593,23 +3652,25 @@ export const resumeDebugSession = async (params: {
   }
 
   if (hitBreakpoint?.onHit === "captureAndStopDebugging") {
-    logger.info(`Terminating all debug sessions per breakpoint action.`);
+    logger.info("Terminating all debug sessions per breakpoint action.");
     await vscode.debug.stopDebugging();
-  } else if (hitBreakpoint?.onHit === "captureAndContinue") {
+  }
+  else if (hitBreakpoint?.onHit === "captureAndContinue") {
     try {
       logger.debug(
-        `Continuing debug session ${stopInfo.session.id} after capture action.`
+        `Continuing debug session ${stopInfo.session.id} after capture action.`,
       );
       await stopInfo.session.customRequest("continue", {
         threadId: stopInfo.threadId,
       });
-    } catch (continueErr) {
+    }
+    catch (continueErr) {
       logger.warn(
         `Failed to continue after capture action: ${
           continueErr instanceof Error
             ? continueErr.message
             : String(continueErr)
-        }`
+        }`,
       );
     }
   }
@@ -3623,13 +3684,15 @@ export const resumeDebugSession = async (params: {
   let debuggerState: DebuggerStateSnapshot;
   if (hitBreakpoint?.onHit === "captureAndStopDebugging") {
     debuggerState = { status: "terminated" };
-  } else if (hitBreakpoint?.onHit === "captureAndContinue") {
+  }
+  else if (hitBreakpoint?.onHit === "captureAndContinue") {
     debuggerState = {
       status: "running",
       sessionId: stopInfo.session.id,
       sessionName: stopInfo.session.name,
     };
-  } else {
+  }
+  else {
     debuggerState = {
       status: "paused",
       sessionId: stopInfo.session.id,
@@ -3670,4 +3733,4 @@ export const resumeDebugSession = async (params: {
     reason: stopInfo.reason,
     exceptionInfo: stopInfo.exceptionInfo,
   };
-};
+}

@@ -7,14 +7,14 @@ import { version } from "./generated-meta";
 // Keep rendering logic shared between StartDebuggerTool and ResumeDebugSessionTool.
 
 export interface BreakpointConfiguration {
-  breakpoints: BreakpointDefinition[];
+  breakpoints: BreakpointDefinition[]
 }
 
-export const renderStopInfoMarkdown = (params: {
-  stopInfo: StartDebuggerStopInfo;
-  breakpointConfig: BreakpointConfiguration;
-  success: boolean;
-}): string => {
+export function renderStopInfoMarkdown(params: {
+  stopInfo: StartDebuggerStopInfo
+  breakpointConfig: BreakpointConfiguration
+  success: boolean
+}): string {
   const { stopInfo, breakpointConfig, success } = params;
 
   const summary = {
@@ -42,9 +42,9 @@ export const renderStopInfoMarkdown = (params: {
   const capturedLogs = stopInfo.capturedLogMessages ?? [];
   let autoCapturedScope:
     | {
-        name?: string;
-        count: number;
-      }
+      name?: string
+      count: number
+    }
     | undefined;
 
   // Build list of variables: explicit filters OR auto-capture from nearest scope.
@@ -88,21 +88,21 @@ export const renderStopInfoMarkdown = (params: {
 
   const filterSet = new Set(activeFilters);
   const groupedVariables: Array<{
-    scopeName: string;
+    scopeName: string
     variables: Array<{
-      name: string;
-      type?: string;
-      value: string;
-      beforeValue?: string;
-      afterValue?: string;
-    }>;
+      name: string
+      type?: string
+      value: string
+      beforeValue?: string
+      afterValue?: string
+    }>
   }> = [];
 
   const beforeLookup = (() => {
     if (!stepOver) {
       return undefined;
     }
-    const map = new Map<string, { value: string; type?: string }>();
+    const map = new Map<string, { value: string, type?: string }>();
     for (const scope of stepOver.before ?? []) {
       for (const v of scope.variables ?? []) {
         map.set(v.name, { value: v.value, type: v.type });
@@ -114,7 +114,7 @@ export const renderStopInfoMarkdown = (params: {
     if (!stepOver) {
       return undefined;
     }
-    const map = new Map<string, { value: string; type?: string }>();
+    const map = new Map<string, { value: string, type?: string }>();
     for (const scope of stepOver.after ?? []) {
       for (const v of scope.variables ?? []) {
         map.set(v.name, { value: v.value, type: v.type });
@@ -129,7 +129,7 @@ export const renderStopInfoMarkdown = (params: {
       continue;
     }
     const matchedVars = scope.variables
-      .filter((variable) => filterSet.has(variable.name))
+      .filter(variable => filterSet.has(variable.name))
       .map((variable) => {
         if (!stepOver || !beforeLookup || !afterLookup) {
           return {
@@ -195,13 +195,16 @@ export const renderStopInfoMarkdown = (params: {
   let header: string;
   if (stopInfo.exceptionInfo) {
     header = `Exception: ${stopInfo.exceptionInfo.description} (see Exception Details below)`;
-  } else if (stopInfo.hitBreakpoint) {
+  }
+  else if (stopInfo.hitBreakpoint) {
     if (stepOver?.performed && stepOver.fromLine && stepOver.toLine) {
       header = `Breakpoint ${fileName}:${stepOver.fromLine} onHit=${onHit} (autoStepOver -> stopped at line ${stepOver.toLine})`;
-    } else {
+    }
+    else {
       header = `Breakpoint ${fileName}:${summary.line} onHit=${onHit}`;
     }
-  } else {
+  }
+  else {
     header = `Stopped: reason=${stopInfo.reason ?? "unknown"} at ${fileName}:${
       summary.line
     }`;
@@ -210,7 +213,7 @@ export const renderStopInfoMarkdown = (params: {
   let bodyVars: string;
   const totalVars = groupedVariables.reduce(
     (count, group) => count + group.variables.length,
-    0
+    0,
   );
 
   if (totalVars) {
@@ -222,20 +225,23 @@ export const renderStopInfoMarkdown = (params: {
         autoCapturedScope.name ?? "unknown"
       }', cap=${maxAuto})`;
     }
-  } else if (autoCapturedScope) {
+  }
+  else if (autoCapturedScope) {
     bodyVars = `Vars: <none> (auto-capture attempted from scope '${
       autoCapturedScope.name ?? "unknown"
     }', cap=${maxAuto})`;
-  } else if (filterSet.size === 0) {
+  }
+  else if (filterSet.size === 0) {
     bodyVars = "Vars: <none> (no filter provided)";
-  } else {
+  }
+  else {
     bodyVars = `Vars: <none> (filters: ${activeFilters.join(", ")})`;
   }
 
   const bodyLogs = capturedLogs.length
     ? capturedLogs
-        .map((log) => (log.length > 120 ? `${log.slice(0, 120)}…` : log))
-        .map((log) => `- ${log}`)
+        .map(log => (log.length > 120 ? `${log.slice(0, 120)}…` : log))
+        .map(log => `- ${log}`)
         .join("\n")
     : "";
 
@@ -245,8 +251,8 @@ export const renderStopInfoMarkdown = (params: {
     const state = stopInfo.debuggerState;
     const sessionId = state.sessionId ?? "unknown";
     const sessionLabel = state.sessionName ?? sessionId ?? "unknown";
-    const availableTools =
-      "resumeDebugSession, getVariables, expandVariable, evaluateExpression, stopDebugSession";
+    const availableTools
+      = "resumeDebugSession, getVariables, expandVariable, evaluateExpression, stopDebugSession";
     switch (state.status) {
       case "paused":
         return [
@@ -276,10 +282,10 @@ export const renderStopInfoMarkdown = (params: {
       return "";
     }
     const allowed = protocol.allowedNextActions?.length
-      ? protocol.allowedNextActions.map((a) => `- ${a}`).join("\n")
+      ? protocol.allowedNextActions.map(a => `- ${a}`).join("\n")
       : "- <none>";
     const forbidden = protocol.forbiddenNextActions?.length
-      ? protocol.forbiddenNextActions.map((a) => `- ${a}`).join("\n")
+      ? protocol.forbiddenNextActions.map(a => `- ${a}`).join("\n")
       : "- <none>";
     return [
       "### Allowed next actions",
@@ -293,37 +299,37 @@ export const renderStopInfoMarkdown = (params: {
   })();
 
   const hasConfiguredOnHit = breakpointConfig.breakpoints.some(
-    (bp) => !!bp.onHit
+    bp => !!bp.onHit,
   );
   const multipleBreakpoints = breakpointConfig.breakpoints.length > 1;
   const guidance: string[] = [];
 
   if (stopInfo.debuggerState.status === "terminated" && !hasConfiguredOnHit) {
     guidance.push(
-      "No onHit behavior was set; consider onHit 'captureAndContinue' to keep the session alive and still collect data."
+      "No onHit behavior was set; consider onHit 'captureAndContinue' to keep the session alive and still collect data.",
     );
   }
 
   if (!multipleBreakpoints) {
     guidance.push(
-      "You can supply multiple breakpoints, each with its own onHit (e.g., trace with captureAndContinue, then captureAndStopDebugging at a later line)."
+      "You can supply multiple breakpoints, each with its own onHit (e.g., trace with captureAndContinue, then captureAndStopDebugging at a later line).",
     );
   }
 
   if (onHit === "captureAndContinue" && activeFilters.length === 0) {
     guidance.push(
-      `captureAndContinue auto-captured ${totalVars} variable(s); set variableFilter to focus only the names you care about.`
+      `captureAndContinue auto-captured ${totalVars} variable(s); set variableFilter to focus only the names you care about.`,
     );
   }
 
   if (truncatedVariables) {
     guidance.push(
-      "Values were truncated to 100 characters. Provide variableFilter to return full values without truncation."
+      "Values were truncated to 100 characters. Provide variableFilter to return full values without truncation.",
     );
   }
 
-  const guidanceSection =
-    guidance.length > 0 ? guidance.map((item) => `- ${item}`).join("\n") : "";
+  const guidanceSection
+    = guidance.length > 0 ? guidance.map(item => `- ${item}`).join("\n") : "";
 
   const successLine = `Success: ${success}`;
   const versionLine = `Plugin Version: ${version}`;
@@ -338,7 +344,7 @@ export const renderStopInfoMarkdown = (params: {
     }
     const hits = info.phases
       .map(
-        (entry) => `${entry.phase}@${new Date(entry.timestamp).toISOString()}`
+        entry => `${entry.phase}@${new Date(entry.timestamp).toISOString()}`,
       )
       .join(", ");
     const detail = info.triggerSummary ? ` | ${info.triggerSummary}` : "";
@@ -353,7 +359,7 @@ export const renderStopInfoMarkdown = (params: {
     const qualifier = preview.truncated
       ? `showing last ${preview.lines.length} of ${preview.totalLines} line(s)`
       : `last ${preview.lines.length} line(s)`;
-    const body = preview.lines.map((line) => `- ${line}`).join("\n");
+    const body = preview.lines.map(line => `- ${line}`).join("\n");
     return `Runtime Output (${qualifier}):\n${body}`;
   })();
 
@@ -367,11 +373,11 @@ export const renderStopInfoMarkdown = (params: {
     };
   })();
 
-  const sections: Array<{ title: string; body: string }> = [
+  const sections: Array<{ title: string, body: string }> = [
     {
       title: "Summary",
       body: [successLine, versionLine, timestampLine, header]
-        .filter((entry) => entry && entry.trim().length > 0)
+        .filter(entry => entry && entry.trim().length > 0)
         .join("\n"),
     },
     exceptionSection ?? { title: "", body: "" },
@@ -386,9 +392,9 @@ export const renderStopInfoMarkdown = (params: {
         ]
       : []),
     { title: "Guidance", body: guidanceSection },
-  ].filter((section) => section.body && section.body.trim().length > 0);
+  ].filter(section => section.body && section.body.trim().length > 0);
 
   return sections
-    .map((section) => `## ${section.title}\n${section.body}`)
+    .map(section => `## ${section.title}\n${section.body}`)
     .join("\n\n");
-};
+}

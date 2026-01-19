@@ -21,7 +21,7 @@ describe("startDebuggerTool concise text output", function () {
       .update(
         "entryTimeoutSeconds",
         undefined,
-        vscode.ConfigurationTarget.Workspace
+        vscode.ConfigurationTarget.Workspace,
       );
     await stopAllDebugSessions();
   });
@@ -40,7 +40,7 @@ describe("startDebuggerTool concise text output", function () {
     const promptPart = content[0];
     assert.ok(
       promptPart instanceof vscode.LanguageModelTextPart,
-      "expected LanguageModelTextPart for concise output"
+      "expected LanguageModelTextPart for concise output",
     );
     const textValue = promptPart.value as string;
     assert.match(textValue, /^Breakpoint .*:\d+/m, "Missing breakpoint header");
@@ -48,7 +48,7 @@ describe("startDebuggerTool concise text output", function () {
     assert.match(
       textValue,
       /\|\s*i\s*\|[^|]*\|[^|]*\|/,
-      "Filtered variable i missing in table"
+      "Filtered variable i missing in table",
     );
     console.log("[concise-output] preview:", textValue);
   });

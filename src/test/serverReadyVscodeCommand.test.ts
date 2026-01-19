@@ -11,9 +11,8 @@ import {
 
 // Test serverReady vscodeCommand action variant: executes VS Code command when readiness breakpoint hit, then continues.
 
-describe("serverReady vscodeCommand action", function () {
+describe("serverReady vscodeCommand action", () => {
   // Under full-suite load, debug adapter startup + serverReady hop can occasionally be slow.
-  this.timeout(240_000);
   afterEach(async () => {
     await stopAllDebugSessions();
   });

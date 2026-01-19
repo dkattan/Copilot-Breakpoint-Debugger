@@ -88,8 +88,7 @@ describe("multi-Root Workspace Integration", () => {
   });
 
   it("workspace B (Node.js) - individual debug session", async function () {
-    // This is typically fast, but can exceed 60s when running after other debug-heavy tests.
-    this.timeout(120_000);
+    this.timeout(60_000);
 
     const extensionRoot = getExtensionRoot();
     const workspaceFolder = path.join(extensionRoot, "test-workspace", "b");
@@ -157,9 +156,7 @@ describe("multi-Root Workspace Integration", () => {
   });
 
   it("workspace B with conditional breakpoint (Node.js)", async function () {
-    // This test is fast in isolation, but under full-suite load VS Code's debug adapter
-    // startup + initial stop/continue hop can occasionally push beyond 60s on CI.
-    this.timeout(120_000);
+    this.timeout(60_000);
 
     const extensionRoot = getExtensionRoot();
     const workspaceFolder = path.join(extensionRoot, "test-workspace", "b");

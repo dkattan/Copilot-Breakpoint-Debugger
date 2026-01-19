@@ -58,9 +58,8 @@ const config = {
     // Electron/VS Code can be slow to show first window on cold start.
     actionTimeout: 15_000,
     navigationTimeout: 30_000,
-    // Record a demo video (saved as .webm in test-results) that we later convert
-    // to `docs/pw-videos/demo.mp4` via the `playwright-test-videos` submodule.
-    video: "on",
+    // Video capture for Electron-backed VS Code isn't consistently supported;
+    // prefer tracing (retained on failure) for debugging.
     trace: "retain-on-failure",
   },
   projects: [

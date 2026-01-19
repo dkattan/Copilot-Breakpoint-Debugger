@@ -96,11 +96,7 @@ function tryDiscoverVSCodeFromVscodeTestDir(): string | undefined {
   // macOS: `.vscode-test/**/Visual Studio Code.app`
   if (os.platform() === "darwin") {
     candidates.push(
-      path.join(
-        vscodeTestDir,
-        "vscode-darwin-arm64-",
-        "Visual Studio Code.app",
-      ),
+      path.join(vscodeTestDir, "vscode-darwin-arm64-", "Visual Studio Code.app"),
     );
     // We don't know the exact versioned folder name ahead of time, so scan.
     try {
@@ -226,13 +222,6 @@ export default async function globalSetup(): Promise<void> {
   }
   if (!process.env.PW_VSCODE_CLONE_INCLUDE_GLOBAL_STORAGE) {
     process.env.PW_VSCODE_CLONE_INCLUDE_GLOBAL_STORAGE = "1";
-  }
-
-  // Ensure Copilot is actually present in the launched VS Code.
-  // The Playwright harness uses a separate --extensions-dir by default, which would
-  // otherwise omit the user's installed Copilot extensions.
-  if (!process.env.PW_VSCODE_USE_DEFAULT_EXTENSIONS_DIR) {
-    process.env.PW_VSCODE_USE_DEFAULT_EXTENSIONS_DIR = "1";
   }
 
   if (process.env.PW_VSCODE_EXECUTABLE_PATH) {

@@ -25,12 +25,10 @@ describe("serverReady vscodeCommand action", () => {
     const serverDoc = await vscode.workspace.openTextDocument(serverPath);
     await openScriptDocument(serverDoc.uri);
 
-    const readyLine
-      = serverDoc
-        .getText()
-        .split(/\r?\n/)
-        .findIndex(l => l.includes("LINE_FOR_SERVER_READY")) + 1;
-    assert.ok(readyLine > 0, "Did not find serverReady marker line");
+    // Use a pattern trigger instead of a breakpoint trigger.
+    // The serverReady breakpoint line executes only once and can be missed if it runs
+    // before VS Code finishes binding breakpoints under load.
+    const readyPattern = "Server listening on http://localhost:31337";
     const userBreakpointSnippet = "TICK_FOR_USER_BREAKPOINT";
     const userBreakpointLine
       = serverDoc
@@ -58,7 +56,7 @@ describe("serverReady vscodeCommand action", () => {
         ],
       },
       serverReady: {
-        trigger: { path: serverPath, line: readyLine },
+        trigger: { pattern: readyPattern },
         action: {
           type: "vscodeCommand",
           // Use a non-UI command that resolves quickly and is safe in headless extension tests.
@@ -67,6 +65,16 @@ describe("serverReady vscodeCommand action", () => {
         },
       },
     });
+
+    assert.strictEqual(
+      context.serverReadyInfo.triggerMode,
+      "pattern",
+      "serverReady trigger mode should be pattern (vscodeCommand)",
+    );
+    assert.ok(
+      context.serverReadyInfo.phases.some(phase => phase.phase === "immediate"),
+      "serverReady pattern should execute immediate phase (vscodeCommand)",
+    );
 
     assert.strictEqual(
       context.frame.line,

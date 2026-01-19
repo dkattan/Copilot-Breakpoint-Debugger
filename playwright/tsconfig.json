@@ -10,7 +10,8 @@
     "skipLibCheck": true
   },
   "include": [
-    "**/*.ts"
+    "**/*.ts",
+    "../playwright.config.ts"
   ],
   "exclude": [
     "**/*.d.ts",

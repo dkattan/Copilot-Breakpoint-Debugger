@@ -36,47 +36,6 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-# Run the Playwright demo flow that generates (and injects) the demo video.
-# NOTE: This may modify tracked files (e.g. README.md / docs/pw-videos/demo.mp4).
-echo ""
-echo "🎥 Generating Playwright demo video..."
-
-# IMPORTANT: The demo drives Copilot Chat. If we run against a clean, downloaded VS Code,
-# Copilot will not be signed in and the demo will fail (and waste time downloading).
-# Require the user to point Playwright at a system-installed VS Code (signed in),
-# or explicitly clone a signed-in user data dir.
-if [ -z "${PW_VSCODE_EXECUTABLE_PATH:-}" ] && [ -z "${PW_VSCODE_CLONE_USER_DATA_FROM:-}" ]; then
-  echo ""
-  echo "❌ Demo video generation requires a signed-in VS Code profile."
-  echo "   Set one of the following environment variables and re-run commit:"
-  echo ""
-  echo "   - PW_VSCODE_EXECUTABLE_PATH=/Applications/Visual\ Studio\ Code.app"
-  echo "     (or VS Code Insiders.app)"
-  echo ""
-  echo "   - PW_VSCODE_CLONE_USER_DATA_FROM=default"
-  echo "     (or a concrete path like '$HOME/Library/Application Support/Code')"
-  echo ""
-  echo "   Optionally also set PW_VSCODE_PROFILE if you use a non-default profile."
-  exit 1
-fi
-
-npm run demo:pw:update-readme
-if [ $? -ne 0 ]; then
-  echo ""
-  echo "❌ Demo generation failed. Fix the errors above before committing."
-  exit 1
-fi
-
-# If the demo updated tracked files, require staging them so the commit actually includes the new video/README.
-if ! git diff --quiet; then
-  echo ""
-  echo "📝 Demo generation produced changes that are not staged."
-  echo "   Please review and stage the updated files, then re-run your commit."
-  echo ""
-  git --no-pager diff --name-only
-  exit 1
-fi
-
 # Type-check Playwright demo code (not part of extension build)
 echo ""
 echo "🎭 Type-checking Playwright demo..."
@@ -86,6 +45,13 @@ if [ $? -ne 0 ]; then
   echo "❌ Playwright demo typecheck failed. Fix the errors above before committing."
   exit 1
 fi
+
+# NOTE: Updating the README demo video is intentionally NOT part of the pre-commit hook.
+# The video pipeline can produce artifact churn (e.g. encoding/duration differences) and
+# should be run intentionally when you want to refresh the README.
+#
+# Run manually when needed:
+#   npm run demo:pw:update-readme
 
 # Run tests
 echo ""

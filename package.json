@@ -44,6 +44,11 @@
         "category": "Copilot Breakpoint Debugger"
       },
       {
+        "command": "copilotBreakpointDebugger.setDefaultLaunchConfiguration",
+        "title": "Copilot Breakpoint Debugger: Set Default Launch Configuration",
+        "category": "Copilot Breakpoint Debugger"
+      },
+      {
         "command": "copilotBreakpointDebugger.insertSampleStartDebuggerPayload",
         "title": "Copilot Breakpoint Debugger: Insert Sample Start Payload",
         "category": "Copilot Breakpoint Debugger"
@@ -529,7 +534,7 @@
     "package": "npm run build:dist",
     "vsix:local": "npm run vscode:prepublish && npx --yes @vscode/vsce package --out copilot-breakpoint-debugger-local.vsix && code --install-extension copilot-breakpoint-debugger-local.vsix --force",
     "demo:pw:prep": "npx tsc -p external/vscode-test-playwright/tsconfig.json",
-    "demo:pw": "npm run demo:pw:prep && cross-env NODE_OPTIONS= npx playwright test -c playwright-demo.config.ts",
+    "demo:pw": "npm run demo:pw:prep && cross-env NODE_OPTIONS= npx playwright test playwright/demo.spec.ts",
     "demo:pw:videos": "npm --prefix external/playwright-test-videos install && npm --prefix external/playwright-test-videos run build && cross-env NODE_OPTIONS= node external/playwright-test-videos/dist/cli.js --from test-results --to docs/pw-videos --readme README.md --max 1 --name demo.mp4",
     "demo:pw:update-readme": "npm run demo:pw && npm run demo:pw:videos",
     "typecheck:playwright": "tsc --noEmit -p playwright/tsconfig.json",
@@ -545,9 +550,9 @@
   "dependencies": {
     "@actions/core": "^1.11.1",
     "@actions/github": "^6.0.0",
-    "@anthropic-ai/sdk": "^0.27.3",
+    "@anthropic-ai/sdk": "^0.71.2",
     "@reactive-vscode/reactivity": "^0.4.1",
-    "@vscode/prompt-tsx": "^0.4.0-alpha.5",
+    "@vscode/prompt-tsx": "^0.4.0-alpha.6",
     "markdown-table": "^3.0.4",
     "mocha": "^10.7.3",
     "reactive-vscode": "^0.4.1",
@@ -559,12 +564,12 @@
   "devDependencies": {
     "@antfu/eslint-config": "^3.0.0",
     "@esbuild-plugins/node-modules-polyfill": "^0.2.2",
-    "@playwright/test": "^1.50.1",
+    "@playwright/test": "^1.57.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
-    "@types/vscode": "^1.102.0",
-    "@typescript-eslint/eslint-plugin": "^8.31.1",
-    "@typescript-eslint/parser": "^8.31.1",
+    "@types/vscode": "^1.108.1",
+    "@typescript-eslint/eslint-plugin": "^8.53.1",
+    "@typescript-eslint/parser": "^8.53.1",
     "@vscode/debugprotocol": "^1.68.0",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",

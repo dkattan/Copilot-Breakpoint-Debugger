@@ -21,11 +21,13 @@
     // "noFallthroughCasesInSwitch": true, /* Report errors for fallthrough cases in switch statement. */
     // "noUnusedParameters": true,  /* Report errors on unused parameters. */
   },
+  "include": ["src/**/*"],
   "exclude": [
     "test-workspace/**",
     "taze.config.ts",
     "external/**",
-    "playwright/**",
-    "playwright-demo.config.ts"
+    "playwright/**"
+    // `playwright.config.ts` is intentionally NOT part of the extension build.
+    // It is typechecked by `playwright/tsconfig.json` instead.
   ]
 }

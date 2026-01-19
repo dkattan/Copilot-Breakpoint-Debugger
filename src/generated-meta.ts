@@ -14,6 +14,7 @@ export const extensionId = `${publisher}.${name}`
  */
 export type CommandKey =
   | "copilotBreakpointDebugger.startAndWaitManual"
+  | "copilotBreakpointDebugger.setDefaultLaunchConfiguration"
   | "copilotBreakpointDebugger.insertSampleStartDebuggerPayload"
 
 /**
@@ -25,6 +26,11 @@ export const commands = {
    * @value `copilotBreakpointDebugger.startAndWaitManual`
    */
   copilotBreakpointDebuggerStartAndWaitManual: "copilotBreakpointDebugger.startAndWaitManual",
+  /**
+   * Copilot Breakpoint Debugger: Set Default Launch Configuration
+   * @value `copilotBreakpointDebugger.setDefaultLaunchConfiguration`
+   */
+  copilotBreakpointDebuggerSetDefaultLaunchConfiguration: "copilotBreakpointDebugger.setDefaultLaunchConfiguration",
   /**
    * Copilot Breakpoint Debugger: Insert Sample Start Payload
    * @value `copilotBreakpointDebugger.insertSampleStartDebuggerPayload`

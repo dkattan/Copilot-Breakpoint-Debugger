@@ -229,6 +229,9 @@ export default antfu(
     },
     rules: {
       "local/no-readme-now": "error",
+      // README contains generated tables where Markdown hard line breaks are
+      // represented with two trailing spaces. Allow that in this one file.
+      "style/no-trailing-spaces": "off",
     },
   },
   // Ignore large external vendor/source trees not meant for linting in this extension

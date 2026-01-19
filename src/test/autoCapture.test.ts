@@ -48,13 +48,12 @@ describe("startDebuggingAndWaitForStop - capture-all (variableFilter empty)", ()
     const context = await startDebuggingAndWaitForStop(
       Object.assign({}, baseParams, {
         sessionName: "",
-        mode: "inspect" as const,
         breakpointConfig: {
           breakpoints: [
             {
               path: scriptPath,
               code: bpSnippet,
-              onHit: "captureAndContinue" as const,
+              onHit: "captureAndStopDebugging" as const,
               logMessage: "i={i}",
               // variableFilter required; empty array opts into auto-capture
               variableFilter: [],
@@ -70,7 +69,7 @@ describe("startDebuggingAndWaitForStop - capture-all (variableFilter empty)", ()
       "Did not pause at expected line for capture-all test",
     );
     assert.ok(context.hitBreakpoint, "hitBreakpoint missing");
-    assert.strictEqual(context.hitBreakpoint?.onHit, "captureAndContinue");
+    assert.strictEqual(context.hitBreakpoint?.onHit, "captureAndStopDebugging");
     assert.strictEqual(
       Array.isArray(context.hitBreakpoint?.variableFilter),
       true,

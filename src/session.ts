@@ -2094,11 +2094,13 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
       const location = new vscode.Position(line - 1, 0);
       const effectiveHitCondition
         = bp.hitCount !== undefined ? String(bp.hitCount) : undefined;
-      // For onHit 'captureAndContinue' we intentionally do NOT pass bp.logMessage to SourceBreakpoint.
+      // For capture-style breakpoints we intentionally do NOT pass bp.logMessage to SourceBreakpoint.
       // Passing a logMessage turns the breakpoint into a logpoint (non-pausing) in many adapters.
-      // captureAndContinue semantics require a real pause to gather variables, then we auto-continue.
+      // Capture semantics require a real pause to gather variables; we interpolate logMessage ourselves.
       const adapterLogMessage
-        = bp.onHit === "captureAndContinue" ? undefined : bp.logMessage;
+        = bp.onHit === "captureAndContinue" || bp.onHit === "captureAndStopDebugging"
+          ? undefined
+          : bp.logMessage;
       const sourceBp = new vscode.SourceBreakpoint(
         new vscode.Location(uri, location),
         true,
@@ -3149,7 +3151,10 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
       }
     }
     let capturedLogMessages: string[] | undefined;
-    if (hitBreakpoint?.onHit === "captureAndContinue") {
+    if (
+      hitBreakpoint?.onHit === "captureAndContinue"
+      || hitBreakpoint?.onHit === "captureAndStopDebugging"
+    ) {
       const interpolate = (msg: string) =>
         msg.replace(/\{([^{}]+)\}/g, (_m, name) => {
           const raw = variableLookup.get(name);
@@ -3637,7 +3642,10 @@ export async function resumeDebugSession(params: {
   }
 
   let capturedLogMessages: string[] | undefined;
-  if (hitBreakpoint?.onHit === "captureAndContinue") {
+  if (
+    hitBreakpoint?.onHit === "captureAndContinue"
+    || hitBreakpoint?.onHit === "captureAndStopDebugging"
+  ) {
     const interpolate = (msg: string) =>
       msg.replace(/\{([^{}]+)\}/g, (_m, name) => {
         const raw = variableLookup.get(name);

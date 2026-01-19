@@ -137,9 +137,20 @@ export async function stopAllDebugSessions(): Promise<void> {
     );
   }
 
-  // Then attempt to stop any sessions we tracked explicitly (idempotent).
-  const sessions = [...activeSessions];
-  for (const session of sessions) {
+  // Give VS Code + debug adapter time to fully terminate sessions.
+  // This reduces teardown races that can crash the extension host in CI.
+  const timeoutMs = 10_000;
+  const start = Date.now();
+  while (
+    (activeSessions.length > 0 || vscode.debug.activeDebugSession)
+    && Date.now() - start < timeoutMs
+  ) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+
+  // If sessions remain, attempt a second, targeted stop on the remaining sessions.
+  const remaining = [...activeSessions];
+  for (const session of remaining) {
     try {
       await vscode.debug.stopDebugging(session);
     }

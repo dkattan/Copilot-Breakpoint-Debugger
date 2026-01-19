@@ -20,7 +20,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          submodules: recursive
+
+      - name: Init required submodules
+        run: |
+          git submodule update --init --depth 1 external/vscode-test-playwright
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -118,8 +121,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
+
+      - name: Init required submodules
+        run: |
+          git submodule update --init --depth 1 external/vscode-test-playwright
 
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
@@ -165,7 +170,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          submodules: recursive
+
+      - name: Init required submodules
+        run: |
+          git submodule update --init --depth 1 external/vscode-test-playwright
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -249,6 +257,10 @@ jobs:
           COMMITS: ${{ steps.context.outputs.commits }}
           STATS: ${{ steps.context.outputs.stats }}
 
+      - name: Init demo video submodule
+        run: |
+          git submodule update --init --depth 1 external/playwright-test-videos
+
       - name: Update README demo video
         shell: bash
         run: |
@@ -284,8 +296,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
+
+      - name: Init required submodules
+        run: |
+          git submodule update --init --depth 1 external/vscode-test-playwright
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -320,8 +334,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
+
+      - name: Init required submodules
+        run: |
+          git submodule update --init --depth 1 external/vscode-test-playwright
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

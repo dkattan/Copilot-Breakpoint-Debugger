@@ -38,7 +38,26 @@ jobs:
       - name: Install system dependencies for Playwright demo
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb
+          sudo apt-get install -y \
+            xvfb \
+            libasound2t64 \
+            libatk-bridge2.0-0 \
+            libatk1.0-0 \
+            libcups2 \
+            libdrm2 \
+            libgbm1 \
+            libgtk-3-0 \
+            libnss3 \
+            libsecret-1-0 \
+            libx11-xcb1 \
+            libxcomposite1 \
+            libxdamage1 \
+            libxfixes3 \
+            libxkbcommon0 \
+            libxkbfile1 \
+            libxrandr2 \
+            libxshmfence1 \
+            libxss1
 
       - name: Run Playwright demo test
         shell: bash
@@ -225,7 +244,27 @@ jobs:
       - name: Install system dependencies for Playwright demo
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb ffmpeg
+          sudo apt-get install -y \
+            xvfb \
+            ffmpeg \
+            libasound2t64 \
+            libatk-bridge2.0-0 \
+            libatk1.0-0 \
+            libcups2 \
+            libdrm2 \
+            libgbm1 \
+            libgtk-3-0 \
+            libnss3 \
+            libsecret-1-0 \
+            libx11-xcb1 \
+            libxcomposite1 \
+            libxdamage1 \
+            libxfixes3 \
+            libxkbcommon0 \
+            libxkbfile1 \
+            libxrandr2 \
+            libxshmfence1 \
+            libxss1
 
       - name: Determine next version
         id: version

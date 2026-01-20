@@ -1,7 +1,12 @@
 import { expect, test } from "vscode-test-playwright";
+import * as path from "node:path";
 
 test("Copilot Breakpoint Debugger demo", async ({ workbox, vscode }) => {
   test.setTimeout(3 * 60_000);
+
+  // Use repo-relative absolute paths so this works in CI (Linux) and locally.
+  const repoRoot = path.join(__dirname, "..");
+  const workspaceB = path.join(repoRoot, "test-workspace", "b");
 
   const chatPanel = workbox.locator("#workbench\\.panel\\.chat");
 
@@ -23,8 +28,7 @@ test("Copilot Breakpoint Debugger demo", async ({ workbox, vscode }) => {
   // Extremely explicit instructions for anonymous-access mode: tell the model exactly
   // which tool to call and the precise fields to supply.
   const toolArgs = {
-    workspaceFolder:
-      "/Users/darrenkattan/source/repos/vscode-copilot-debugger/test-workspace/b",
+    workspaceFolder: workspaceB,
     configurationName: "Run b/server.js",
     mode: "singleShot",
     breakpointConfig: {

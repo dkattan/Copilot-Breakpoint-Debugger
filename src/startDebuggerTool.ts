@@ -14,26 +14,26 @@ export interface BreakpointConfiguration {
   breakpoints: BreakpointDefinition[]
 }
 
-type ServerReadyAction =
-  | { shellCommand: string }
-  | {
-    httpRequest: {
+type ServerReadyAction
+  = | { shellCommand: string }
+    | {
+      httpRequest: {
+        url: string
+        method?: string
+        headers?: Record<string, string>
+        body?: string
+      }
+    }
+    | { vscodeCommand: { command: string, args?: unknown[] } }
+    | {
+      type: "httpRequest"
       url: string
       method?: string
       headers?: Record<string, string>
       body?: string
     }
-  }
-  | { vscodeCommand: { command: string, args?: unknown[] } }
-  | {
-    type: "httpRequest"
-    url: string
-    method?: string
-    headers?: Record<string, string>
-    body?: string
-  }
-  | { type: "shellCommand", shellCommand: string }
-  | { type: "vscodeCommand", command: string, args?: unknown[] };
+    | { type: "shellCommand", shellCommand: string }
+    | { type: "vscodeCommand", command: string, args?: unknown[] };
 
 export interface StartDebuggerToolParameters {
   workspaceFolder: string

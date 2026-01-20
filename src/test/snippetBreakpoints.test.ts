@@ -1,8 +1,9 @@
 import type { BreakpointDefinition } from "../BreakpointDefinition";
+import type { ScopeVariables } from "../session";
 import * as assert from "node:assert";
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { type ScopeVariables, startDebuggingAndWaitForStop } from "../session";
+import { startDebuggingAndWaitForStop } from "../session";
 import {
   activateCopilotDebugger,
   getExtensionRoot,

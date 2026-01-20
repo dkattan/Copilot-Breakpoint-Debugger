@@ -1,12 +1,14 @@
+import type { BreakpointHitInfo } from "./common";
+import type { DebugContext } from "./debugUtils";
 import { useDisposable, useEventEmitter } from "reactive-vscode";
 import * as vscode from "vscode";
 import {
   activeSessions,
-  type BreakpointHitInfo,
+
   onSessionTerminate,
 } from "./common";
 import { config } from "./config";
-import { DAPHelpers, type DebugContext } from "./debugUtils";
+import { DAPHelpers } from "./debugUtils";
 import { logger } from "./logger";
 
 // Debug Adapter Protocol message types

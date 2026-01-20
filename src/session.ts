@@ -1,6 +1,7 @@
 import type { Buffer } from "node:buffer";
 import type { BreakpointDefinition } from "./BreakpointDefinition";
 import type { BreakpointHitInfo } from "./common";
+import type { DebugContext, VariableInfo } from "./debugUtils";
 import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as http from "node:http";
@@ -11,7 +12,7 @@ import stripAnsi from "strip-ansi";
 import * as vscode from "vscode";
 import { activeSessions } from "./common";
 import { config } from "./config";
-import { DAPHelpers, type DebugContext, type VariableInfo } from "./debugUtils";
+import { DAPHelpers } from "./debugUtils";
 import {
   EntryStopTimeoutError,
   getSessionCapabilities,
@@ -99,17 +100,17 @@ export interface ServerReadyInfo {
 
 export type DebuggerStateStatus = "paused" | "running" | "terminated";
 
-export type CopilotDebuggerToolAction =
-  | "startDebugSessionWithBreakpoints"
-  | "resumeDebugSession"
-  | "stopDebugSession"
-  | "getVariables"
-  | "expandVariable"
-  | "evaluateExpression"
-  | "externalHttpRequest"
-  | "externalShellCommand"
-  | "browserNavigation"
-  | "fetchWebpage";
+export type CopilotDebuggerToolAction
+  = | "startDebugSessionWithBreakpoints"
+    | "resumeDebugSession"
+    | "stopDebugSession"
+    | "getVariables"
+    | "expandVariable"
+    | "evaluateExpression"
+    | "externalHttpRequest"
+    | "externalShellCommand"
+    | "browserNavigation"
+    | "fetchWebpage";
 
 export interface CopilotDebuggerProtocol {
   /**
@@ -1796,8 +1797,8 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
     serverReadyPhaseExecutions.push({ phase, when: Date.now() });
     try {
       // Determine action shape (new flat with type discriminator OR legacy union)
-      type FlatAction =
-        | {
+      type FlatAction
+        = | {
           type: "httpRequest"
           url: string
           method?: string
@@ -1806,17 +1807,17 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
         }
         | { type: "shellCommand", shellCommand: string }
         | { type: "vscodeCommand", command: string, args?: unknown[] };
-      type LegacyAction =
-        | { shellCommand: string }
-        | {
-          httpRequest: {
-            url: string
-            method?: string
-            headers?: Record<string, string>
-            body?: string
+      type LegacyAction
+        = | { shellCommand: string }
+          | {
+            httpRequest: {
+              url: string
+              method?: string
+              headers?: Record<string, string>
+              body?: string
+            }
           }
-        }
-        | { vscodeCommand: { command: string, args?: unknown[] } };
+          | { vscodeCommand: { command: string, args?: unknown[] } };
       const actionAny: FlatAction | LegacyAction = serverReady.action as
         | FlatAction
         | LegacyAction;

@@ -1,5 +1,5 @@
-import { expect, test } from "vscode-test-playwright";
 import * as path from "node:path";
+import { expect, test } from "vscode-test-playwright";
 
 test("Copilot Breakpoint Debugger demo", async ({ workbox, vscode }) => {
   test.setTimeout(3 * 60_000);

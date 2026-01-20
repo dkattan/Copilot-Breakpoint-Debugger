@@ -75,6 +75,29 @@ describe("serverReady breakpoint", function () {
       },
     });
 
+    assert.strictEqual(
+      context.serverReadyInfo.configured,
+      true,
+      "serverReady should be reported as configured",
+    );
+    assert.strictEqual(
+      context.serverReadyInfo.triggerMode,
+      "breakpoint",
+      "serverReady trigger mode should be breakpoint",
+    );
+    assert.ok(
+      context.serverReadyInfo.phases.some(
+        p => p.phase === "entry" || p.phase === "late",
+      ),
+      `Expected serverReady action to execute for breakpoint trigger, but phases were: ${JSON.stringify(
+        context.serverReadyInfo.phases,
+      )}`,
+    );
+    assert.ok(
+      context.serverReadyInfo.triggerSummary?.includes("Breakpoint"),
+      `Expected serverReady trigger summary to mention Breakpoint, but was: ${context.serverReadyInfo.triggerSummary}`,
+    );
+
     // Assert we stopped at the user breakpoint (not serverReady line)
     assert.strictEqual(
       context.frame.line,
@@ -145,6 +168,29 @@ describe("serverReady breakpoint", function () {
         action: { type: "httpRequest", url: "http://localhost:31337/health" },
       },
     });
+
+    assert.strictEqual(
+      context.serverReadyInfo.configured,
+      true,
+      "serverReady should be reported as configured (httpRequest)",
+    );
+    assert.strictEqual(
+      context.serverReadyInfo.triggerMode,
+      "breakpoint",
+      "serverReady trigger mode should be breakpoint (httpRequest)",
+    );
+    assert.ok(
+      context.serverReadyInfo.phases.some(
+        p => p.phase === "entry" || p.phase === "late",
+      ),
+      `Expected serverReady action to execute for breakpoint trigger (httpRequest), but phases were: ${JSON.stringify(
+        context.serverReadyInfo.phases,
+      )}`,
+    );
+    assert.ok(
+      context.serverReadyInfo.triggerSummary?.includes("Breakpoint"),
+      `Expected serverReady trigger summary to mention Breakpoint (httpRequest), but was: ${context.serverReadyInfo.triggerSummary}`,
+    );
     assert.strictEqual(
       context.frame.line,
       userBreakpointLine,

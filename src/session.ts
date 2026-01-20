@@ -2899,6 +2899,45 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
           )
           && hops < maxHops
         ) {
+          // Special-case: serverReady breakpoint stop (after entry).
+          // If we don't process it here, we'll keep re-stopping on the same breakpoint.
+          if (
+            serverReady
+            && serverReadySource
+            && typeof nextStop.line === "number"
+            && nextStop.line === serverReady.trigger?.line
+          ) {
+            logger.info(
+              `Hit serverReady breakpoint during startup hops at line ${nextStop.line}; executing action then continuing to user breakpoint.`,
+            );
+            if (!serverReadyTriggerSummary) {
+              serverReadyTriggerSummary = serverReady.trigger?.path
+                ? `Breakpoint ${serverReady.trigger.path}:${serverReady.trigger.line}`
+                : "serverReady breakpoint hit";
+            }
+            await executeServerReadyAction("late");
+            // Remove serverReady breakpoint to avoid re-trigger.
+            vscode.debug.removeBreakpoints([serverReadySource]);
+            serverReadySource = undefined;
+            try {
+              await nextStop.session.customRequest("continue", {
+                threadId: nextStop.threadId,
+              });
+            }
+            catch (e) {
+              const msg = e instanceof Error ? e.message : String(e);
+              throw new Error(
+                `Failed to continue after serverReady breakpoint (DAP 'continue'): ${msg}`,
+              );
+            }
+            const elapsed = Date.now() - loopStart;
+            const remaining = Math.max(0, remainingMs - elapsed);
+            nextStop = await waitForDebuggerStopBySessionId({
+              sessionId,
+              timeout: remaining,
+            });
+            continue;
+          }
           hops++;
           const elapsed = Date.now() - loopStart;
           const remaining = Math.max(0, remainingMs - elapsed);

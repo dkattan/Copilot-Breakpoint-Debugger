@@ -1,0 +1,10 @@
+# act defaults for this repo.
+#
+# Why:
+# - GitHub Actions uses Ubuntu runners with a bunch of preinstalled deps.
+# - act runs jobs in Docker containers, so we pick a “full” image that closely
+#   matches ubuntu-latest.
+# - On Apple Silicon, force linux/amd64 to match CI (and avoid native-arm quirks).
+
+-P ubuntu-latest=ghcr.io/catthehacker/ubuntu:full-24.04
+--container-architecture linux/amd64

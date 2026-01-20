@@ -1,12 +1,9 @@
 import type { BreakpointHitInfo } from "./common";
 import type { DebugContext } from "./debugUtils";
+
 import { useDisposable, useEventEmitter } from "reactive-vscode";
 import * as vscode from "vscode";
-import {
-  activeSessions,
-
-  onSessionTerminate,
-} from "./common";
+import { activeSessions, onSessionTerminate } from "./common";
 import { config } from "./config";
 import { DAPHelpers } from "./debugUtils";
 import { logger } from "./logger";

@@ -1,6 +1,6 @@
 [submodule "external/playwright-test-videos"]
 	path = external/playwright-test-videos
-	url = git@github.com:dkattan/playwright-test-videos.git
+	url = https://github.com/dkattan/playwright-test-videos.git
 [submodule "external/vscode-test-playwright"]
 	path = external/vscode-test-playwright
 	url = https://github.com/dkattan/vscode-test-playwright.git

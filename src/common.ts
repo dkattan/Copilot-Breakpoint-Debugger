@@ -1,26 +1,26 @@
-import type { Variable } from './debugUtils';
-import { useEvent, useEventEmitter, useOutputChannel } from 'reactive-vscode';
-import * as vscode from 'vscode';
+import type { Variable } from "./debugUtils";
+import { useEvent, useEventEmitter, useOutputChannel } from "reactive-vscode";
+import * as vscode from "vscode";
 
 // Re-export types for convenience
 export type { Variable };
 
 // Create an output channel for debugging
-export const outputChannel = useOutputChannel('Debug Tools');
+export const outputChannel = useOutputChannel("Debug Tools");
 
 export interface ThreadData {
-  threadId: number;
-  threadName: string;
+  threadId: number
+  threadName: string
   stackFrames: Array<{
-    id: number;
-    name: string;
+    id: number
+    name: string
     source?: {
-      name: string;
-      path: string;
-    };
-    line: number;
-    column: number;
-  }>;
+      name: string
+      path: string
+    }
+    line: number
+    column: number
+  }>
 }
 /** Event emitter for debug session start notifications */
 export const sessionStartEventEmitter = useEventEmitter<vscode.DebugSession>();
@@ -31,22 +31,22 @@ export const activeSessions: vscode.DebugSession[] = [];
 
 /** Event emitter for debug session termination notifications */
 export const sessionTerminateEventEmitter = useEventEmitter<{
-  session: vscode.DebugSession;
+  session: vscode.DebugSession
 }>();
 export const onSessionTerminate = sessionTerminateEventEmitter.event;
 
 /** Store breakpoint hit information for notification */
 export interface BreakpointHitInfo {
-  session: vscode.DebugSession;
-  threadId: number;
-  reason: string;
-  frameId?: number;
-  filePath?: string;
-  line?: number;
+  session: vscode.DebugSession
+  threadId: number
+  reason: string
+  frameId?: number
+  filePath?: string
+  line?: number
   exceptionInfo?: {
-    description: string;
-    details: string;
-  };
+    description: string
+    details: string
+  }
 }
 
 /**
@@ -61,7 +61,7 @@ const addStartListener = useEvent(vscode.debug.onDidStartDebugSession);
 addStartListener((session) => {
   activeSessions.push(session);
   outputChannel.appendLine(
-    `Debug session started: ${session.name} (ID: ${session.id})`
+    `Debug session started: ${session.name} (ID: ${session.id})`,
   );
   outputChannel.appendLine(`Active sessions: ${activeSessions.length}`);
   sessionStartEventEmitter.fire(session);
@@ -74,7 +74,7 @@ addTerminateListener((session) => {
   if (index >= 0) {
     activeSessions.splice(index, 1);
     outputChannel.appendLine(
-      `Debug session terminated: ${session.name} (ID: ${session.id})`
+      `Debug session terminated: ${session.name} (ID: ${session.id})`,
     );
     outputChannel.appendLine(`Active sessions: ${activeSessions.length}`);
     // Fire termination event for listeners waiting on session end
@@ -87,6 +87,6 @@ addTerminateListener((session) => {
 const addChangeListener = useEvent(vscode.debug.onDidChangeActiveDebugSession);
 addChangeListener((session) => {
   outputChannel.appendLine(
-    `Active debug session changed: ${session ? session.name : 'None'}`
+    `Active debug session changed: ${session ? session.name : "None"}`,
   );
 });

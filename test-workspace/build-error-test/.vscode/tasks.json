@@ -20,8 +20,11 @@
     {
       "label": "sh: fail build on stdout",
       "type": "process",
-      "command": "/bin/sh",
-      "args": ["${workspaceFolder}/fail-build.sh"],
+      "command": "node",
+      "args": [
+        "-e",
+        "console.log('Build error on stdout'); process.exit(1);"
+      ],
       "problemMatcher": []
     }
   ]

@@ -4,16 +4,14 @@ import type {
   LanguageModelToolInvocationPrepareOptions,
   LanguageModelToolResult,
   ProviderResult,
-} from 'vscode';
-import type { VariablesData } from './debugUtils';
-import * as vscode from 'vscode';
-import { DAPHelpers } from './debugUtils';
+} from "vscode";
+import type { VariablesData } from "./debugUtils";
+import * as vscode from "vscode";
+import { DAPHelpers } from "./debugUtils";
 
 export interface GetVariablesToolParameters {}
 
-export class GetVariablesTool
-  implements LanguageModelTool<GetVariablesToolParameters>
-{
+export class GetVariablesTool implements LanguageModelTool<GetVariablesToolParameters> {
   /**
    * Get all variables from the active debug session as structured data.
    * @returns VariablesData object or throws an error
@@ -22,20 +20,20 @@ export class GetVariablesTool
     // Check if there's an active debug session
     const activeSession = vscode.debug.activeDebugSession;
     if (!activeSession) {
-      throw new Error('No active debug session found');
+      throw new Error("No active debug session found");
     }
 
     // Get debug context (threads, frames, scopes)
     const debugContext = await DAPHelpers.getDebugContext(activeSession);
     if (!debugContext) {
       throw new Error(
-        'Unable to get debug context (threads, frames, or scopes)'
+        "Unable to get debug context (threads, frames, or scopes)",
       );
     }
 
     // Get all variables from all scopes (domain shape)
     const variablesData: VariablesData = {
-      type: 'variables',
+      type: "variables",
       sessionId: activeSession.id,
       scopes: [],
     };
@@ -43,7 +41,7 @@ export class GetVariablesTool
     for (const scope of debugContext.scopes) {
       const variables = await DAPHelpers.getVariablesFromReference(
         activeSession,
-        scope.variablesReference
+        scope.variablesReference,
       );
       if (variables.length > 0) {
         variablesData.scopes.push({ name: scope.name, variables });
@@ -51,33 +49,34 @@ export class GetVariablesTool
     }
 
     if (variablesData.scopes.length === 0) {
-      throw new Error('No variables found in current scope');
+      throw new Error("No variables found in current scope");
     }
 
     return variablesData;
   }
 
   async invoke(
-    _options: LanguageModelToolInvocationOptions<GetVariablesToolParameters>
+    _options: LanguageModelToolInvocationOptions<GetVariablesToolParameters>,
   ): Promise<LanguageModelToolResult> {
     try {
       const variablesData = await this.getVariables();
       const serialized = JSON.stringify(variablesData, null, 2);
       return DAPHelpers.createSuccessResult(serialized);
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error occurred';
+    }
+    catch (error) {
+      const errorMessage
+        = error instanceof Error ? error.message : "Unknown error occurred";
       return DAPHelpers.createErrorResult(
-        `Failed to get variables: ${errorMessage}`
+        `Failed to get variables: ${errorMessage}`,
       );
     }
   }
 
   prepareInvocation?(
-    _options: LanguageModelToolInvocationPrepareOptions<GetVariablesToolParameters>
+    _options: LanguageModelToolInvocationPrepareOptions<GetVariablesToolParameters>,
   ): ProviderResult<vscode.PreparedToolInvocation> {
     return {
-      invocationMessage: 'Getting all variables from debug session',
+      invocationMessage: "Getting all variables from debug session",
     };
   }
 }

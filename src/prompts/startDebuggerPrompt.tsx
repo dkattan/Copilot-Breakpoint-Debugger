@@ -1,34 +1,34 @@
-import type { BasePromptElementProps, PromptSizing } from '@vscode/prompt-tsx';
-import { PromptElement, TextChunk } from '@vscode/prompt-tsx';
+import type { BasePromptElementProps, PromptSizing } from "@vscode/prompt-tsx";
+import { PromptElement, TextChunk } from "@vscode/prompt-tsx";
 
 export interface StartDebuggerPromptProps extends BasePromptElementProps {
   summary: {
-    session: string;
-    file?: string;
-    line?: number;
-    reason?: string;
-  };
+    session: string
+    file?: string
+    line?: number
+    reason?: string
+  }
   thread?: {
-    id?: number;
-    name?: string;
-  };
+    id?: number
+    name?: string
+  }
   frame?: {
-    id?: number;
-    name?: string;
+    id?: number
+    name?: string
     source?: {
-      name?: string;
-      path?: string;
-    };
-    line?: number;
-    column?: number;
-  };
+      name?: string
+      path?: string
+    }
+    line?: number
+    column?: number
+  }
   scopes: Array<{
-    scopeName: string;
+    scopeName: string
     variables: Array<{
-      name: string;
-      value: string;
-    }>;
-  }>;
+      name: string
+      value: string
+    }>
+  }>
 }
 
 export class StartDebuggerPrompt extends PromptElement<
@@ -52,7 +52,14 @@ export class StartDebuggerPrompt extends PromptElement<
         </TextChunk>
         {scopes.map(scope => (
           <TextChunk priority={50}>
-            Scope {scope.scopeName} ({scope.variables.length} variables)
+            Scope
+            {" "}
+            {scope.scopeName}
+            {" "}
+            (
+            {scope.variables.length}
+            {" "}
+            variables)
             <br />
             {JSON.stringify(scope.variables)}
           </TextChunk>

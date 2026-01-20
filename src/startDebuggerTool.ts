@@ -11,40 +11,40 @@ import { startDebuggingAndWaitForStop } from "./session";
 import { renderStopInfoMarkdown } from "./stopInfoMarkdown";
 
 export interface BreakpointConfiguration {
-  breakpoints: BreakpointDefinition[];
+  breakpoints: BreakpointDefinition[]
 }
 
-type ServerReadyAction =
-  | { shellCommand: string }
-  | {
+type ServerReadyAction
+  = | { shellCommand: string }
+    | {
       httpRequest: {
-        url: string;
-        method?: string;
-        headers?: Record<string, string>;
-        body?: string;
-      };
+        url: string
+        method?: string
+        headers?: Record<string, string>
+        body?: string
+      }
     }
-  | { vscodeCommand: { command: string; args?: unknown[] } }
-  | {
-      type: "httpRequest";
-      url: string;
-      method?: string;
-      headers?: Record<string, string>;
-      body?: string;
+    | { vscodeCommand: { command: string, args?: unknown[] } }
+    | {
+      type: "httpRequest"
+      url: string
+      method?: string
+      headers?: Record<string, string>
+      body?: string
     }
-  | { type: "shellCommand"; shellCommand: string }
-  | { type: "vscodeCommand"; command: string; args?: unknown[] };
+    | { type: "shellCommand", shellCommand: string }
+    | { type: "vscodeCommand", command: string, args?: unknown[] };
 
 export interface StartDebuggerToolParameters {
-  workspaceFolder: string;
-  configurationName?: string;
+  workspaceFolder: string
+  configurationName?: string
   /**
    * Tool mode:
    * - 'singleShot' (default): terminate the debug session before returning.
    * - 'inspect': allow returning while paused so the caller can inspect state and resume.
    */
-  mode?: "singleShot" | "inspect";
-  breakpointConfig: BreakpointConfiguration;
+  mode?: "singleShot" | "inspect"
+  breakpointConfig: BreakpointConfiguration
   /**
    * Optional serverReady configuration.
    * trigger: defines when to run the action (breakpoint path+line OR pattern). If omitted and request === 'attach' the action runs immediately after attach (default immediate attach mode).
@@ -52,21 +52,19 @@ export interface StartDebuggerToolParameters {
    */
   serverReady?: {
     trigger?: {
-      path?: string;
-      line?: number;
-      pattern?: string;
-    };
-    action: ServerReadyAction;
-  };
+      path?: string
+      line?: number
+      pattern?: string
+    }
+    action: ServerReadyAction
+  }
 }
 
 // Removed scope variable limiting; concise output filters directly.
 
-export class StartDebuggerTool
-  implements LanguageModelTool<StartDebuggerToolParameters>
-{
+export class StartDebuggerTool implements LanguageModelTool<StartDebuggerToolParameters> {
   async invoke(
-    options: LanguageModelToolInvocationOptions<StartDebuggerToolParameters>
+    options: LanguageModelToolInvocationOptions<StartDebuggerToolParameters>,
   ): Promise<LanguageModelToolResult> {
     let success = true;
     const {
@@ -96,11 +94,12 @@ export class StartDebuggerTool
 
       logger.info(`[StartDebuggerTool] textOutput ${textOutput}`);
       return createTruncatedToolResult(textOutput);
-    } catch (err) {
+    }
+    catch (err) {
       success = false;
       const message = err instanceof Error ? err.message : String(err);
-      const isTimeout =
-        err instanceof EntryStopTimeoutError || /timed out/i.test(message);
+      const isTimeout
+        = err instanceof EntryStopTimeoutError || /timed out/i.test(message);
       const failureLine = isTimeout ? "Failure: timeout" : "Failure: error";
       const errorOutput = `Success: ${success}\n${failureLine}\nError: ${message}`;
       return createTruncatedToolResult(errorOutput);

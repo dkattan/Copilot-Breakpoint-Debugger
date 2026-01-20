@@ -30,7 +30,7 @@
   "main": "./dist/extension.js",
   "icon": "images/icon.png",
   "engines": {
-    "vscode": "^1.102.0"
+    "vscode": "^1.108.1"
   },
   "activationEvents": [
     "onLanguageModelTools",
@@ -41,6 +41,11 @@
       {
         "command": "copilotBreakpointDebugger.startAndWaitManual",
         "title": "Copilot Breakpoint Debugger: Manual Start & Wait",
+        "category": "Copilot Breakpoint Debugger"
+      },
+      {
+        "command": "copilotBreakpointDebugger.setDefaultLaunchConfiguration",
+        "title": "Copilot Breakpoint Debugger: Set Default Launch Configuration",
         "category": "Copilot Breakpoint Debugger"
       },
       {
@@ -523,59 +528,63 @@
     "compile": "tsc -p ./",
     "update": "vscode-ext-gen",
     "watch": "npm-run-all -p watch:*",
-    "watch:esbuild": "node esbuild.js --watch",
+    "watch:esbuild": "cross-env NODE_OPTIONS= node esbuild.js --watch",
     "watch:tsc": "tsc --noEmit --watch -p ./",
-    "build:dist": "node esbuild.js --production",
+    "build:dist": "cross-env NODE_OPTIONS= node esbuild.js --production",
     "package": "npm run build:dist",
     "vsix:local": "npm run vscode:prepublish && npx --yes @vscode/vsce package --out copilot-breakpoint-debugger-local.vsix && code --install-extension copilot-breakpoint-debugger-local.vsix --force",
     "demo:pw:prep": "npx tsc -p external/vscode-test-playwright/tsconfig.json",
-    "demo:pw": "npm run demo:pw:prep && NODE_OPTIONS= npx playwright test -c playwright-demo.config.ts",
-    "demo:pw:videos": "npm --prefix external/playwright-test-videos install && npm --prefix external/playwright-test-videos run build && NODE_OPTIONS= node external/playwright-test-videos/dist/cli.js --from test-results --to docs/pw-videos --readme README.md --max 1 --name demo.mp4",
+    "demo:pw": "npm run demo:pw:prep && cross-env NODE_OPTIONS= npx playwright test playwright/demo.spec.ts",
+    "demo:pw:videos": "npm --prefix external/playwright-test-videos install && npm --prefix external/playwright-test-videos run build && cross-env NODE_OPTIONS= node external/playwright-test-videos/dist/cli.js --from test-results --to docs/pw-videos --readme README.md --max 1 --name demo.mp4",
     "demo:pw:update-readme": "npm run demo:pw && npm run demo:pw:videos",
+    "typecheck:playwright": "npm run demo:pw:prep && tsc --noEmit -p playwright/tsconfig.json",
     "compile-tests": "tsc -p ./",
-    "pretest": "npm run lint && npm run compile-tests && npm run build:dist",
-    "lint": "eslint",
-    "test": "NODE_OPTIONS= node -e \"try{require('fs').rmSync('./.vscode-test/user-data',{recursive:true,force:true});}catch(e){}\" && NODE_OPTIONS= npx vscode-test --config .vscode-test.mjs",
+    "pretest": "npm run lint && npm run compile-tests && npm run typecheck:playwright && npm run build:dist",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "cross-env NODE_OPTIONS= node scripts/clean-vscode-test-user-data.cjs && cross-env NODE_OPTIONS= npx vscode-test --config .vscode-test.mjs",
     "test:coverage": "npm run compile-tests && npx vscode-test --coverage",
-    "release:notes": "tsx .github/scripts/generate-release-notes.ts",
+    "release:notes": "cross-env NODE_OPTIONS= tsx .github/scripts/generate-release-notes.ts",
     "deps": "taze"
   },
   "dependencies": {
-    "@actions/core": "^1.11.1",
-    "@actions/github": "^6.0.0",
-    "@anthropic-ai/sdk": "^0.27.3",
+    "@actions/core": "^2.0.2",
+    "@actions/github": "^7.0.0",
+    "@anthropic-ai/sdk": "^0.71.2",
     "@reactive-vscode/reactivity": "^0.4.1",
-    "@vscode/prompt-tsx": "^0.4.0-alpha.5",
+    "@vscode/prompt-tsx": "^0.4.0-alpha.6",
     "markdown-table": "^3.0.4",
     "mocha": "^10.7.3",
     "reactive-vscode": "^0.4.1",
     "strip-ansi": "^7.1.2"
   },
   "optionalDependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.1.76"
+    "@anthropic-ai/claude-agent-sdk": "^0.1.77"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^3.0.0",
+    "@antfu/eslint-config": "^7.1.0",
     "@esbuild-plugins/node-modules-polyfill": "^0.2.2",
-    "@playwright/test": "^1.50.1",
+    "@playwright/test": "^1.57.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
-    "@types/vscode": "^1.102.0",
-    "@typescript-eslint/eslint-plugin": "^8.31.1",
-    "@typescript-eslint/parser": "^8.31.1",
+    "@types/vscode": "^1.108.1",
+    "@typescript-eslint/eslint-plugin": "^8.53.1",
+    "@typescript-eslint/parser": "^8.53.1",
     "@vscode/debugprotocol": "^1.68.0",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
-    "baseline-browser-mapping": "^2.9.12",
-    "esbuild": "^0.27.0",
+    "baseline-browser-mapping": "^2.9.15",
+    "cross-env": "^10.1.0",
+    "esbuild": "^0.27.2",
     "esbuild-register": "^3.6.0",
-    "eslint": "^9.25.1",
+    "eslint": "^9.39.2",
     "npm-run-all": "^4.1.5",
     "taze": "^19.9.2",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
-    "typescript": "^5.8.3",
-    "vscode-ext-gen": "^1.4.0"
+    "typescript": "^5.9.3",
+    "vscode-ext-gen": "^1.5.1",
+    "vscode-test-playwright": "file:external/vscode-test-playwright"
   },
   "overrides": {
     "glob": "10.5.0"

@@ -1,17 +1,3 @@
-## [0.0.50] - 2026-01-08
-
-## Summary
-
-This release contains documentation improvements to the release notes generation process.
-
-## Improvements
-
-- Enhanced the release notes generation workflow instructions to provide clearer guidance on analyzing code changes and managing context window limitations
-
----
-
-*No breaking changes in this release.*
-
 ## [0.0.49] - 2026-01-07
 
 # Release 0.0.49

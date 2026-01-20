@@ -1,8 +1,9 @@
 import type { BreakpointDefinition } from "../BreakpointDefinition";
+import type { ScopeVariables } from "../session";
 import * as assert from "node:assert";
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { type ScopeVariables, startDebuggingAndWaitForStop } from "../session";
+import { startDebuggingAndWaitForStop } from "../session";
 import {
   activateCopilotDebugger,
   getExtensionRoot,
@@ -29,11 +30,11 @@ describe("snippet-based breakpoints", function () {
     await openScriptDocument(scriptUri);
 
     const snippet = "console.log"; // matches multiple lines
-    const expectedFirstLine =
-      doc
+    const expectedFirstLine
+      = doc
         .getText()
         .split(/\r?\n/)
-        .findIndex((l) => l.includes(snippet)) + 1;
+        .findIndex(l => l.includes(snippet)) + 1;
     assert.ok(expectedFirstLine > 0, "Expected snippet to exist in test.js");
 
     const context = await startDebuggingAndWaitForStop({
@@ -56,7 +57,7 @@ describe("snippet-based breakpoints", function () {
     assert.strictEqual(
       context.frame.line,
       expectedFirstLine,
-      "Did not pause on the first matching snippet breakpoint"
+      "Did not pause on the first matching snippet breakpoint",
     );
     assert.ok(context.hitBreakpoint, "hitBreakpoint missing");
     assert.strictEqual(context.hitBreakpoint.code, snippet);
@@ -94,7 +95,7 @@ describe("snippet-based breakpoints", function () {
       (err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err);
         return /not found/i.test(msg) && msg.includes(missing);
-      }
+      },
     );
   });
 
@@ -124,7 +125,7 @@ describe("snippet-based breakpoints", function () {
       (err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err);
         return msg.includes("missing required 'code' snippet");
-      }
+      },
     );
   });
 
@@ -139,14 +140,14 @@ describe("snippet-based breakpoints", function () {
     await openScriptDocument(scriptUri);
 
     const assignmentSnippet = "assignedValue = 1";
-    const assignmentLine =
-      doc
+    const assignmentLine
+      = doc
         .getText()
         .split(/\r?\n/)
-        .findIndex((l) => l.includes(assignmentSnippet)) + 1;
+        .findIndex(l => l.includes(assignmentSnippet)) + 1;
     assert.ok(
       assignmentLine > 0,
-      "Expected assignment snippet to exist in test.js"
+      "Expected assignment snippet to exist in test.js",
     );
 
     const context = await startDebuggingAndWaitForStop({
@@ -170,9 +171,9 @@ describe("snippet-based breakpoints", function () {
     assert.ok(context.stepOverCapture?.performed, "Expected stepOverCapture");
     assert.strictEqual(context.stepOverCapture?.fromLine, assignmentLine);
     assert.ok(
-      typeof context.stepOverCapture?.toLine === "number" &&
-        (context.stepOverCapture?.toLine as number) > assignmentLine,
-      "Expected toLine to be after the assignment line"
+      typeof context.stepOverCapture?.toLine === "number"
+      && (context.stepOverCapture?.toLine as number) > assignmentLine,
+      "Expected toLine to be after the assignment line",
     );
 
     const findVar = (scopes: ScopeVariables[]) => {

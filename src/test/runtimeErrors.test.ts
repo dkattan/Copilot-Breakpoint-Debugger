@@ -8,14 +8,14 @@ import { startDebuggingAndWaitForStop } from "../session";
 describe("runtime error diagnostics tests", () => {
   const testWorkspaceRoot = path.resolve(
     __dirname,
-    "../../test-workspace/runtime-error-test"
+    "../../test-workspace/runtime-error-test",
   );
 
   it("should capture stderr and exit code from Node.js crash", async function () {
     this.timeout(60000);
 
     const workspaceFolder = vscode.workspace.workspaceFolders?.find(
-      (f) => f.uri.fsPath === testWorkspaceRoot
+      f => f.uri.fsPath === testWorkspaceRoot,
     );
 
     if (!workspaceFolder) {
@@ -28,14 +28,14 @@ describe("runtime error diagnostics tests", () => {
 
     try {
       const crashDocUri = vscode.Uri.file(
-        path.join(testWorkspaceRoot, "crash.js")
+        path.join(testWorkspaceRoot, "crash.js"),
       );
       const crashDoc = await vscode.workspace.openTextDocument(crashDocUri);
       const crashText = crashDoc.getText();
-      const breakpointSnippet =
-        crashText
+      const breakpointSnippet
+        = crashText
           .split(/\r?\n/)
-          .find((l) => l.includes("UNREACHABLE_AFTER_EXIT"))
+          .find(l => l.includes("UNREACHABLE_AFTER_EXIT"))
           ?.trim() ?? "";
       await startDebuggingAndWaitForStop({
         sessionName: "Node Crash Test Session",
@@ -53,7 +53,8 @@ describe("runtime error diagnostics tests", () => {
         nameOrConfiguration: "Node Crash Test",
         timeoutSeconds: 45,
       });
-    } catch (error) {
+    }
+    catch (error) {
       caughtError = error as Error;
     }
 
@@ -64,22 +65,22 @@ describe("runtime error diagnostics tests", () => {
     const errorMsg = caughtError!.message;
     assert.ok(
       /terminated|exited|exit code|ended|stopped/i.test(errorMsg),
-      `Error should mention termination/exit. Got: ${errorMsg}`
+      `Error should mention termination/exit. Got: ${errorMsg}`,
     );
 
     // Check if error message contains runtime diagnostics
-    const hasExitCode =
-      errorMsg.includes("exit code") || errorMsg.includes("42");
-    const hasStderr =
-      errorMsg.includes("stderr") ||
-      errorMsg.includes("ERROR") ||
-      errorMsg.includes("CRASH");
+    const hasExitCode
+      = errorMsg.includes("exit code") || errorMsg.includes("42");
+    const hasStderr
+      = errorMsg.includes("stderr")
+        || errorMsg.includes("ERROR")
+        || errorMsg.includes("CRASH");
 
     // At least one diagnostic should be present
     const hasRuntimeDiag = hasExitCode || hasStderr;
     assert.ok(
       hasRuntimeDiag,
-      `Error message should include runtime diagnostics (exit code or stderr). Got: ${errorMsg}`
+      `Error message should include runtime diagnostics (exit code or stderr). Got: ${errorMsg}`,
     );
   });
 
@@ -87,7 +88,7 @@ describe("runtime error diagnostics tests", () => {
     this.timeout(60000);
 
     const workspaceFolder = vscode.workspace.workspaceFolders?.find(
-      (f) => f.uri.fsPath === testWorkspaceRoot
+      f => f.uri.fsPath === testWorkspaceRoot,
     );
 
     if (!workspaceFolder) {
@@ -102,14 +103,14 @@ describe("runtime error diagnostics tests", () => {
 
     try {
       const docUri = vscode.Uri.file(
-        path.join(testWorkspaceRoot, "exception.js")
+        path.join(testWorkspaceRoot, "exception.js"),
       );
       const doc = await vscode.workspace.openTextDocument(docUri);
       const text = doc.getText();
-      const breakpointSnippet =
-        text
+      const breakpointSnippet
+        = text
           .split(/\r?\n/)
-          .find((l) => l.includes("UNREACHABLE_AFTER_THROW"))
+          .find(l => l.includes("UNREACHABLE_AFTER_THROW"))
           ?.trim() ?? "";
 
       stopInfo = await startDebuggingAndWaitForStop({
@@ -128,37 +129,38 @@ describe("runtime error diagnostics tests", () => {
         nameOrConfiguration: "Node Exception Test",
         timeoutSeconds: 45,
       });
-    } catch (error) {
+    }
+    catch (error) {
       caughtError = error as Error;
     }
 
     assert.ok(
       !caughtError,
-      `Should not throw. Got error: ${caughtError?.message}`
+      `Should not throw. Got error: ${caughtError?.message}`,
     );
     assert.ok(stopInfo, "Should return stopInfo for exception stop.");
     assert.ok(
       stopInfo!.exceptionInfo?.description,
-      "Expected exceptionInfo.description to be present"
+      "Expected exceptionInfo.description to be present",
     );
     assert.ok(
       /uncaught|unhandled|exception|error/i.test(
-        stopInfo!.exceptionInfo?.description ?? ""
+        stopInfo!.exceptionInfo?.description ?? "",
       ),
       `Expected exception description to mention uncaught/unhandled/exception/error; got: ${
         stopInfo!.exceptionInfo?.description
-      }`
+      }`,
     );
     assert.ok(
       stopInfo!.reason === "exception" || stopInfo!.reason === "breakpoint",
       `Expected stop reason to be 'exception' (or adapter-reported 'breakpoint'); got: ${
         stopInfo!.reason
-      }`
+      }`,
     );
     assert.strictEqual(
       stopInfo!.hitBreakpoint,
       undefined,
-      "Exception stop should not correlate to a requested breakpoint."
+      "Exception stop should not correlate to a requested breakpoint.",
     );
   });
 
@@ -166,7 +168,7 @@ describe("runtime error diagnostics tests", () => {
     this.timeout(60000);
 
     const workspaceFolder = vscode.workspace.workspaceFolders?.find(
-      (f) => f.uri.fsPath === testWorkspaceRoot
+      f => f.uri.fsPath === testWorkspaceRoot,
     );
 
     if (!workspaceFolder) {
@@ -175,14 +177,14 @@ describe("runtime error diagnostics tests", () => {
     }
 
     const docUri = vscode.Uri.file(
-      path.join(testWorkspaceRoot, "caughtException.js")
+      path.join(testWorkspaceRoot, "caughtException.js"),
     );
     const doc = await vscode.workspace.openTextDocument(docUri);
     const text = doc.getText();
-    const breakpointSnippet =
-      text
+    const breakpointSnippet
+      = text
         .split(/\r?\n/)
-        .find((l) => l.includes("REACHABLE_AFTER_CATCH"))
+        .find(l => l.includes("REACHABLE_AFTER_CATCH"))
         ?.trim() ?? "";
 
     assert.ok(breakpointSnippet, "Expected REACHABLE_AFTER_CATCH marker line");
@@ -208,20 +210,20 @@ describe("runtime error diagnostics tests", () => {
     assert.strictEqual(
       stopInfo.exceptionInfo,
       undefined,
-      "Caught exception should not surface as an exception stop"
+      "Caught exception should not surface as an exception stop",
     );
     assert.ok(
       stopInfo.hitBreakpoint,
-      "Should correlate the stop to a requested breakpoint"
+      "Should correlate the stop to a requested breakpoint",
     );
     assert.ok(
       stopInfo.hitBreakpoint?.path?.endsWith("caughtException.js"),
-      `Expected breakpoint hit in caughtException.js; got: ${stopInfo.hitBreakpoint?.path}`
+      `Expected breakpoint hit in caughtException.js; got: ${stopInfo.hitBreakpoint?.path}`,
     );
     assert.strictEqual(
       stopInfo.reason,
       "breakpoint",
-      `Expected stop reason to be 'breakpoint', got: ${stopInfo.reason}`
+      `Expected stop reason to be 'breakpoint', got: ${stopInfo.reason}`,
     );
   });
 
@@ -229,7 +231,7 @@ describe("runtime error diagnostics tests", () => {
     this.timeout(30000);
 
     const workspaceFolder = vscode.workspace.workspaceFolders?.find(
-      (f) => f.uri.fsPath === testWorkspaceRoot
+      f => f.uri.fsPath === testWorkspaceRoot,
     );
 
     if (!workspaceFolder) {
@@ -242,20 +244,20 @@ describe("runtime error diagnostics tests", () => {
     await config.$update(
       "maxOutputLines",
       20,
-      vscode.ConfigurationTarget.Workspace
+      vscode.ConfigurationTarget.Workspace,
     );
 
     assert.strictEqual(
       config.maxOutputLines,
       20,
-      "maxOutputLines should be set to 20"
+      "maxOutputLines should be set to 20",
     );
 
     // Reset to previous value
     await config.$update(
       "maxOutputLines",
       originalMaxOutputLines,
-      vscode.ConfigurationTarget.Workspace
+      vscode.ConfigurationTarget.Workspace,
     );
   });
 
@@ -263,7 +265,7 @@ describe("runtime error diagnostics tests", () => {
     this.timeout(30000);
 
     const workspaceFolder = vscode.workspace.workspaceFolders?.find(
-      (f) => f.uri.fsPath === testWorkspaceRoot
+      f => f.uri.fsPath === testWorkspaceRoot,
     );
 
     if (!workspaceFolder) {
@@ -274,13 +276,13 @@ describe("runtime error diagnostics tests", () => {
     // Start a debug session that will produce output
     const started = await vscode.debug.startDebugging(
       workspaceFolder,
-      "Node Crash Test"
+      "Node Crash Test",
     );
 
     assert.ok(started, "Debug session should start");
 
     // Wait for output to be captured
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
     const session = vscode.debug.activeDebugSession;
     if (session) {
@@ -297,7 +299,7 @@ describe("runtime error diagnostics tests", () => {
     this.timeout(30000);
 
     const workspaceFolder = vscode.workspace.workspaceFolders?.find(
-      (f) => f.uri.fsPath === testWorkspaceRoot
+      f => f.uri.fsPath === testWorkspaceRoot,
     );
 
     if (!workspaceFolder) {
@@ -308,7 +310,7 @@ describe("runtime error diagnostics tests", () => {
     // Start debugging with a script that exits with code 42
     const started = await vscode.debug.startDebugging(
       workspaceFolder,
-      "Node Crash Test"
+      "Node Crash Test",
     );
 
     assert.ok(started, "Debug session should start");
@@ -319,7 +321,7 @@ describe("runtime error diagnostics tests", () => {
     }
 
     // Wait for the script to exit
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await new Promise(resolve => setTimeout(resolve, 3000));
 
     // Check if exit code was captured
     if (sessionId) {
@@ -327,14 +329,14 @@ describe("runtime error diagnostics tests", () => {
       // Exit code should be captured (either 42 or undefined if not yet received)
       assert.ok(
         exitCode === undefined || typeof exitCode === "number",
-        `Exit code should be number or undefined, got: ${exitCode}`
+        `Exit code should be number or undefined, got: ${exitCode}`,
       );
 
       if (exitCode !== undefined) {
         assert.strictEqual(
           exitCode,
           42,
-          "Exit code should be 42 from crash.js"
+          "Exit code should be 42 from crash.js",
         );
       }
     }
@@ -344,7 +346,7 @@ describe("runtime error diagnostics tests", () => {
     this.timeout(30000);
 
     const workspaceFolder = vscode.workspace.workspaceFolders?.find(
-      (f) => f.uri.fsPath === testWorkspaceRoot
+      f => f.uri.fsPath === testWorkspaceRoot,
     );
 
     if (!workspaceFolder) {
@@ -356,14 +358,14 @@ describe("runtime error diagnostics tests", () => {
     let caughtError: Error | undefined;
     try {
       const crashDocUri = vscode.Uri.file(
-        path.join(testWorkspaceRoot, "crash.js")
+        path.join(testWorkspaceRoot, "crash.js"),
       );
       const crashDoc = await vscode.workspace.openTextDocument(crashDocUri);
       const crashText = crashDoc.getText();
-      const breakpointSnippet =
-        crashText
+      const breakpointSnippet
+        = crashText
           .split(/\r?\n/)
-          .find((l) => l.includes("UNREACHABLE_AFTER_EXIT"))
+          .find(l => l.includes("UNREACHABLE_AFTER_EXIT"))
           ?.trim() ?? "";
       await startDebuggingAndWaitForStop({
         sessionName: "Node Crash Stderr Test",
@@ -381,7 +383,8 @@ describe("runtime error diagnostics tests", () => {
         nameOrConfiguration: "Node Crash Test",
         timeoutSeconds: 45,
       });
-    } catch (error) {
+    }
+    catch (error) {
       caughtError = error as Error;
     }
 
@@ -393,15 +396,15 @@ describe("runtime error diagnostics tests", () => {
         // Error message should not be excessively long
         assert.ok(
           errorMsg.length < 1000,
-          "Error message with stderr should be concise (< 1000 chars)"
+          "Error message with stderr should be concise (< 1000 chars)",
         );
 
         // Should use pipe separator for multiple lines
-        const hasFormatting =
-          errorMsg.includes("|") || errorMsg.includes("...");
+        const hasFormatting
+          = errorMsg.includes("|") || errorMsg.includes("...");
         assert.ok(
           hasFormatting,
-          "Stderr should be formatted with separators or truncation"
+          "Stderr should be formatted with separators or truncation",
         );
       }
     }

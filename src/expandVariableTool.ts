@@ -4,29 +4,27 @@ import type {
   LanguageModelToolInvocationPrepareOptions,
   LanguageModelToolResult,
   ProviderResult,
-} from 'vscode';
+} from "vscode";
 import type {
   FoundVariable,
   Scope,
   Variable,
   VariableInfo,
   VariablesResponse,
-} from './debugUtils';
-import * as vscode from 'vscode';
-import { DAPHelpers } from './debugUtils';
+} from "./debugUtils";
+import * as vscode from "vscode";
+import { DAPHelpers } from "./debugUtils";
 
 export interface ExpandVariableToolParameters {
-  variableName: string;
+  variableName: string
 }
 
 export interface ExpandedVariableData {
-  variable: VariableInfo;
-  children: VariableInfo[];
+  variable: VariableInfo
+  children: VariableInfo[]
 }
 
-export class ExpandVariableTool
-  implements LanguageModelTool<ExpandVariableToolParameters>
-{
+export class ExpandVariableTool implements LanguageModelTool<ExpandVariableToolParameters> {
   /**
    * Expand a variable and get its children as structured data.
    * @param variableName The name of the variable to expand
@@ -36,23 +34,23 @@ export class ExpandVariableTool
     // Check if there's an active debug session
     const activeSession = vscode.debug.activeDebugSession;
     if (!activeSession) {
-      throw new Error('No active debug session found');
+      throw new Error("No active debug session found");
     }
 
     // Get debug context (threads, frames, scopes)
     const debugContext = await DAPHelpers.getDebugContext(activeSession);
     if (!debugContext) {
       throw new Error(
-        'Unable to get debug context (threads, frames, or scopes)'
+        "Unable to get debug context (threads, frames, or scopes)",
       );
     }
 
     // Find the target variable in all scopes
-    const foundVariable: FoundVariable | null =
-      await DAPHelpers.findVariableInScopes(
+    const foundVariable: FoundVariable | null
+      = await DAPHelpers.findVariableInScopes(
         activeSession,
         debugContext.scopes,
-        variableName
+        variableName,
       );
 
     if (!foundVariable) {
@@ -71,13 +69,13 @@ export class ExpandVariableTool
       const originalVariable = await this.getOriginalVariable(
         activeSession,
         debugContext.scopes,
-        variableName
+        variableName,
       );
 
       if (originalVariable && originalVariable.variablesReference > 0) {
         expandedData.children = await DAPHelpers.getVariablesFromReference(
           activeSession,
-          originalVariable.variablesReference
+          originalVariable.variablesReference,
         );
       }
     }
@@ -86,7 +84,7 @@ export class ExpandVariableTool
   }
 
   async invoke(
-    options: LanguageModelToolInvocationOptions<ExpandVariableToolParameters>
+    options: LanguageModelToolInvocationOptions<ExpandVariableToolParameters>,
   ): Promise<LanguageModelToolResult> {
     const { variableName } = options.input;
 
@@ -94,11 +92,12 @@ export class ExpandVariableTool
       const expandedData = await this.expandVariable(variableName);
       const result = JSON.stringify(expandedData, null, 2);
       return DAPHelpers.createSuccessResult(result);
-    } catch (_error) {
-      const errorMessage =
-        _error instanceof Error ? _error.message : 'Unknown error occurred';
+    }
+    catch (_error) {
+      const errorMessage
+        = _error instanceof Error ? _error.message : "Unknown error occurred";
       return DAPHelpers.createErrorResult(
-        `Failed to expand variable: ${errorMessage}`
+        `Failed to expand variable: ${errorMessage}`,
       );
     }
   }
@@ -106,20 +105,21 @@ export class ExpandVariableTool
   private async getOriginalVariable(
     session: vscode.DebugSession,
     scopes: Scope[],
-    variableName: string
+    variableName: string,
   ): Promise<Variable | null> {
     for (const scope of scopes) {
       let variablesResponse: VariablesResponse;
       try {
-        variablesResponse = await session.customRequest('variables', {
+        variablesResponse = await session.customRequest("variables", {
           variablesReference: scope.variablesReference,
         });
-      } catch {
+      }
+      catch {
         continue; // Skip scopes that fail
       }
       if (variablesResponse?.variables) {
         const foundVariable = variablesResponse.variables.find(
-          (v: Variable) => (v.evaluateName || v.name) === variableName
+          (v: Variable) => (v.evaluateName || v.name) === variableName,
         );
         if (foundVariable) {
           return foundVariable;
@@ -130,7 +130,7 @@ export class ExpandVariableTool
   }
 
   prepareInvocation?(
-    options: LanguageModelToolInvocationPrepareOptions<ExpandVariableToolParameters>
+    options: LanguageModelToolInvocationPrepareOptions<ExpandVariableToolParameters>,
   ): ProviderResult<vscode.PreparedToolInvocation> {
     return {
       invocationMessage: `Expanding variable '${options.input.variableName}'`,
@@ -144,14 +144,14 @@ export class ExpandVariableTool
  */
 export async function expandVariableInSession(
   session: vscode.DebugSession,
-  variableName: string
+  variableName: string,
 ): Promise<ExpandedVariableData> {
   const debugContext = await DAPHelpers.getDebugContext(session);
-  const foundVariable: FoundVariable | null =
-    await DAPHelpers.findVariableInScopes(
+  const foundVariable: FoundVariable | null
+    = await DAPHelpers.findVariableInScopes(
       session,
       debugContext.scopes,
-      variableName
+      variableName,
     );
   if (!foundVariable) {
     throw new Error(`Variable '${variableName}' not found in current scope`);
@@ -166,26 +166,27 @@ export async function expandVariableInSession(
     for (const scope of debugContext.scopes) {
       try {
         const vars: VariablesResponse = await session.customRequest(
-          'variables',
+          "variables",
           {
             variablesReference: scope.variablesReference,
-          }
+          },
         );
-        original =
-          (vars.variables.find(
-            (v: Variable) => (v.evaluateName || v.name) === variableName
+        original
+          = (vars.variables.find(
+            (v: Variable) => (v.evaluateName || v.name) === variableName,
           ) as Variable | undefined) || null;
         if (original) {
           break;
         }
-      } catch {
+      }
+      catch {
         continue;
       }
     }
     if (original && original.variablesReference > 0) {
       expanded.children = await DAPHelpers.getVariablesFromReference(
         session,
-        original.variablesReference
+        original.variablesReference,
       );
     }
   }

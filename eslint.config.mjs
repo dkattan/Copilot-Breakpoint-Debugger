@@ -41,8 +41,8 @@ const banFallbackTerms = {
       // Check string literals
       Literal(node) {
         if (
-          typeof node.value === "string" &&
-          forbiddenPattern.test(node.value)
+          typeof node.value === "string"
+          && forbiddenPattern.test(node.value)
         ) {
           context.report({
             node,
@@ -52,7 +52,7 @@ const banFallbackTerms = {
       },
       // Check template literals
       TemplateLiteral(node) {
-        const templateText = node.quasis.map((q) => q.value.raw).join("");
+        const templateText = node.quasis.map(q => q.value.raw).join("");
         if (forbiddenPattern.test(templateText)) {
           context.report({
             node,
@@ -116,7 +116,8 @@ const forbidNowInReadme = {
         if (text[i] === "\n") {
           line += 1;
           column = 0;
-        } else if (text[i] !== "\r") {
+        }
+        else if (text[i] !== "\r") {
           column += 1;
         }
       }
@@ -129,9 +130,9 @@ const forbidNowInReadme = {
         const regex = /\snow\b/gi;
         for (const match of text.matchAll(regex)) {
           const startIndex = match.index + 1; // skip leading space to highlight word
-          const startLoc =
-            sourceCode.getLocFromIndex?.(startIndex) ??
-            computeLoc(text, startIndex);
+          const startLoc
+            = sourceCode.getLocFromIndex?.(startIndex)
+              ?? computeLoc(text, startIndex);
           const endColumn = startLoc.column + 3; // length of "now"
           context.report({
             node,
@@ -151,7 +152,7 @@ export default antfu(
   {
     // Enable TypeScript rules; stylistic remains disabled for minimal diffs and faster linting.
     typescript: true,
-    stylistic: false,
+    stylistic: true,
   },
   // Register custom local rules globally for all file types
   {
@@ -179,15 +180,23 @@ export default antfu(
       "ts/no-explicit-any": ["error"],
       "no-inner-declarations": ["error"],
       "local/ban-fallback": "error",
-      quotes: "off",
+      // Quote style is enforced globally via `style/quotes` (see Global lightweight tweaks).
     },
   },
   // Global lightweight tweaks
   {
     rules: {
-      curly: "warn",
-      eqeqeq: "warn",
+      "curly": "warn",
+      "eqeqeq": "warn",
       "no-throw-literal": "warn",
+      // Antfu's stylistic rules use eslint-stylistic (`style/*`).
+      // Disable core `quotes` to avoid conflicting reports/fixes.
+      "quotes": "off",
+      "style/quotes": ["error", "double", { avoidEscape: true }],
+
+      // Require semicolons (auto-fixable). Disable core `semi` to avoid conflicts.
+      "semi": "off",
+      "style/semi": ["error", "always"],
     },
   },
   // Test directory overrides
@@ -220,6 +229,9 @@ export default antfu(
     },
     rules: {
       "local/no-readme-now": "error",
+      // README contains generated tables where Markdown hard line breaks are
+      // represented with two trailing spaces. Allow that in this one file.
+      "style/no-trailing-spaces": "off",
     },
   },
   // Ignore large external vendor/source trees not meant for linting in this extension
@@ -232,5 +244,5 @@ export default antfu(
       "test-workspace/**",
       "src/generated-meta.ts",
     ],
-  }
+  },
 );

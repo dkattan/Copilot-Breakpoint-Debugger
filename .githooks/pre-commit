@@ -26,6 +26,33 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
+# Build the extension bundle used by the demo (dist/)
+echo ""
+echo "📦 Building extension bundle (dist)..."
+npm run build:dist
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "❌ Build failed. Fix the errors above before committing."
+  exit 1
+fi
+
+# Type-check Playwright demo code (not part of extension build)
+echo ""
+echo "🎭 Type-checking Playwright demo..."
+npm run typecheck:playwright
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "❌ Playwright demo typecheck failed. Fix the errors above before committing."
+  exit 1
+fi
+
+# NOTE: Updating the README demo video is intentionally NOT part of the pre-commit hook.
+# The video pipeline can produce artifact churn (e.g. encoding/duration differences) and
+# should be run intentionally when you want to refresh the README.
+#
+# Run manually when needed:
+#   npm run demo:pw:update-readme
+
 # Run tests
 echo ""
 echo "🧪 Running tests..."

@@ -12,7 +12,7 @@ on:
 jobs:
   playwright-demo:
     name: Playwright Demo Test
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message || '', '[skip ci]')) || github.actor == 'nektos/act'
+    if: github.actor == 'nektos/act' || github.event_name != 'push' || (github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message || '', '[skip ci]'))
     runs-on: ubuntu-latest
 
     steps:
@@ -40,6 +40,8 @@ jobs:
           sudo apt-get install -y \
             dbus-x11 \
             xvfb \
+            fontconfig \
+            fonts-liberation \
             libasound2t64 \
             libatk-bridge2.0-0 \
             libatk1.0-0 \
@@ -61,6 +63,10 @@ jobs:
 
       - name: Run Playwright demo test
         shell: bash
+        env:
+          # Matches the demo test timeout and gives the VS Code test server more
+          # time to emit its readiness line on slower/colder CI hosts.
+          PW_VSCODE_WAIT_FOR_LINE_TIMEOUT_MS: '180000'
         run: |
           dbus-run-session -- xvfb-run --auto-servernum --server-args='-screen 0 1280x1024x24' npm run demo:pw
 
@@ -246,8 +252,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
+            dbus-x11 \
             xvfb \
             ffmpeg \
+            fontconfig \
+            fonts-liberation \
             libasound2t64 \
             libatk-bridge2.0-0 \
             libatk1.0-0 \
@@ -332,8 +341,10 @@ jobs:
 
       - name: Update README demo video
         shell: bash
+        env:
+          PW_VSCODE_WAIT_FOR_LINE_TIMEOUT_MS: '180000'
         run: |
-          xvfb-run --auto-servernum --server-args='-screen 0 1280x1024x24' npm run demo:pw:update-readme
+          dbus-run-session -- xvfb-run --auto-servernum --server-args='-screen 0 1280x1024x24' npm run demo:pw:update-readme
 
       - name: Generate Release Notes
         run: npm run release:notes

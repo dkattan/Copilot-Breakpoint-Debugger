@@ -1,8 +1,12 @@
 import * as path from "node:path";
 import { expect, test } from "vscode-test-playwright";
 
+// IMPORTANT: This must be configured at module load time so it applies to
+// fixture setup (e.g. the `_evaluator` that waits for VSCodeTestServer).
+test.setTimeout(3 * 60_000);
+
 test("Copilot Breakpoint Debugger demo", async ({ workbox, vscode }) => {
-  test.setTimeout(3 * 60_000);
+  console.warn("[demo] starting; focusing Copilot chat panel");
 
   // Use repo-relative absolute paths so this works in CI (Linux) and locally.
   const repoRoot = path.join(__dirname, "..");
@@ -10,9 +14,14 @@ test("Copilot Breakpoint Debugger demo", async ({ workbox, vscode }) => {
 
   const chatPanel = workbox.locator("#workbench\\.panel\\.chat");
 
+  console.warn(
+    "[demo] executing command: workbench.panel.chat.view.copilot.focus",
+  );
   await vscode.commands.executeCommand("workbench.panel.chat.view.copilot.focus");
+  console.warn("[demo] command executed; waiting for chat panel visible");
 
   await expect(chatPanel).toBeVisible({ timeout: 30_000 });
+  console.warn("[demo] chat panel visible; waiting for send icon");
 
   // Prefer codicon-based selectors for stability across label text and locale.
   // - When idle, the execute button is a paper-plane (send) icon.
@@ -24,6 +33,7 @@ test("Copilot Breakpoint Debugger demo", async ({ workbox, vscode }) => {
     "div.monaco-toolbar.chat-execute-toolbar a.action-label.codicon.codicon-stop-circle",
   );
   await expect(chatSendIcon.first()).toBeVisible({ timeout: 30_000 });
+  console.warn("[demo] send icon visible; typing prompt");
 
   // Extremely explicit instructions for anonymous-access mode: tell the model exactly
   // which tool to call and the precise fields to supply.
@@ -47,15 +57,21 @@ test("Copilot Breakpoint Debugger demo", async ({ workbox, vscode }) => {
   )}. After the tool returns, reply with only: (1) whether 'Server listening on http://localhost:' appears in output and (2) the captured values for started and port.`;
 
   await vscode.commands.executeCommand("type", { text: promptText });
+  console.warn("[demo] prompt typed; submitting");
 
   // Submit.
   await vscode.commands.executeCommand("workbench.action.chat.submit");
   await workbox.waitForTimeout(250);
+  console.warn("[demo] submitted; waiting for processing to start (stop icon)");
 
   // Wait for processing to complete.
   // We use UI observation only (no clicking) to keep this stable across notification toasts.
   await expect(chatStopIcon.first()).toBeVisible({ timeout: 30_000 });
+  console.warn(
+    "[demo] processing started; waiting for processing to finish (send icon)",
+  );
   await expect(chatSendIcon.first()).toBeVisible({ timeout: 180_000 });
+  console.warn("[demo] processing finished; final grace period");
 
   // Final grace period to let the response render fully (and for manual runs).
   await workbox.waitForTimeout(5000);

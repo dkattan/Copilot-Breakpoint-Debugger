@@ -61,15 +61,20 @@ jobs:
           # VS Code/Electron may try to talk to the DBus system bus. GitHub-hosted runners have
           # one by default, but act containers often don't. If the system bus socket is missing,
           # start a minimal system bus so Electron doesn't exit early.
+          printenv
+          echo "DBUS_SESSION_BUS_ADDRESS: $DBUS_SESSION_BUS_ADDRESS"
           if [ ! -S /run/dbus/system_bus_socket ]; then
-            mkdir -p /run/dbus
-            dbus-daemon --system --fork --nopidfile
+            sudo mkdir -p /run/dbus
+            echo "Starting minimal system bus..."
+            sudo dbus-daemon --system --fork --nopidfile
+          else 
+            echo "System bus already running."
           fi
 
           # VS Code/Electron expects a DBus session bus. In containerized runs (e.g. act) the
           # inherited DBUS_SESSION_BUS_ADDRESS can be invalid (e.g. macOS 'launchd:'), causing
           # VS Code to exit before emitting the test server readiness line.
-          dbus-run-session -- xvfb-run --auto-servernum --server-args='-screen 0 1280x1024x24' npm run demo:pw
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x1024x24' npm run demo:pw
 
   release-notes:
     name: Release Notes
@@ -393,7 +398,7 @@ jobs:
       - name: Update README demo video
         shell: bash
         env:
-          PW_VSCODE_WAIT_FOR_LINE_TIMEOUT_MS: '180000'
+          PW_VSCODE_WAIT_FOR_LINE_TIMEOUT_MS: '10000'
         run: |
           dbus-run-session -- xvfb-run --auto-servernum --server-args='-screen 0 1280x1024x24' npm run demo:pw:update-readme
 

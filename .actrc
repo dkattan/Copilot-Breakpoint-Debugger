@@ -5,12 +5,15 @@
 # - act runs jobs in Docker containers, so we pick a “full” image that closely
 #   matches ubuntu-latest.
 # - On Apple Silicon, force linux/amd64 to match CI (and avoid native-arm quirks).
-
+-W .github/workflows/ci.yml 
+-j playwright-demo               
 # Prefer the official Playwright image for local act runs. This more closely matches
 # the GUI/browser dependencies needed for VS Code + Playwright/Electron runs.
--P ubuntu-latest=mcr.microsoft.com/playwright:v1.57.0-jammy
---container-architecture linux/amd64
+# -P ubuntu-latest=mcr.microsoft.com/playwright:v1.57.0-jammy
+# --container-architecture linux/amd64
 
 # Cache downloaded actions between runs.
 # NOTE: act does not expand '~' in this file, so use a repo-local path.
 --action-cache-path ./.act-cache
+# Reuse the local runner cache to speed up subsequent runs.
+-r

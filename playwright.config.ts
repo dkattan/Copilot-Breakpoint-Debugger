@@ -21,13 +21,10 @@ const config = {
     // Electron/VS Code can be slow to show first window on cold start.
     actionTimeout: 15_000,
     navigationTimeout: 30_000,
-    // Record a video for the demo.
-    // Note: Historically Electron-backed VS Code video capture has been inconsistent,
-    // but we prefer the native Playwright path over custom screenshot+ffmpeg logic.
-    video: {
-      mode: "on",
-      size: { width: 1280, height: 720 },
-    },
+    // IMPORTANT: VS Code is launched via a custom Electron fixture in `vscode-test-playwright`.
+    // Playwright's top-level `video` setting is not automatically applied to that launch.
+    // Use the fixture's `vscodeVideo` option instead.
+    video: "off",
     trace: "retain-on-failure",
   },
   projects: [
@@ -37,6 +34,12 @@ const config = {
         // The `vscode-test-playwright` fixtures read these options.
         vscodeVersion: "stable",
         vscodeTrace: "off",
+        vscodeVideo: {
+          mode: "on",
+          size: { width: 1280, height: 720 },
+          // Keep the VS Code window itself at the same pixel dimensions (best-effort).
+          windowSize: { width: 1280, height: 720 },
+        },
         // Ensure Copilot Chat is available during the demo run. Our extension is
         // loaded via extensionDevelopmentPath, but Copilot Chat must be installed
         // as a marketplace extension.

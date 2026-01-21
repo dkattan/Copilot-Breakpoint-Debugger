@@ -39,6 +39,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             dbus-x11 \
+            ffmpeg \
             xvfb \
             fontconfig \
             fonts-liberation \
@@ -133,14 +134,14 @@ jobs:
             RANGE=""
             echo "Generating context for initial release (all history)"
           fi
-          
+
           {
             echo 'commits<<EOF'
             git log --pretty=format:"- %s (%an) [%h]" $RANGE
             echo ''
             echo 'EOF'
           } >> $GITHUB_OUTPUT
-          
+
           {
             echo 'stats<<EOF'
             if [ -n "$RANGE" ]; then
@@ -317,14 +318,14 @@ jobs:
             RANGE=""
             echo "Generating context for initial release (all history)"
           fi
-          
+
           {
             echo 'commits<<EOF'
             git log --pretty=format:"- %s (%an) [%h]" $RANGE
             echo ''
             echo 'EOF'
           } >> $GITHUB_OUTPUT
-          
+
           {
             echo 'stats<<EOF'
             if [ -n "$RANGE" ]; then

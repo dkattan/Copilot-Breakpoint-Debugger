@@ -133,11 +133,11 @@ jobs:
           # one by default, but act containers often don't. If the system bus socket is missing,
           # start a minimal system bus so Electron doesn't exit early.
           printenv
-          echo "DBUS_SESSION_BUS_ADDRESS: $DBUS_SESSION_BUS_ADDRESS"
+          echo "DBUS_SESSION_BUS_ADDRESS: ${DBUS_SESSION_BUS_ADDRESS:-<unset>}"
           if [ ! -S /run/dbus/system_bus_socket ]; then
-            sudo mkdir -p /run/dbus
+            mkdir -p /run/dbus
             echo "Starting minimal system bus..."
-            sudo dbus-daemon --system --fork --nopidfile
+            dbus-daemon --system --fork --nopidfile
           else 
             echo "System bus already running."
           fi

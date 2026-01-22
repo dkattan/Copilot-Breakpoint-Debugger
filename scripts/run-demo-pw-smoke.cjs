@@ -8,11 +8,32 @@
 const cp = require("node:child_process");
 const process = require("node:process");
 
+function buildEnv() {
+  const env = { ...process.env, NODE_OPTIONS: "" };
+
+  // The WS transport has proven flaky on some Windows CI environments.
+  // Prefer the named pipe transport there for reliability.
+  if (!env.PW_VSCODE_TEST_TRANSPORT && process.platform === "win32") {
+    env.PW_VSCODE_TEST_TRANSPORT = "pipe";
+  }
+
+  // Starting VS Code + extension host can be slower on CI/Windows.
+  // Increase the connection timeout unless the user has explicitly set one.
+  if (!env.PW_VSCODE_TEST_WS_CONNECT_TIMEOUT_MS) {
+    const isCi = String(env.CI).toLowerCase() === "true";
+    if (isCi || process.platform === "win32") {
+      env.PW_VSCODE_TEST_WS_CONNECT_TIMEOUT_MS = "120000";
+    }
+  }
+
+  return env;
+}
+
 function run(cmd, args) {
   const result = cp.spawnSync(cmd, args, {
     stdio: "inherit",
     shell: process.platform === "win32",
-    env: { ...process.env, NODE_OPTIONS: "" },
+    env: buildEnv(),
   });
 
   if (result.error) {

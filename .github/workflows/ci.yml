@@ -110,6 +110,7 @@ jobs:
           apt-get install -y \
             dbus \
             dbus-x11 \
+            ffmpeg \
             xvfb
 
       - name: Run Playwright demo test
@@ -147,6 +148,68 @@ jobs:
           # VS Code to exit before emitting the test server readiness line.
           xvfb-run --auto-servernum --server-args='-screen 0 1280x1024x24' npm run demo:pw
 
+          # Re-arrange the recorded video(s) into a stable, shareable layout for artifact upload.
+          #
+          # Example:
+          #   test-results/demo-Copilot-Breakpoint-Debugger-demo-vscode-chat-demo/videos/<hash>.webm
+          # becomes:
+          #   videos/Breakpoint-Debugger-demo-vscode-chat-demo.webm
+          #   videos/Breakpoint-Debugger-demo-vscode-chat-demo.mp4
+          #
+          # Notes:
+          # - We normalize by stripping a leading "demo-" and then "Copilot-" from the
+          #   test-results directory name (if present).
+          # - If multiple .webm files exist for a given directory, we suffix with -<n>.
+          rm -rf videos
+          mkdir -p videos
+
+          found_any_webm=0
+          shopt -s nullglob
+          for video_dir in test-results/*/videos; do
+            [ -d "$video_dir" ] || continue
+
+            result_dir="$(dirname "$video_dir")"
+            result_base="$(basename "$result_dir")"
+            name="$result_base"
+            name="${name#demo-}"
+            name="${name#Copilot-}"
+
+            mapfile -t webms < <(find "$video_dir" -maxdepth 1 -type f -name '*.webm' | sort)
+            if [ "${#webms[@]}" -eq 0 ]; then
+              continue
+            fi
+
+            found_any_webm=1
+            idx=0
+            for webm in "${webms[@]}"; do
+              idx=$((idx + 1))
+              suffix=""
+              if [ "${#webms[@]}" -gt 1 ]; then
+                suffix="-$idx"
+              fi
+
+              out_base="${name}${suffix}"
+              out_webm="videos/${out_base}.webm"
+              out_mp4="videos/${out_base}.mp4"
+
+              cp "$webm" "$out_webm"
+
+              # Convert to MP4 (H.264 + AAC) for easy preview/download across platforms.
+              ffmpeg -y \
+                -i "$webm" \
+                -c:v libx264 -pix_fmt yuv420p -movflags +faststart \
+                -c:a aac -b:a 128k \
+                "$out_mp4"
+            done
+          done
+
+          if [ "$found_any_webm" -eq 0 ]; then
+            echo "::warning::No .webm videos found under test-results/*/videos; skipping renamed video staging."
+          else
+            echo "Staged renamed video artifacts:"
+            ls -la videos || true
+          fi
+
           # When running locally under act, also convert the recorded .webm to an .mp4
           # so the developer has a single shareable artifact.
           #
@@ -167,7 +230,8 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
           path: |
-            test-results/**/videos/**/*.webm
+            videos/*.webm
+            videos/*.mp4
             test-results/**/trace.zip
             test-results/**/vscode-logs/**
 
@@ -194,7 +258,8 @@ jobs:
               process.env['INPUT_INCLUDE-HIDDEN-FILES'] = 'false';
               process.env['INPUT_PATH'] = [
                 'docs/pw-videos/demo.mp4',
-                'test-results/**/videos/**/*.webm',
+                'videos/*.webm',
+                'videos/*.mp4',
                 'test-results/**/trace.zip',
                 'test-results/**/vscode-logs/**'
               ].join('\n');

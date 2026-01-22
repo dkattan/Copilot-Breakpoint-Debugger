@@ -159,6 +159,18 @@ jobs:
             npm run demo:pw:videos
           fi
 
+      - name: Upload Playwright demo artifacts (CI)
+        if: always() && github.actor != 'nektos/act'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-demo-videos
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            test-results/**/videos/**/*.webm
+            test-results/**/trace.zip
+            test-results/**/vscode-logs/**
+
       - name: Upload Playwright video artifacts (act only)
         if: always() && github.actor == 'nektos/act'
         timeout-minutes: 10

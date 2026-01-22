@@ -70,18 +70,22 @@ addStartListener((session) => {
 // Remove debug sessions as they terminate.
 const addTerminateListener = useEvent(vscode.debug.onDidTerminateDebugSession);
 addTerminateListener((session) => {
-  const index = activeSessions.indexOf(session);
+  // VS Code may provide a different object instance representing the same
+  // session when it terminates. Match by id rather than reference equality.
+  const index = activeSessions.findIndex(s => s.id === session.id);
   if (index >= 0) {
     activeSessions.splice(index, 1);
-    outputChannel.appendLine(
-      `Debug session terminated: ${session.name} (ID: ${session.id})`,
-    );
-    outputChannel.appendLine(`Active sessions: ${activeSessions.length}`);
-    // Fire termination event for listeners waiting on session end
-    sessionTerminateEventEmitter.fire({
-      session,
-    });
   }
+
+  outputChannel.appendLine(
+    `Debug session terminated: ${session.name} (ID: ${session.id})`,
+  );
+  outputChannel.appendLine(`Active sessions: ${activeSessions.length}`);
+
+  // Fire termination event for listeners waiting on session end.
+  sessionTerminateEventEmitter.fire({
+    session,
+  });
 });
 
 const addChangeListener = useEvent(vscode.debug.onDidChangeActiveDebugSession);

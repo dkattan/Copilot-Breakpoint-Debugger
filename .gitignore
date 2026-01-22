@@ -21,6 +21,9 @@ playwright-demo.config.js.map
 # act local caches
 .act-cache/
 
+# act local exported artifacts
+.act-artifacts/
+
 # Local Playwright Test Explorer env
 .env.playwright
 test-results

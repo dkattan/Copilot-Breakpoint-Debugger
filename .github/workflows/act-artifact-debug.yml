@@ -1,0 +1,52 @@
+name: act-artifact-debug
+
+on:
+  push:
+
+jobs:
+  artifact:
+    runs-on: ubuntu-latest
+    env:
+      ACTIONS_STEP_DEBUG: 'true'
+    steps:
+      - name: Create file
+        run: |
+          mkdir -p out
+          echo "hello" > out/hello.txt
+          ls -la out
+
+      - name: Probe act artifact server
+        if: github.actor == 'nektos/act'
+        timeout-minutes: 1
+        run: |
+          set -euo pipefail
+          echo "Probing act artifact server via host.docker.internal (Docker Desktop path)..."
+          curl -sS -i --connect-timeout 2 --max-time 5 http://host.docker.internal:34567/
+
+      - name: Upload artifact (act)
+        if: github.actor == 'nektos/act'
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+
+          # We cannot rely on `uses: actions/upload-artifact` under act on macOS,
+          # because act injects ACTIONS_* URLs that are not container-reachable.
+          # Instead, run the action's Node entrypoint ourselves and override
+          # ACTIONS_RUNTIME_URL/ACTIONS_RESULTS_URL *inside the shell*.
+
+          rm -rf /tmp/actions-upload-artifact
+          git clone --depth 1 --branch v4 https://github.com/actions/upload-artifact /tmp/actions-upload-artifact
+
+          # Bash cannot `export` env vars with hyphens in the name, but @actions/core
+          # *does* read inputs using hyphenated env var names (e.g. INPUT_IF-NO-FILES-FOUND).
+          # Use a Node bootstrap to populate them.
+          ACTIONS_RUNTIME_URL='http://host.docker.internal:34567/' \
+          ACTIONS_RESULTS_URL='http://host.docker.internal:34567/' \
+            node -e "
+              process.env['INPUT_NAME'] = 'hello';
+              process.env['INPUT_PATH'] = 'out/hello.txt';
+              process.env['INPUT_IF-NO-FILES-FOUND'] = 'error';
+              process.env['INPUT_OVERWRITE'] = 'false';
+              process.env['INPUT_INCLUDE-HIDDEN-FILES'] = 'false';
+              require('/tmp/actions-upload-artifact/dist/upload/index.js');
+            "

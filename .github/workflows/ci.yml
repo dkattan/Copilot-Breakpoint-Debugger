@@ -18,28 +18,91 @@ jobs:
       image: mcr.microsoft.com/playwright:v1.57.0-jammy
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repository (CI only)
+        if: github.actor != 'nektos/act'
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Use act-provided workspace (act only)
+        if: github.actor == 'nektos/act'
+        run: |
+          # Under act we want to use local sources, and avoid actions/checkout which would fetch from
+          # GitHub and lose local changes.
+          #
+          # Some act configurations can produce an empty workspace volume. When that happens, we seed
+          # the workspace volume from a read-only bind mount at /repo (provided via .actrc).
+
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          echo "pwd=$(pwd)"
+
+          if [ ! -f "$GITHUB_WORKSPACE/package.json" ]; then
+            echo "Workspace volume appears empty (no package.json)."
+            if [ -f "/repo/package.json" ]; then
+              echo "Seeding workspace from /repo (read-only bind mount)."
+
+              # Copy everything we need, but avoid copying host-installed node_modules into the
+              # container workspace (it would be huge and contain the wrong platform binaries).
+              tar -C /repo \
+                --exclude='./node_modules' \
+                --exclude='./.act-cache' \
+                --exclude='./.act-artifacts' \
+                -cf - . \
+              | tar -C "$GITHUB_WORKSPACE" -xf -
+            else
+              echo "::error::act workspace is empty and /repo is not mounted. Ensure .actrc includes: --container-options \"-v .:/repo:ro\""
+              exit 1
+            fi
+          fi
+
+          echo "--- ls (GITHUB_WORKSPACE) ---"
+          ls -la "$GITHUB_WORKSPACE" || true
+          echo "Using act local sources; skipping actions/checkout."
 
       - name: Mark workspace as safe for git
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config --global --add safe.directory "$GITHUB_WORKSPACE/external/vscode-test-playwright"
 
-      - name: Init required submodules
+      - name: Init required submodules (CI only)
+        if: github.actor != 'nektos/act'
         run: |
           git submodule update --init --depth 1 external/vscode-test-playwright
 
-      - name: Setup Node.js
+      - name: Verify required submodules are present (act only)
+        if: github.actor == 'nektos/act'
+        run: |
+          test -f external/vscode-test-playwright/index.ts
+          test -f external/vscode-test-playwright/tsconfig.json
+
+      # Local act runs also want an MP4 output for quick sharing/debugging.
+      # The existing `demo:pw:videos` script converts the recorded .webm to docs/pw-videos/demo.mp4.
+      - name: Init demo video submodule (act only)
+        if: github.actor == 'nektos/act'
+        run: |
+          git submodule update --init --depth 1 external/playwright-test-videos
+
+      # NOTE: Under act (Docker Desktop), actions/setup-node's caching can hang or behave
+      # unexpectedly because it relies on GitHub cache backends.
+      - name: Setup Node.js (CI)
+        if: github.actor != 'nektos/act'
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
           cache: npm
 
+      - name: Setup Node.js (act)
+        if: github.actor == 'nektos/act'
+        timeout-minutes: 5
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+
       - name: Install dependencies
         run: npm ci
+
+      - name: Build extension bundle
+        run: npm run build:dist
 
       - name: Install system dependencies for Playwright demo
         run: |
@@ -55,9 +118,17 @@ jobs:
           # Matches the demo test timeout and gives the VS Code test server more
           # time to emit its readiness line on slower/colder CI hosts.
           PW_VSCODE_WAIT_FOR_LINE_TIMEOUT_MS: '15000'
+          # The extension host may take significantly longer to start inside act/Docker Desktop.
+          # This controls how long the harness waits for the extension host to connect back.
+          PW_VSCODE_TEST_WS_CONNECT_TIMEOUT_MS: ${{ github.actor == 'nektos/act' && '180000' || '30000' }}
+          # Under act (Docker Desktop mounts / containerized Electron), video finalization can be slow.
+          # This controls how long vscode-test-playwright waits for the recorded .webm to appear.
+          PW_VSCODE_VIDEO_FINALIZE_TIMEOUT_MS: ${{ github.actor == 'nektos/act' && '180000' || '30000' }}
           # Extra diagnostics for local act runs only.
           PW_VSCODE_DEBUG: ${{ github.actor == 'nektos/act' && '1' || '0' }}
         run: |
+          set -euo pipefail
+
           # VS Code/Electron may try to talk to the DBus system bus. GitHub-hosted runners have
           # one by default, but act containers often don't. If the system bus socket is missing,
           # start a minimal system bus so Electron doesn't exit early.
@@ -75,6 +146,48 @@ jobs:
           # inherited DBUS_SESSION_BUS_ADDRESS can be invalid (e.g. macOS 'launchd:'), causing
           # VS Code to exit before emitting the test server readiness line.
           xvfb-run --auto-servernum --server-args='-screen 0 1280x1024x24' npm run demo:pw
+
+          # When running locally under act, also convert the recorded .webm to an .mp4
+          # so the developer has a single shareable artifact.
+          #
+          # Note: If the Playwright demo fails, this step will already have failed (as intended),
+          # and the act-only upload step (with if: always()) will still export trace/logs/videos.
+          if [ "${GITHUB_ACTOR:-}" = "nektos/act" ]; then
+            echo "Video files under test-results (if any):"
+            find test-results -type f \( -name '*.webm' -o -name '*.mp4' \) -maxdepth 6 -print 2>/dev/null || true
+
+            npm run demo:pw:videos
+          fi
+
+      - name: Upload Playwright video artifacts (act only)
+        if: always() && github.actor == 'nektos/act'
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+
+          # act runs the artifact server on the *host* and advertises an
+          # unreachable URL (127.0.0.1) to containers on Docker Desktop.
+          # Run upload-artifact's Node entrypoint ourselves and override the URLs.
+
+          rm -rf /tmp/actions-upload-artifact
+          git clone --depth 1 --branch v4 https://github.com/actions/upload-artifact /tmp/actions-upload-artifact
+
+          ACTIONS_RUNTIME_URL='http://host.docker.internal:34567/' \
+          ACTIONS_RESULTS_URL='http://host.docker.internal:34567/' \
+            node -e "
+              process.env['INPUT_NAME'] = 'playwright-demo-videos';
+              process.env['INPUT_IF-NO-FILES-FOUND'] = 'warn';
+              process.env['INPUT_RETENTION-DAYS'] = '3';
+              process.env['INPUT_OVERWRITE'] = 'false';
+              process.env['INPUT_INCLUDE-HIDDEN-FILES'] = 'false';
+              process.env['INPUT_PATH'] = [
+                'docs/pw-videos/demo.mp4',
+                'test-results/**/videos/**/*.webm',
+                'test-results/**/trace.zip',
+                'test-results/**/vscode-logs/**'
+              ].join('\n');
+              require('/tmp/actions-upload-artifact/dist/upload/index.js');
+            "
 
   release-notes:
     name: Release Notes

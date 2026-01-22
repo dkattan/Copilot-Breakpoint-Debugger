@@ -130,6 +130,12 @@ You can simulate startup delay via a `preLaunchTask` (e.g. `sleep-build-delay`) 
 - `startDebuggingAndWaitForStop` streams integrated-terminal output by subscribing to `window.onDidStartTerminalShellExecution` / `window.onDidEndTerminalShellExecution` and piping each `TerminalShellExecution.read()` stream into the runtime diagnostics buffer. This keeps crash context available even when adapters bypass the Debug Console (e.g., configs with `console: "integratedTerminal"`).
 - Runtime error messages automatically append exit codes, DAP stderr, and/or terminal lines (capped by `copilot-debugger.maxOutputLines`), keeping messaging concise while surfacing crash context for Copilot tools.
 
+### DAP Trace Logging Output Policy
+
+- DAP trace logging is designed to be **human-readable** even when enabled by default in tests.
+- High-volume messages are summarized (e.g., `variables`, `stackTrace`, `initialize`) and very noisy events like `<node_internals>` `loadedSource` are rate-limited with periodic “suppressed N events” summaries.
+- Direction/kind tags are preserved (e.g., `[DAP][REQ] editor → adapter`, `[DAP][RESP] adapter → editor`).
+
 ## External Dependencies
 
 ### debug-tracker-vscode Integration

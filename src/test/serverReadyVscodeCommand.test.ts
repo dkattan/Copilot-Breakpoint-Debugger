@@ -17,7 +17,11 @@ describe("serverReady vscodeCommand action", () => {
     await stopAllDebugSessions();
   });
 
-  it("executes vscodeCommand at serverReady breakpoint then pauses at user breakpoint", async () => {
+  it("executes vscodeCommand at serverReady breakpoint then pauses at user breakpoint", async function () {
+    // This test exercises real debug adapter startup + serverReady action execution.
+    // Under load (CI, cold machine), it can exceed Mocha's 30s default.
+    this.timeout(240000);
+
     await activateCopilotDebugger();
     const extensionRoot = getExtensionRoot();
     const workspaceFolder = path.join(extensionRoot, "test-workspace", "b");

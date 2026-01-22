@@ -27,6 +27,8 @@
   ],
   "settings": {
     "copilot-debugger.defaultLaunchConfiguration": "Run test.ps1",
+    "copilot-debugger.enableTraceLogging": true,
+    "copilot-debugger.consoleLogLevel": "trace",
     "powershell.cwd": "workspace-a",
     "git.openRepositoryInParentFolders": "never",
     "git.scanRepositories": [],

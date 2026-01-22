@@ -5,15 +5,48 @@
 # - act runs jobs in Docker containers, so we pick a “full” image that closely
 #   matches ubuntu-latest.
 # - On Apple Silicon, force linux/amd64 to match CI (and avoid native-arm quirks).
--W .github/workflows/ci.yml 
--j playwright-demo               
+-W .github/workflows/ci.yml
+-j playwright-demo
 # Prefer the official Playwright image for local act runs. This more closely matches
 # the GUI/browser dependencies needed for VS Code + Playwright/Electron runs.
-# -P ubuntu-latest=mcr.microsoft.com/playwright:v1.57.0-jammy
-# --container-architecture linux/amd64
+# Default to a “full” Ubuntu image for compatibility with this repo’s apt-installed deps.
+-P ubuntu-latest=ghcr.io/catthehacker/ubuntu:full-24.04
+
+# On Apple Silicon, force amd64 for CI parity and to avoid native-arm quirks.
+--container-architecture linux/amd64
+
+# On Docker Desktop (macOS), host networking behaves differently than Linux and can break
+# access to the local act artifact server. Use bridge networking for reliability.
+--network bridge
 
 # Cache downloaded actions between runs.
 # NOTE: act does not expand '~' in this file, so use a repo-local path.
 --action-cache-path ./.act-cache
-# Reuse the local runner cache to speed up subsequent runs.
--r
+
+# Enable actions/upload-artifact@v4 for local act runs.
+# act only persists artifacts when the artifact server is enabled with a path.
+--artifact-server-path ./.act-artifacts
+
+# Docker Desktop note (macOS): bind the artifact server on host loopback.
+# Containers can reach the host loopback via host.docker.internal.
+#
+# NOTE: act still advertises 127.0.0.1 to containers via ACTIONS_RUNTIME_URL, which
+# is not reachable inside the container. The workflows handle this by uploading
+# artifacts through a custom act-only step that targets host.docker.internal.
+--artifact-server-addr 127.0.0.1
+
+# Workaround for act workspace-copy issues:
+# - act is supposed to copy the local working tree into a Docker volume (not bind-mount it).
+# - In some environments, that copy can result in an empty workspace volume.
+# - We also bind-mount the repo read-only at /repo so the workflow can seed the workspace
+#   volume from /repo without ever writing to the host filesystem.
+--container-options "-v$PWD:/repo:ro"
+
+# NOTE: We intentionally do NOT enable --reuse (-r) by default.
+# Reusing containers can lead to stale workspaces (changes not reflected inside the container)
+# which is especially confusing when iterating on Playwright/video output.
+
+# NOTE: We intentionally do NOT enable bind-mount mode (-b).
+# Bind-mounting can overwrite the host's `node_modules` with Linux-native binaries (e.g. esbuild)
+# and can also trigger permission/chown cascades depending on the Docker Desktop mount.
+# Instead, let act use its default workspace handling and use upload-artifact to export results.

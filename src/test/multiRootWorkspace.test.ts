@@ -49,6 +49,15 @@ function assertVariablesPresent(
 }
 
 describe("multi-Root Workspace Integration", () => {
+  beforeEach(async () => {
+    // This suite runs late in the overall test run and can be sensitive to any
+    // leaked debug sessions/breakpoints from earlier tests.
+    await stopAllDebugSessions();
+    if (vscode.debug.breakpoints.length) {
+      vscode.debug.removeBreakpoints(vscode.debug.breakpoints);
+    }
+  });
+
   afterEach(async () => {
     await stopAllDebugSessions();
   });

@@ -14,6 +14,86 @@ interface DebugProtocolMessage {
   type: string
 }
 
+type DapFingerprint = string;
+
+type UnknownRecord = Record<string, unknown>;
+
+function isRecord(value: unknown): value is UnknownRecord {
+  return typeof value === "object" && value !== null;
+}
+
+function getString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function getNumber(value: unknown): number | undefined {
+  return typeof value === "number" ? value : undefined;
+}
+
+function getBoolean(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function getRecord(value: unknown): UnknownRecord | undefined {
+  return isRecord(value) ? value : undefined;
+}
+
+function getArray(value: unknown): unknown[] | undefined {
+  return Array.isArray(value) ? value : undefined;
+}
+
+function getDapFingerprint(
+  direction: DebugAdapterMessageDirection,
+  message: DebugProtocolMessage,
+): string {
+  const type = typeof (message as unknown as { type?: unknown }).type === "string"
+    ? (message as unknown as { type: string }).type
+    : "message";
+
+  const seq = typeof (message as unknown as { seq?: unknown }).seq === "number"
+    ? (message as unknown as { seq: number }).seq
+    : -1;
+
+  const command = typeof (message as unknown as { command?: unknown }).command === "string"
+    ? (message as unknown as { command: string }).command
+    : "";
+
+  const event = typeof (message as unknown as { event?: unknown }).event === "string"
+    ? (message as unknown as { event: string }).event
+    : "";
+
+  return `${direction}|${type}|${seq}|${command}|${event}`;
+}
+
+// VS Code can attach multiple trackers for the same session (and/or invoke tracker hooks
+// more than once). Maintain a per-session fingerprint cache on globalThis so we can
+// de-duplicate across tracker instances.
+const seenDapFingerprintsBySessionId: Map<string, Map<DapFingerprint, number>> = (() => {
+  const key = "__copilotDebuggerSeenDapFingerprintsBySessionId";
+  const host = globalThis as unknown as Record<string, unknown>;
+  const existing = host[key];
+  if (existing instanceof Map) {
+    return existing as Map<string, Map<DapFingerprint, number>>;
+  }
+  const created = new Map<string, Map<DapFingerprint, number>>();
+  host[key] = created;
+  return created;
+})();
+
+function getDapMessageKind(message: DebugProtocolMessage): string {
+  const type = typeof message?.type === "string" ? message.type : "message";
+  switch (type) {
+    case "request":
+      return "REQ";
+    case "response":
+      return "RESP";
+    case "event":
+      return "EVT";
+    default:
+      return type.toUpperCase();
+  }
+}
+
 interface DebugProtocolResponse extends DebugProtocolMessage {
   type: "response"
   command: string
@@ -51,6 +131,25 @@ export interface OutputLine {
   category: string
   text: string
   timestamp: number
+}
+
+function getCopilotDebuggerSetting<T>(key: string, defaultValue: T): T {
+  try {
+    const cfg = vscode.workspace.getConfiguration("copilot-debugger");
+    const value = cfg.get<T>(key);
+    return value === undefined ? defaultValue : value;
+  }
+  catch {
+    return defaultValue;
+  }
+}
+
+type DebugAdapterMessageDirection = "toAdapter" | "fromAdapter";
+
+interface DebugAdapterMessageSnapshot {
+  direction: DebugAdapterMessageDirection
+  timestamp: number
+  summary: string
 }
 
 export interface SessionExitInfo {
@@ -103,6 +202,201 @@ const sessionExitCodes = new Map<string, number>();
 // Per-session capabilities from DAP initialize response
 const sessionCapabilities = new Map<string, unknown>();
 
+// Per-session ring buffer of recent DAP messages (for timeout diagnostics)
+const sessionDebugAdapterMessages = new Map<
+  string,
+  DebugAdapterMessageSnapshot[]
+>();
+
+// VS Code may invoke tracker factories multiple times for the same session id.
+// Ensure we only attach ONE tracker per session to avoid duplicate logs and
+// duplicated diagnostic buffers.
+const createdTrackerBySessionId: Set<string> = (() => {
+  const key = "__copilotDebuggerCreatedTrackerBySessionId";
+  const host = globalThis as unknown as Record<string, unknown>;
+  const existing = host[key];
+  if (existing instanceof Set) {
+    return existing as Set<string>;
+  }
+  const created = new Set<string>();
+  host[key] = created;
+  return created;
+})();
+
+// Debug adapter tracker instances (and even tracker factories) can be created more than once
+// for the same session. Keep the trace-status banner to a single line per session id.
+//
+// Store this on globalThis so it remains shared even if this module is loaded more than once
+// within the same extension host process.
+const loggedTraceStatusBySessionId: Set<string> = (() => {
+  const key = "__copilotDebuggerLoggedTraceStatusBySessionId";
+  const host = globalThis as unknown as Record<string, unknown>;
+  const existing = host[key];
+  if (existing instanceof Set) {
+    return existing as Set<string>;
+  }
+  const created = new Set<string>();
+  host[key] = created;
+  return created;
+})();
+
+function safeStringify(obj: unknown, maxLength = 1000): string {
+  let str: string;
+  try {
+    str = JSON.stringify(obj);
+  }
+  catch (e) {
+    str = `[unstringifiable: ${e instanceof Error ? e.message : String(e)}]`;
+  }
+  if (str.length > maxLength) {
+    const truncated = str.slice(0, maxLength);
+    return `${truncated}… (truncated ${str.length - maxLength} chars)`;
+  }
+  return str;
+}
+
+function shortenForLog(text: string, maxLength = 160): string {
+  if (text.length <= maxLength) {
+    return text;
+  }
+  const truncated = text.slice(0, maxLength);
+  return `${truncated}… (truncated ${text.length - maxLength} chars)`;
+}
+
+function looksLikeNodeInternalsSourcePath(path: string): boolean {
+  return path.startsWith("<node_internals>/") || path === "<node_internals>";
+}
+
+function formatDapTraceMessage(message: DebugProtocolMessage): string {
+  const msg = getRecord(message) ?? {};
+  const type = getString(msg.type) ?? "message";
+  const seq = getNumber(msg.seq);
+
+  if (type === "request") {
+    const command = getString(msg.command) ?? "<unknown>";
+    const args = getRecord(msg.arguments);
+    if (!args || Object.keys(args).length === 0) {
+      return `seq=${seq ?? "?"} command=${command}`;
+    }
+    // Requests are usually small; keep args but aggressively bound.
+    return `seq=${seq ?? "?"} command=${command} args=${safeStringify(args, 300)}`;
+  }
+
+  if (type === "response") {
+    const command = getString(msg.command) ?? "<unknown>";
+    const success = getBoolean(msg.success);
+    const requestSeq = getNumber(msg.request_seq);
+    const body = getRecord(msg.body);
+
+    if (command === "variables") {
+      const vars = getArray(body?.variables);
+      const names = (vars ?? [])
+        .slice(0, 8)
+        .map((v) => {
+          const rec = getRecord(v);
+          const n = getString(rec?.name);
+          const t = getString(rec?.type);
+          return t ? `${n ?? "?"}:${t}` : (n ?? "?");
+        })
+        .join(", ");
+      const count = vars?.length;
+      return `request_seq=${requestSeq ?? "?"} command=variables success=${String(success)} variables=${count ?? "?"}${names ? ` [${names}${count && count > 8 ? ", …" : ""}]` : ""}`;
+    }
+
+    if (command === "stackTrace") {
+      const frames = getArray(body?.stackFrames);
+      const totalFrames = getNumber(body?.totalFrames);
+      const top = getRecord(frames?.[0]);
+      const topName = getString(top?.name);
+      const topLine = getNumber(top?.line);
+      const topSource = getRecord(top?.source);
+      const topPath = getString(topSource?.path) ?? getString(topSource?.name);
+      const loc = topPath && topLine ? `${topPath}:${topLine}` : undefined;
+      return `request_seq=${requestSeq ?? "?"} command=stackTrace success=${String(success)} frames=${frames?.length ?? "?"} totalFrames=${totalFrames ?? "?"}${loc ? ` top=${loc}${topName ? ` (${topName})` : ""}` : ""}`;
+    }
+
+    if (command === "scopes") {
+      const scopes = getArray(body?.scopes);
+      const names = (scopes ?? [])
+        .slice(0, 6)
+        .map((s) => {
+          const rec = getRecord(s);
+          const n = getString(rec?.name) ?? "?";
+          const expensive = getBoolean(rec?.expensive);
+          return expensive ? `${n}*` : n;
+        })
+        .join(", ");
+      return `request_seq=${requestSeq ?? "?"} command=scopes success=${String(success)} scopes=${scopes?.length ?? "?"}${names ? ` [${names}${scopes && scopes.length > 6 ? ", …" : ""}]` : ""}`;
+    }
+
+    if (command === "initialize") {
+      const caps = body ? Object.keys(body).length : 0;
+      return `request_seq=${requestSeq ?? "?"} command=initialize success=${String(success)} capabilitiesKeys=${caps}`;
+    }
+
+    // Default: keep it short; responses can be large.
+    return `request_seq=${requestSeq ?? "?"} command=${command} success=${String(success)}${body ? ` body=${safeStringify(body, 300)}` : ""}`;
+  }
+
+  if (type === "event") {
+    const event = getString(msg.event) ?? "<unknown>";
+    const body = getRecord(msg.body);
+
+    if (event === "loadedSource") {
+      const source = getRecord(body?.source);
+      const path = getString(source?.path) ?? getString(source?.name);
+      const reason = getString(body?.reason);
+      const hint = getString(source?.presentationHint);
+      return `seq=${seq ?? "?"} event=loadedSource reason=${reason ?? "?"} source=${path ?? "?"}${hint ? ` hint=${hint}` : ""}`;
+    }
+
+    if (event === "output") {
+      const category = getString(body?.category) ?? "?";
+      const output = getString(body?.output) ?? "";
+      const preview = output ? shortenForLog(output.replace(/\s+/g, " ").trim(), 120) : "";
+      return `seq=${seq ?? "?"} event=output category=${category} len=${output.length}${preview ? ` preview=${safeStringify(preview, 140)}` : ""}`;
+    }
+
+    if (event === "stopped") {
+      const reason = getString(body?.reason) ?? "?";
+      const threadId = getNumber(body?.threadId);
+      return `seq=${seq ?? "?"} event=stopped reason=${reason}${threadId ? ` threadId=${threadId}` : ""}`;
+    }
+
+    return `seq=${seq ?? "?"} event=${event}${body ? ` body=${safeStringify(body, 250)}` : ""}`;
+  }
+
+  // Unknown message.
+  return safeStringify(message, 300);
+}
+
+function pushDebugAdapterMessage(sessionId: string, entry: DebugAdapterMessageSnapshot): void {
+  const max = 25;
+  if (!sessionDebugAdapterMessages.has(sessionId)) {
+    sessionDebugAdapterMessages.set(sessionId, []);
+  }
+  const buffer = sessionDebugAdapterMessages.get(sessionId)!;
+  buffer.push(entry);
+  while (buffer.length > max) {
+    buffer.shift();
+  }
+}
+
+function formatRecentDebugAdapterMessages(sessionId: string): string | undefined {
+  const buffer = sessionDebugAdapterMessages.get(sessionId);
+  if (!buffer?.length) {
+    return undefined;
+  }
+  const tail = buffer.slice(-10);
+  const formatted = tail
+    .map((m) => {
+      const dir = m.direction === "toAdapter" ? "→" : "←";
+      return `${dir} ${m.summary}`;
+    })
+    .join(" | ");
+  return formatted ? `Recent DAP messages: ${formatted}` : undefined;
+}
+
 /**
  * Get capabilities for a session
  */
@@ -116,39 +410,169 @@ useDisposable(
     createDebugAdapterTracker: (
       session: vscode.DebugSession,
     ): vscode.ProviderResult<vscode.DebugAdapterTracker> => {
+      if (createdTrackerBySessionId.has(session.id)) {
+        // Avoid duplicate trackers (and duplicate DAP logs) for the same session.
+        return undefined;
+      }
+      createdTrackerBySessionId.add(session.id);
+
       // Create a class that implements the DebugAdapterTracker interface
       class DebugAdapterTrackerImpl implements vscode.DebugAdapterTracker {
-        private get traceEnabled(): boolean {
-          return !!config.enableTraceLogging;
+        private suppressedLoadedSourceCount = 0;
+        private lastSuppressedLoadedSourceSummaryAt = 0;
+
+        private maybeSummarizeSuppressedLoadedSource(): void {
+          if (!this.traceEnabled) {
+            return;
+          }
+          if (this.suppressedLoadedSourceCount <= 0) {
+            return;
+          }
+          const now = Date.now();
+          // Rate-limit the summary to avoid adding more noise.
+          if (now - this.lastSuppressedLoadedSourceSummaryAt < 2000) {
+            return;
+          }
+          this.lastSuppressedLoadedSourceSummaryAt = now;
+          const count = this.suppressedLoadedSourceCount;
+          this.suppressedLoadedSourceCount = 0;
+          logger.trace(
+            `[DAP][EVT] adapter → editor: loadedSource (suppressed ${count} <node_internals> deemphasized sources)`,
+          );
         }
 
-        private safeStringify(obj: unknown, maxLength = 1000): string {
-          let str: string;
-          try {
-            str = JSON.stringify(obj);
+        private shouldSuppressLoadedSourceEvent(message: DebugProtocolMessage): boolean {
+          const msg = getRecord(message);
+          if (!msg || msg.type !== "event" || msg.event !== "loadedSource") {
+            return false;
           }
-          catch (e) {
-            str = `[unstringifiable: ${
-              e instanceof Error ? e.message : String(e)
-            }]`;
+          const body = getRecord(msg.body);
+          const source = getRecord(body?.source);
+          const path = getString(source?.path);
+          const hint = getString(source?.presentationHint);
+          if (!path) {
+            return false;
           }
-          if (str.length > maxLength) {
-            const truncated = str.slice(0, maxLength);
-            return `${truncated}… (truncated ${str.length - maxLength} chars)`;
+          // These are overwhelmingly noisy and provide little value in our logs.
+          return looksLikeNodeInternalsSourcePath(path) && hint === "deemphasize";
+        }
+
+        private shouldRecordDapMessage(
+          direction: DebugAdapterMessageDirection,
+          message: DebugProtocolMessage,
+        ): boolean {
+          const key = getDapFingerprint(direction, message);
+          const now = Date.now();
+
+          let seen = seenDapFingerprintsBySessionId.get(session.id);
+          if (!seen) {
+            seen = new Map<DapFingerprint, number>();
+            seenDapFingerprintsBySessionId.set(session.id, seen);
           }
-          return str;
+
+          if (seen.has(key)) {
+            return false;
+          }
+
+          seen.set(key, now);
+
+          // Keep memory bounded. Map iteration order is insertion order.
+          const maxEntries = 1500;
+          while (seen.size > maxEntries) {
+            const first = seen.keys().next().value as DapFingerprint | undefined;
+            if (!first) {
+              break;
+            }
+            seen.delete(first);
+          }
+
+          return true;
+        }
+
+        private get traceEnabled(): boolean {
+          return !!getCopilotDebuggerSetting<boolean>("enableTraceLogging", false);
+        }
+
+        private logTraceStatusOnce(): void {
+          if (loggedTraceStatusBySessionId.has(session.id)) {
+            return;
+          }
+          loggedTraceStatusBySessionId.add(session.id);
+          const enabled = this.traceEnabled;
+          const consoleLogLevel = getCopilotDebuggerSetting<string>(
+            "consoleLogLevel",
+            "info",
+          );
+          // Trace-level so it appears alongside DAP traffic and is easy to grep.
+          logger.trace(
+            `[DAP] tracing ${enabled ? "ENABLED" : "disabled"} for session '${session.name}' (${session.id}); copilot-debugger.enableTraceLogging=${String(
+              enabled,
+            )}; copilot-debugger.consoleLogLevel=${consoleLogLevel}`,
+          );
+        }
+
+        onWillStartSession?(): void {
+          // Ensure users see the trace status even if no DAP messages are observed
+          // (or before the first message arrives).
+          this.logTraceStatusOnce();
         }
 
         onWillReceiveMessage?(message: DebugProtocolMessage): void {
+          this.logTraceStatusOnce();
+
+          // VS Code can invoke tracker hooks more than once per message.
+          // De-dup by (direction,type,seq,command/event) to avoid double-logging.
+          if (!this.shouldRecordDapMessage("toAdapter", message)) {
+            return;
+          }
+
+          // Capture minimal DAP traffic for diagnostics (e.g. the immediate response/event
+          // after a 'continue' request that might explain a stop-wait timeout).
+          pushDebugAdapterMessage(session.id, {
+            direction: "toAdapter",
+            timestamp: Date.now(),
+            summary: safeStringify(message, 400),
+          });
+
           if (!this.traceEnabled) {
             return;
           }
           logger.trace(
-            `Message received by debug adapter: ${this.safeStringify(message)}`,
+            `[DAP][${getDapMessageKind(message)}] editor → adapter: ${formatDapTraceMessage(
+              message,
+            )}`,
           );
         }
 
         async onDidSendMessage(message: DebugProtocolMessage): Promise<void> {
+          this.logTraceStatusOnce();
+
+          if (!this.shouldRecordDapMessage("fromAdapter", message)) {
+            return;
+          }
+
+          pushDebugAdapterMessage(session.id, {
+            direction: "fromAdapter",
+            timestamp: Date.now(),
+            summary: safeStringify(message, 400),
+          });
+
+          if (this.traceEnabled) {
+            // loadedSource can be extremely noisy (especially node internals).
+            // Summarize or suppress the worst offenders to keep test output usable.
+            if (this.shouldSuppressLoadedSourceEvent(message)) {
+              this.suppressedLoadedSourceCount++;
+              this.maybeSummarizeSuppressedLoadedSource();
+            }
+            else {
+              logger.trace(
+                `[DAP][${getDapMessageKind(message)}] adapter → editor: ${formatDapTraceMessage(
+                  message,
+                )}`,
+              );
+            }
+          }
+
           // Log all messages sent from the debug adapter to VS Code
           if (message.type === "response") {
             const response = message as DebugProtocolResponse;
@@ -308,26 +732,6 @@ useDisposable(
           }
         }
 
-        onWillSendMessage(message: DebugProtocolMessage): void {
-          if (!this.traceEnabled) {
-            return;
-          }
-          logger.trace(
-            `Message sent to debug adapter: ${this.safeStringify(message)}`,
-          );
-        }
-
-        onDidReceiveMessage(message: DebugProtocolMessage): void {
-          if (!this.traceEnabled) {
-            return;
-          }
-          logger.trace(
-            `Message received from debug adapter: ${this.safeStringify(
-              message,
-            )}`,
-          );
-        }
-
         onError?(error: Error): void {
           // VS Code's NetworkDebugAdapter fires _onError(new Error('connection closed')) on socket close (see
           // workbench/contrib/debug/node/debugAdapter.ts line ~111). This is routine and can precede any stop lifecycle.
@@ -337,16 +741,26 @@ useDisposable(
             logger.debug(`[adapter-close ignored] ${session.name}`);
             return; // silently ignore benign close
           }
-          logger.error(`Debug adapter error: ${msg}`);
+          logger.error(`[DAP] debug adapter error (session '${session.name}' ${session.id}): ${msg}`);
         }
 
         onExit?(code: number | undefined, signal: string | undefined): void {
-          logger.info(`Debug adapter exited: code=${code}, signal=${signal}`);
+          // Flush any remaining suppression summary before exit so users have context.
+          this.maybeSummarizeSuppressedLoadedSource();
+          logger.info(
+            `[DAP] debug adapter exited for session '${session.name}' (${session.id}): code=${code}, signal=${signal}`,
+          );
           sessionExitEventEmitter.fire({
             sessionId: session.id,
             exitCode: code,
             signal,
           });
+
+          // Allow future sessions to create trackers without unbounded growth.
+          createdTrackerBySessionId.delete(session.id);
+
+          // Best-effort cleanup of fingerprint cache for this session.
+          seenDapFingerprintsBySessionId.delete(session.id);
         }
       }
 
@@ -390,31 +804,64 @@ export async function waitForDebuggerStopBySessionId(params: {
 }): Promise<BreakpointHitInfo> {
   const { sessionId, timeout = 30000 } = params;
 
-  return await new Promise<BreakpointHitInfo>((resolve, reject) => {
-    let terminateListener: vscode.Disposable | undefined;
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-    const listener = onBreakpointHit((event) => {
+  const waiter = createStopWaiterBySessionId({ sessionId, timeout });
+  return await waiter.promise;
+}
+
+/**
+ * Create a stop waiter that can be disposed.
+ *
+ * Use this when you need to set up stop listeners BEFORE issuing a DAP request
+ * (e.g. continue/next) to avoid missing fast stops, while still ensuring you
+ * can tear down listeners immediately if the request fails.
+ */
+export function createStopWaiterBySessionId(params: {
+  sessionId: string
+  timeout?: number
+}): { promise: Promise<BreakpointHitInfo>, dispose: () => void } {
+  const { sessionId, timeout = 30000 } = params;
+
+  let terminateListener: vscode.Disposable | undefined;
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  let listener: vscode.Disposable | undefined;
+  let settled = false;
+
+  const dispose = () => {
+    if (settled) {
+      return;
+    }
+    settled = true;
+    try {
+      listener?.dispose();
+    }
+    catch {
+      // ignore
+    }
+    try {
+      terminateListener?.dispose();
+    }
+    catch {
+      // ignore
+    }
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+      timeoutHandle = undefined;
+    }
+  };
+
+  const promise = new Promise<BreakpointHitInfo>((resolve, reject) => {
+    listener = onBreakpointHit((event) => {
       if (event.session.id !== sessionId) {
         return; // ignore other sessions
       }
-      listener.dispose();
-      terminateListener?.dispose();
-      if (timeoutHandle) {
-        clearTimeout(timeoutHandle);
-        timeoutHandle = undefined;
-      }
+      dispose();
       resolve(event);
     });
     terminateListener = onSessionTerminate((endEvent) => {
       if (endEvent.session.id !== sessionId) {
         return; // ignore
       }
-      listener.dispose();
-      terminateListener?.dispose();
-      if (timeoutHandle) {
-        clearTimeout(timeoutHandle);
-        timeoutHandle = undefined;
-      }
+      dispose();
       resolve({
         session: endEvent.session,
         threadId: 0,
@@ -422,9 +869,7 @@ export async function waitForDebuggerStopBySessionId(params: {
       });
     });
     timeoutHandle = setTimeout(() => {
-      listener.dispose();
-      terminateListener?.dispose();
-      timeoutHandle = undefined;
+      dispose();
       try {
         const target = activeSessions.find(s => s.id === sessionId);
         if (target) {
@@ -441,13 +886,19 @@ export async function waitForDebuggerStopBySessionId(params: {
           }`,
         );
       }
+
+      const recent = formatRecentDebugAdapterMessages(sessionId);
       reject(
         new Error(
-          `Timed out waiting for breakpoint or termination for session id ${sessionId} (${timeout}ms).`,
+          `Timed out waiting for breakpoint or termination for session id ${sessionId} (${timeout}ms).${
+            recent ? `\n${recent}` : ""
+          }`,
         ),
       );
     }, timeout);
   });
+
+  return { promise, dispose };
 }
 
 /**

@@ -14,11 +14,11 @@ import { activeSessions } from "./common";
 import { config } from "./config";
 import { DAPHelpers } from "./debugUtils";
 import {
+  createStopWaiterBySessionId,
   EntryStopTimeoutError,
   getSessionCapabilities,
   getSessionExitCode,
   getSessionOutput,
-  waitForDebuggerStopBySessionId,
   waitForEntryStop,
 } from "./events";
 import { logger } from "./logger";
@@ -71,6 +71,87 @@ async function captureScopeVariables(params: {
     scopeVariables.push({ scopeName: scope.name ?? "Scope", variables });
   }
   return scopeVariables;
+}
+
+async function customRequestAndWaitForStop(params: {
+  session: vscode.DebugSession
+  sessionId: string
+  command: "continue" | "next"
+  threadId: number
+  timeout: number
+  failureMessage: string
+}): Promise<BreakpointHitInfo> {
+  const { session, sessionId, command, threadId, timeout, failureMessage }
+    = params;
+  const waiter = createStopWaiterBySessionId({ sessionId, timeout });
+  try {
+    await session.customRequest(command, { threadId });
+    return await waiter.promise;
+  }
+  catch (e) {
+    waiter.dispose();
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(`${failureMessage}: ${msg}`);
+  }
+}
+
+/**
+ * Resume execution without awaiting the next stop.
+ *
+ * This is intentionally used for onHit=captureAndContinue, where the tool returns
+ * immediately while the debuggee keeps running. Any subsequent stop is handled by
+ * later tool calls.
+ */
+async function tryContinueWithoutWaiting(params: {
+  session: vscode.DebugSession
+  threadId: number
+  failureContext: string
+}): Promise<void> {
+  const { session, threadId, failureContext } = params;
+  try {
+    logger.debug(
+      `Continuing debug session ${session.id} (${session.name}) without waiting (${failureContext}).`,
+    );
+    await session.customRequest("continue", { threadId });
+  }
+  catch (continueErr) {
+    logger.warn(
+      `Failed to continue ${failureContext}: ${
+        continueErr instanceof Error ? continueErr.message : String(continueErr)
+      }`,
+    );
+  }
+}
+
+async function startDebuggingWithTimeout(params: {
+  folder: vscode.WorkspaceFolder
+  resolvedConfig: vscode.DebugConfiguration
+  timeoutMs: number
+  failureContext: string
+}): Promise<boolean> {
+  const { folder, resolvedConfig, timeoutMs, failureContext } = params;
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<boolean>((_resolve, reject) => {
+    timeoutHandle = setTimeout(() => {
+      reject(
+        new Error(
+          `Timed out waiting for VS Code to start debugging (${timeoutMs}ms) (${failureContext}). This can happen if a debug adapter is stuck or a UI prompt is blocking the extension host.`,
+        ),
+      );
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([
+      vscode.debug.startDebugging(folder, resolvedConfig),
+      timeoutPromise,
+    ]);
+  }
+  finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+  }
 }
 
 /**
@@ -1702,12 +1783,24 @@ async function configureExceptions(session: vscode.DebugSession) {
       }: ${summaryParts.join(", ")}`,
     );
 
-    await session.customRequest("setExceptionBreakpoints", {
-      filters: filtersToEnable,
-      ...(supportsExceptionOptions
-        ? { exceptionOptions: [{ breakMode: "userUnhandled" }] }
-        : {}),
-    });
+    const setExceptionBreakpointsTimeoutMs = 2000;
+    await Promise.race([
+      session.customRequest("setExceptionBreakpoints", {
+        filters: filtersToEnable,
+        ...(supportsExceptionOptions
+          ? { exceptionOptions: [{ breakMode: "userUnhandled" }] }
+          : {}),
+      }),
+      new Promise<void>((_resolve, reject) => {
+        setTimeout(() => {
+          reject(
+            new Error(
+              `setExceptionBreakpoints timed out after ${setExceptionBreakpointsTimeoutMs}ms`,
+            ),
+          );
+        }, setExceptionBreakpointsTimeoutMs);
+      }),
+    ]);
   }
   catch (err) {
     logger.warn(
@@ -2785,7 +2878,16 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
 
   taskTrackingArmed = true;
 
-  const success = await vscode.debug.startDebugging(folder, resolvedConfig);
+  const startDebuggingTimeoutMs = Math.max(
+    1,
+    Math.min(10_000, entryStopTimeoutMs),
+  );
+  const success = await startDebuggingWithTimeout({
+    folder,
+    resolvedConfig,
+    timeoutMs: startDebuggingTimeoutMs,
+    failureContext: `configuration='${resolvedConfig.name}' sessionName='${effectiveSessionName}'`,
+  });
 
   taskTrackingArmed = false;
   if (!success) {
@@ -2828,6 +2930,9 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
 
     // Configure exception breakpoints as early as possible (now that we have the concrete session id),
     // so uncaught exceptions can stop the debugger before the app terminates.
+    logger.info(
+      `Entry stop observed for session ${entryStop.session.id} (${entryStop.session.name}); configuring exception breakpoints.`,
+    );
     await configureExceptions(entryStop.session);
 
     const sessionId = entryStop.session.id;
@@ -2860,27 +2965,18 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
         }
         await executeServerReadyAction("entry");
       }
-      try {
-        // Remove serverReady breakpoint BEFORE continuing to avoid immediate re-stop
-        if (isServerReadyHit && serverReadySource) {
-          vscode.debug.removeBreakpoints([serverReadySource]);
-          logger.debug("Removed serverReady breakpoint prior to continue.");
-        }
-        await entryStop.session.customRequest("continue", {
-          threadId: entryStop.threadId,
-        });
+      // Remove serverReady breakpoint BEFORE continuing to avoid immediate re-stop
+      if (isServerReadyHit && serverReadySource) {
+        vscode.debug.removeBreakpoints([serverReadySource]);
+        logger.debug("Removed serverReady breakpoint prior to continue.");
       }
-      catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        // If we can't continue, waiting for a subsequent stop will usually hang until timeout.
-        // Fail fast with an actionable error.
-        throw new Error(
-          `Failed to continue after entry stop (DAP 'continue'): ${msg}`,
-        );
-      }
-      const firstPostEntryStop = await waitForDebuggerStopBySessionId({
+      const firstPostEntryStop = await customRequestAndWaitForStop({
+        session: entryStop.session,
         sessionId,
+        command: "continue",
+        threadId: entryStop.threadId,
         timeout: remainingMs,
+        failureMessage: "Failed to continue after entry stop (DAP 'continue')",
       });
 
       // Some adapters emit multiple early stops (often reported as 'breakpoint' rather than 'entry').
@@ -2919,22 +3015,16 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
             // Remove serverReady breakpoint to avoid re-trigger.
             vscode.debug.removeBreakpoints([serverReadySource]);
             serverReadySource = undefined;
-            try {
-              await nextStop.session.customRequest("continue", {
-                threadId: nextStop.threadId,
-              });
-            }
-            catch (e) {
-              const msg = e instanceof Error ? e.message : String(e);
-              throw new Error(
-                `Failed to continue after serverReady breakpoint (DAP 'continue'): ${msg}`,
-              );
-            }
             const elapsed = Date.now() - loopStart;
             const remaining = Math.max(0, remainingMs - elapsed);
-            nextStop = await waitForDebuggerStopBySessionId({
+            nextStop = await customRequestAndWaitForStop({
+              session: nextStop.session,
               sessionId,
+              command: "continue",
+              threadId: nextStop.threadId,
               timeout: remaining,
+              failureMessage:
+                "Failed to continue after serverReady breakpoint (DAP 'continue')",
             });
             continue;
           }
@@ -2944,20 +3034,14 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
           logger.debug(
             `Continuing past non-user stop (reason=${nextStop.reason} line=${nextStop.line}); hop ${hops}/${maxHops}.`,
           );
-          try {
-            await nextStop.session.customRequest("continue", {
-              threadId: nextStop.threadId,
-            });
-          }
-          catch (e) {
-            const msg = e instanceof Error ? e.message : String(e);
-            throw new Error(
-              `Failed to continue after non-user stop (DAP 'continue'): ${msg}`,
-            );
-          }
-          nextStop = await waitForDebuggerStopBySessionId({
+          nextStop = await customRequestAndWaitForStop({
+            session: nextStop.session,
             sessionId,
+            command: "continue",
+            threadId: nextStop.threadId,
             timeout: remaining,
+            failureMessage:
+              "Failed to continue after non-user stop (DAP 'continue')",
           });
         }
         finalStop = nextStop;
@@ -2992,22 +3076,14 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
       await executeServerReadyAction("late");
       // Remove serverReady breakpoint to avoid re-trigger
       vscode.debug.removeBreakpoints([serverReadySource]);
-      try {
-        await finalStop.session.customRequest("continue", {
-          threadId: finalStop.threadId,
-        });
-      }
-      catch (contErr) {
-        const msg
-          = contErr instanceof Error ? contErr.message : String(contErr);
-        throw new Error(
-          `Failed to continue after late serverReady processing (DAP 'continue'): ${msg}`,
-        );
-      }
-      // Wait for the actual user breakpoint
-      const nextStop = await waitForDebuggerStopBySessionId({
+      const nextStop = await customRequestAndWaitForStop({
+        session: finalStop.session,
         sessionId: finalStop.session.id,
+        command: "continue",
+        threadId: finalStop.threadId,
         timeout: remainingMs,
+        failureMessage:
+          "Failed to continue after late serverReady processing (DAP 'continue')",
       });
       if (nextStop.reason === "terminated") {
         throw new Error(
@@ -3036,22 +3112,13 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
         );
         for (let attempt = 0; attempt < 3; attempt++) {
           try {
-            await finalStop.session.customRequest("next", {
-              threadId: finalStop.threadId,
-            });
-          }
-          catch (stepErr) {
-            logger.warn(
-              `Step attempt ${attempt + 1} failed: ${
-                stepErr instanceof Error ? stepErr.message : String(stepErr)
-              }`,
-            );
-            break;
-          }
-          try {
-            const stepped = await waitForDebuggerStopBySessionId({
+            const stepped = await customRequestAndWaitForStop({
+              session: finalStop.session,
               sessionId: finalStop.session.id,
+              command: "next",
+              threadId: finalStop.threadId,
               timeout: remainingMs,
+              failureMessage: `Step attempt ${attempt + 1} failed`,
             });
             if (stepped.reason === "terminated") {
               logger.warn(
@@ -3070,10 +3137,10 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
               break;
             }
           }
-          catch (waitErr) {
+          catch (stepErr) {
             logger.warn(
-              `Wait after step attempt ${attempt + 1} failed: ${
-                waitErr instanceof Error ? waitErr.message : String(waitErr)
+              `Step attempt ${attempt + 1} failed: ${
+                stepErr instanceof Error ? stepErr.message : String(stepErr)
               }`,
             );
             break;
@@ -3129,22 +3196,14 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
       });
       const fromLine = debugContext.frame?.line;
 
-      try {
-        await finalStop.session.customRequest("next", {
-          threadId: finalStop.threadId,
-        });
-      }
-      catch (err) {
-        throw new Error(
-          `autoStepOver failed: debug adapter did not accept step-over request (DAP 'next'): ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        );
-      }
-
-      const stepped = await waitForDebuggerStopBySessionId({
+      const stepped = await customRequestAndWaitForStop({
+        session: finalStop.session,
         sessionId: finalStop.session.id,
+        command: "next",
+        threadId: finalStop.threadId,
         timeout: remainingMs,
+        failureMessage:
+          "autoStepOver failed: debug adapter did not accept step-over request (DAP 'next')",
       });
       if (stepped.reason === "terminated") {
         throw new Error(
@@ -3218,23 +3277,11 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
       logger.info(`All debug sessions terminated after ${waitTime}ms.`);
     }
     else if (hitBreakpoint?.onHit === "captureAndContinue") {
-      try {
-        logger.debug(
-          `Continuing debug session ${finalStop.session.id} after capture action.`,
-        );
-        await finalStop.session.customRequest("continue", {
-          threadId: finalStop.threadId,
-        });
-      }
-      catch (continueErr) {
-        logger.warn(
-          `Failed to continue after capture action: ${
-            continueErr instanceof Error
-              ? continueErr.message
-              : String(continueErr)
-          }`,
-        );
-      }
+      await tryContinueWithoutWaiting({
+        session: finalStop.session,
+        threadId: finalStop.threadId,
+        failureContext: "after capture action",
+      });
     }
     activeDebugPatternScan?.();
     const serverReadyInfo: ServerReadyInfo = {
@@ -3591,11 +3638,14 @@ export async function resumeDebugSession(params: {
 
   // Send the continue request to the debug adapter
   logger.info(`Resuming debug session '${session.name}' (ID: ${sessionId})`);
-  const stopPromise = waitForDebuggerStopBySessionId({
+  const stopInfo = await customRequestAndWaitForStop({
+    session,
     sessionId: session.id,
+    command: "continue",
+    threadId: 0,
+    timeout: 30000,
+    failureMessage: "Failed to resume debug session (DAP 'continue')",
   });
-  await session.customRequest("continue", { threadId: 0 }); // 0 means all threads
-  const stopInfo = await stopPromise;
   // If session terminated without hitting breakpoint, return termination stopInfo
   if (stopInfo.reason === "terminated") {
     throw new Error(
@@ -3704,23 +3754,11 @@ export async function resumeDebugSession(params: {
     await vscode.debug.stopDebugging();
   }
   else if (hitBreakpoint?.onHit === "captureAndContinue") {
-    try {
-      logger.debug(
-        `Continuing debug session ${stopInfo.session.id} after capture action.`,
-      );
-      await stopInfo.session.customRequest("continue", {
-        threadId: stopInfo.threadId,
-      });
-    }
-    catch (continueErr) {
-      logger.warn(
-        `Failed to continue after capture action: ${
-          continueErr instanceof Error
-            ? continueErr.message
-            : String(continueErr)
-        }`,
-      );
-    }
+    await tryContinueWithoutWaiting({
+      session: stopInfo.session,
+      threadId: stopInfo.threadId,
+      failureContext: "after capture action",
+    });
   }
 
   const serverReadyInfo: ServerReadyInfo = {

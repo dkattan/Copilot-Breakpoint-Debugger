@@ -4,13 +4,14 @@ import type {
   VSCodeWorkerOptions,
 } from "vscode-test-playwright";
 import * as path from "node:path";
+import * as process from "node:process";
 
 const repoRoot = __dirname;
 
 const config = {
   testDir: path.join(repoRoot, "playwright"),
   reporter: [["list"]],
-  timeout: 90_000,
+  timeout: process.env.ACT ? 240_000 : 90_000,
   expect: {
     timeout: 15_000,
   },

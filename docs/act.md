@@ -13,6 +13,10 @@ This is the job that launches VS Code (Electron) under Xvfb and tends to be the 
 - Run only the Playwright demo job (fastest):
   - `act -W .github/workflows/ci.yml -j playwright-demo --no-deps`
 
+When running under `act`, this job also converts the recorded VS Code Playwright video to an MP4 using the repo’s existing tooling.
+
+- Output file: `docs/pw-videos/demo.mp4`
+
 Notes:
 - This repo includes a `.actrc` that selects a close-to-`ubuntu-latest` image and forces `linux/amd64` for CI parity.
 - By default, `act` sets `github.actor` to `nektos/act`. The workflow uses that to:

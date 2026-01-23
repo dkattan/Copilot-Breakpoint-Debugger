@@ -406,9 +406,6 @@ jobs:
           npm test
         env:
           CI: true
-          # The Playwright demo is already exercised by the dedicated 'Playwright Demo Test' job.
-          # Skip the Playwright smoke embedded in `npm pretest` here to keep macOS/Windows unit tests reliable.
-          PW_VSCODE_TEST_SKIP_SMOKE: '1'
           # Enable detailed handshake tracing for the VS Code test server.
           # This writes logs into test-results/** and also emits to stderr.
           PW_VSCODE_TEST_TRACE: '1'

@@ -6,6 +6,7 @@
 - **Watch mode**: `npm run watch` - Compiles TypeScript in watch mode for development (long-running)
 - **Lint**: `npm run lint` - Runs ESLint on TypeScript files in `src/`
 - **Test**: `npm run test` - Runs tests using vscode-test
+- **Playwright demo test**: `npm run demo:pw` - Runs the Playwright demo spec (records videos/artifacts under `test-results/**`)
 - **Prepare for publish**: `npm run vscode:prepublish` - Runs compile before publishing
 - **Formatting**: Formatting is handled by ESLint autofix (`npm run lint -- --fix` or just `npm run lint` if configured).
 

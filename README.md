@@ -508,12 +508,21 @@ Contributions are welcome!
 ### Development Scripts
 
 - `npm run watch` – Incremental TypeScript compilation
-- `npm test` – Compiles then runs test suite
+- `npm test` – Compiles then runs the VS Code integration test suite
+- `npm run demo:pw` – Runs the Playwright demo spec (records video/artifacts)
 - `npm run lint` – ESLint static analysis (run with `--fix` for autofix)
 
 ### Testing
 
-`npm test` compiles the extension and runs the full VS Code integration suite via `@vscode/test-cli`. Set `CI=true` to skip PowerShell-specific cases. Tests live under `src/test/` (extension smoke tests, DAP helper flows, and multi-root coverage). You can also run them from VS Code’s Test Explorer using the supplied launch configs—just avoid executing compiled files manually, as the harness wires up the VS Code host and Mocha globals for you. Pre-commit hooks mirror these checks so local commits match CI expectations.
+`npm test` compiles the extension and runs the full VS Code integration suite via `@vscode/test-cli`. Set `CI=true` to skip PowerShell-specific cases. Tests live under `src/test/` (integration tests, DAP helper flows, and multi-root coverage). You can also run them from VS Code’s Test Explorer using the supplied launch configs—just avoid executing compiled files manually, as the harness wires up the VS Code host and Mocha globals for you. Pre-commit hooks mirror these checks so local commits match CI expectations.
+
+For the Playwright-driven demo spec (the one that records videos under `test-results/**`), run:
+
+- `npm run demo:pw`
+
+On Linux, run it under a virtual display:
+
+- `xvfb-run -a npm run demo:pw`
 
 ### Local Development Setup
 

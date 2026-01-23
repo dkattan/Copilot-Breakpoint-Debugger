@@ -24,6 +24,9 @@ playwright-demo.config.js.map
 # act local exported artifacts
 .act-artifacts/
 
+# Downloaded GitHub Actions artifacts (local)
+.gh-artifacts/
+
 # Local Playwright Test Explorer env
 .env.playwright
 test-results

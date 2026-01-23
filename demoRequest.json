@@ -1,0 +1,24 @@
+{
+  "workspaceFolder": "__WORKSPACE_B__",
+  "configurationName": "Run b/server.js",
+  "mode": "singleShot",
+  "breakpointConfig": {
+    "breakpoints": [
+      {
+        "path": "server.js",
+        "code": "queryParamForDebugger = queryParam",
+        "variableFilter": ["queryParam"],
+        "onHit": "captureAndStopDebugging"
+      }
+    ]
+  },
+  "serverReady": {
+    "trigger": {
+      "pattern": "Server listening on http://localhost:31337"
+    },
+    "action": {
+      "type": "httpRequest",
+      "url": "http://localhost:31337/api/echo?q=from-demo"
+    }
+  }
+}

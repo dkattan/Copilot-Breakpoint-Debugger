@@ -24,7 +24,7 @@
   "eslint.format.enable": true,
   // Use built-in formatter for JSON/JSONC
   "[json]": {
-    "editor.defaultFormatter": "dbaeumer.vscode-eslint"
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "[jsonc]": {
     "editor.defaultFormatter": "dbaeumer.vscode-eslint"

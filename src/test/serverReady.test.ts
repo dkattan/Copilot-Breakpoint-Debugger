@@ -1,4 +1,5 @@
 import * as assert from "node:assert";
+import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import { startDebuggingAndWaitForStop } from "../session";
@@ -270,6 +271,124 @@ describe("serverReady breakpoint", function () {
           ?.toLowerCase()
           .includes("terminal"),
       "serverReady trigger summary should describe pattern hit source",
+    );
+  });
+
+  it("demo scenario: httpRequest includes query param and captures queryParam at API handler breakpoint", async () => {
+    await activateCopilotDebugger();
+    const extensionRoot = getExtensionRoot();
+    const demoRequestPath = path.join(extensionRoot, "demoRequest.json");
+    const sharedRequest = JSON.parse(
+      fs.readFileSync(demoRequestPath, { encoding: "utf8" }),
+    ) as {
+      workspaceFolder: string
+      configurationName: string
+      breakpointConfig: {
+        breakpoints: Array<{
+          path: string
+          code: string
+          variableFilter: string[]
+          onHit: "break" | "captureAndContinue" | "captureAndStopDebugging"
+        }>
+      }
+      serverReady: {
+        trigger: { pattern: string }
+        action: { type: "httpRequest", url: string }
+      }
+    };
+
+    assert.strictEqual(
+      sharedRequest.workspaceFolder,
+      "__WORKSPACE_B__",
+      `demoRequest.json workspaceFolder must be '__WORKSPACE_B__' placeholder, got: ${String(
+        sharedRequest.workspaceFolder,
+      )}`,
+    );
+
+    const workspaceFolder = path.join(extensionRoot, "test-workspace", "b");
+    const serverPath = path.join(workspaceFolder, "server.js");
+    const serverDoc = await vscode.workspace.openTextDocument(serverPath);
+    await openScriptDocument(serverDoc.uri);
+
+    assert.ok(
+      sharedRequest.breakpointConfig?.breakpoints?.length === 1,
+      "demoRequest.json breakpointConfig.breakpoints must contain exactly 1 breakpoint",
+    );
+
+    const demoBreakpoint = sharedRequest.breakpointConfig.breakpoints[0];
+    assert.strictEqual(
+      demoBreakpoint.path,
+      "server.js",
+      `demoRequest.json breakpoint path must be 'server.js', got: ${String(
+        demoBreakpoint.path,
+      )}`,
+    );
+
+    const apiBreakpointSnippet = demoBreakpoint.code;
+    const apiBreakpointLine
+      = serverDoc
+        .getText()
+        .split(/\r?\n/)
+        .findIndex(l => l.includes(apiBreakpointSnippet)) + 1;
+    assert.ok(
+      apiBreakpointLine > 0,
+      "Did not find expected API query breakpoint snippet line",
+    );
+
+    const readyPattern = sharedRequest.serverReady.trigger.pattern;
+
+    const context = await startDebuggingAndWaitForStop({
+      sessionName: "",
+      workspaceFolder,
+      nameOrConfiguration: sharedRequest.configurationName,
+      timeoutSeconds: 180,
+      breakpointConfig: {
+        breakpoints: [
+          {
+            path: serverPath,
+            code: apiBreakpointSnippet,
+            variableFilter: demoBreakpoint.variableFilter,
+            onHit: demoBreakpoint.onHit,
+          },
+        ],
+      },
+      serverReady: {
+        trigger: { pattern: readyPattern },
+        action: {
+          type: "httpRequest",
+          url: sharedRequest.serverReady.action.url,
+        },
+      },
+    });
+
+    assert.strictEqual(
+      context.serverReadyInfo.triggerMode,
+      "pattern",
+      "serverReady trigger mode should be pattern (demo scenario)",
+    );
+    assert.ok(
+      context.serverReadyInfo.phases.some(phase => phase.phase === "immediate"),
+      "serverReady pattern should execute immediate phase (demo scenario)",
+    );
+    assert.strictEqual(
+      context.frame.line,
+      apiBreakpointLine,
+      "Did not pause at expected API handler breakpoint line",
+    );
+
+    const queryParamVar = (context.scopeVariables ?? [])
+      .flatMap(scope => scope.variables)
+      .find(v => v.name === "queryParam");
+
+    assert.ok(
+      queryParamVar,
+      "queryParam variable not found in pre-collected scopeVariables",
+    );
+    assert.ok(
+      String(queryParamVar?.value).includes("from-demo"),
+      `Expected queryParam to include 'from-demo', but was: ${String(
+        queryParamVar?.value,
+      )}`,
     );
   });
 });

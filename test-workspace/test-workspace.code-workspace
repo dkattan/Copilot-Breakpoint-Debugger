@@ -38,8 +38,7 @@
     "copilot-debugger.maxOutputLines": 20,
     "copilot-debugger.maxBuildErrors": 2,
     "copilot-debugger.maxOutputChars": 8192,
-    "terminal.integrated.shellIntegration.enabled": true,
-    "copilot-debugger.entryTimeoutSeconds": 60
+    "terminal.integrated.shellIntegration.enabled": true
   },
   "launch": {
     "version": "0.2.0",

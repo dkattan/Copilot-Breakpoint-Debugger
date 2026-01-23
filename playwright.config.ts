@@ -37,9 +37,9 @@ const config = {
         vscodeTrace: "off",
         vscodeVideo: {
           mode: "on",
-          size: { width: 1280, height: 720 },
+          size: { width: 1280, height: 920 },
           // Keep the VS Code window itself at the same pixel dimensions (best-effort).
-          windowSize: { width: 1280, height: 720 },
+          windowSize: { width: 1280, height: 920 },
         },
         // Ensure Copilot Chat is available during the demo run. Our extension is
         // loaded via extensionDevelopmentPath, but Copilot Chat must be installed

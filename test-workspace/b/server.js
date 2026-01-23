@@ -5,9 +5,18 @@ const port = 31337;
 let started = false; // referenced by breakpoint variableFilter
 
 const server = http.createServer((req, res) => {
-  if (req.url === '/health') {
+  const url = new URL(req.url ?? '/', `http://localhost:${port}`);
+
+  if (url.pathname === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: true }));
+  } else if (url.pathname === '/api/echo') {
+    const q = url.searchParams.get('q') ?? '';
+    const queryParam = q;
+    const queryParamForDebugger = queryParam;
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, queryParam }));
   } else {
     res.writeHead(404);
     res.end();

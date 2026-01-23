@@ -46,14 +46,48 @@ export interface FoundVariable {
 
 // Shared DAP helper functions
 export class DAPHelpers {
+  private static async customRequestWithTimeout<T>(
+    session: vscode.DebugSession,
+    command: string,
+    args: Record<string, unknown> | undefined,
+    timeoutMs: number,
+  ): Promise<T> {
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<T>((_resolve, reject) => {
+      timeoutHandle = setTimeout(() => {
+        reject(
+          new Error(
+            `DAP request '${command}' timed out after ${timeoutMs}ms (session ${session.id} ${session.name}).`,
+          ),
+        );
+      }, timeoutMs);
+    });
+
+    try {
+      return await Promise.race([
+        session.customRequest(command, args),
+        timeoutPromise,
+      ]);
+    }
+    finally {
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
+    }
+  }
+
   static async getDebugContext(
     session: vscode.DebugSession,
     threadId?: number,
   ): Promise<DebugContext> {
     // Step 1: Get threads
-    const { threads } = (await session.customRequest("threads")) as {
-      threads: Thread[]
-    };
+    const dapTimeoutMs = 15_000;
+    const { threads } = (await this.customRequestWithTimeout(
+      session,
+      "threads",
+      undefined,
+      dapTimeoutMs,
+    )) as { threads: Thread[] };
 
     if (!threads || threads.length === 0) {
       throw new Error(
@@ -71,9 +105,14 @@ export class DAPHelpers {
       );
     }
     // Step 2: Get stack trace for the first thread
-    const stackTraceResponse = await session.customRequest("stackTrace", {
-      threadId: thread.id,
-    });
+    const stackTraceResponse = await this.customRequestWithTimeout<{
+      stackFrames?: StackFrame[]
+    }>(
+      session,
+      "stackTrace",
+      { threadId: thread.id },
+      dapTimeoutMs,
+    );
     if (
       !stackTraceResponse.stackFrames
       || stackTraceResponse.stackFrames.length === 0
@@ -85,9 +124,14 @@ export class DAPHelpers {
     const topFrame: StackFrame = stackTraceResponse.stackFrames[0];
 
     // Step 3: Get scopes for the top frame
-    const scopesResponse = await session.customRequest("scopes", {
-      frameId: topFrame.id,
-    });
+    const scopesResponse = await this.customRequestWithTimeout<{
+      scopes?: Scope[]
+    }>(
+      session,
+      "scopes",
+      { frameId: topFrame.id },
+      dapTimeoutMs,
+    );
     if (!scopesResponse.scopes || scopesResponse.scopes.length === 0) {
       throw new Error(
         `No scopes available for frame ${topFrame.id} in session ${session.id} (${session.name})`,
@@ -107,9 +151,13 @@ export class DAPHelpers {
   ): Promise<VariableInfo[]> {
     let variablesResponse: VariablesResponse;
     try {
-      variablesResponse = await session.customRequest("variables", {
-        variablesReference,
-      });
+      const dapTimeoutMs = 15_000;
+      variablesResponse = await this.customRequestWithTimeout(
+        session,
+        "variables",
+        { variablesReference },
+        dapTimeoutMs,
+      );
     }
     catch {
       return [];

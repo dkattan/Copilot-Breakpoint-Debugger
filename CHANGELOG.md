@@ -1,3 +1,31 @@
+## [0.0.52] - 2026-01-23
+
+## Summary
+
+This release focuses on improving the development workflow by decoupling the Playwright demo from the standard unit test suite, making the test process more reliable and flexible across different platforms.
+
+## Improvements
+
+### Testing & CI
+
+- **Split Playwright demo from unit tests**: The Playwright demo spec is now executed separately via `npm run demo:pw` instead of being embedded in `npm pretest`. This separation improves reliability on macOS and Windows by avoiding display server requirements during standard unit tests.
+- **Removed `run-demo-pw-smoke.cjs` script**: Eliminated the 69-line wrapper script that handled cross-platform xvfb execution. Developers now run `xvfb-run -a npm run demo:pw` directly on Linux when needed.
+- **Simplified CI workflow**: Removed `PW_VSCODE_TEST_SKIP_SMOKE` environment variable from GitHub Actions, as the demo is now handled by a dedicated job.
+
+### Documentation
+
+- **Updated README**: Enhanced testing section with clear instructions for running the Playwright demo separately, including Linux virtual display setup with `xvfb-run`.
+- **Updated agents.md**: Added documentation for the new `npm run demo:pw` command.
+
+### Configuration
+
+- **Updated .gitignore**: Added `.gh-artifacts/` to ignore downloaded GitHub Actions artifacts in local development.
+- **Test workspace configuration**: Increased `copilot-debugger.entryTimeoutSeconds` to 60 seconds in the test workspace.
+
+## Breaking Changes
+
+None.
+
 ## [0.0.51] - 2026-01-23
 
 Based on my analysis of the commits and code changes between version 0.0.50 and 0.0.51, here are the release notes:

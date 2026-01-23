@@ -1,3 +1,40 @@
+## [0.0.53] - 2026-01-23
+
+## Version 0.0.53
+
+### Summary
+
+This release focuses on improving test stability and code organization for the Debug Adapter Protocol (DAP) integration tests and demo workflows. The changes refactor DAP helper utilities into a shared module, add comprehensive unit tests for serverReady functionality, and enhance the Playwright-based demo specification with better accessibility-based selectors and error diagnostics.
+
+### Improvements
+
+- **Code Organization**: Refactored DAP type definitions and helper functions into a new `startDebuggerToolTypes.ts` module, improving code reusability and separation of concerns (src/debugUtils.ts:1, src/startDebuggerToolTypes.ts:1)
+
+- **Enhanced DAP Helpers**: Improved the `DAPHelpers` class with better timeout handling and more robust request management across debug sessions (src/debugUtils.ts:49-77)
+
+- **Test Stability**: Enhanced Playwright demo test with accessibility-based element selection, better error diagnostics including visible element dumps, and more reliable UI interaction patterns (playwright/demo.spec.ts:17-87, playwright/demo.spec.ts:167-186)
+
+- **Demo Configuration**: Added `demoRequest.json` configuration file to standardize demo parameters and enable sharing between unit tests and Playwright integration tests (demoRequest.json:1-24)
+
+- **Test Coverage**: Added comprehensive unit tests for serverReady functionality covering breakpoint triggers, pattern matching, HTTP requests, shell commands, and the full demo scenario workflow (src/test/serverReady.test.ts:1-394)
+
+- **Updated Demo Video**: Refreshed the demo video to reflect current functionality and stabilized test behaviors (docs/pw-videos/demo.mp4)
+
+- **Test Infrastructure**: Updated vscode-test-playwright submodule and adjusted Playwright configuration for better test isolation (external/vscode-test-playwright, playwright.config.ts:1)
+
+### Testing
+
+- Added 4 new comprehensive integration tests for serverReady breakpoint scenarios
+- Tests now validate breakpoint triggers, pattern matching, HTTP requests, and variable capture
+- Improved test timeout handling for CI/CD environments (240 second timeout for complex debug sessions)
+- Enhanced test server with marker comments for reliable line-based breakpoint targeting
+
+### Developer Experience
+
+- Better separation of type definitions makes the codebase easier to navigate
+- Shared demo configuration enables consistent testing across different test frameworks
+- Improved error messages and diagnostics for DAP request timeouts
+
 ## [0.0.52] - 2026-01-23
 
 ## Summary

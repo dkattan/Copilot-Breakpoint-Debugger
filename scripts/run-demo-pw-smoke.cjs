@@ -11,18 +11,20 @@ const process = require("node:process");
 function buildEnv() {
   const env = { ...process.env, NODE_OPTIONS: "" };
 
-  // The WS transport has proven flaky on some Windows CI environments.
-  // Prefer the named pipe transport there for reliability.
+  // The harness supports both WS and pipe transports.
+  // Pipe is the harness default, but we keep this explicit on Windows so
+  // local/CI behavior stays predictable even if defaults change later.
   if (!env.PW_VSCODE_TEST_TRANSPORT && process.platform === "win32") {
     env.PW_VSCODE_TEST_TRANSPORT = "pipe";
   }
 
-  // Starting VS Code + extension host can be slower on CI/Windows.
+  // Starting VS Code + extension host can be slower on CI (cold starts) and Windows.
   // Increase the connection timeout unless the user has explicitly set one.
   if (!env.PW_VSCODE_TEST_WS_CONNECT_TIMEOUT_MS) {
     const isCi = String(env.CI).toLowerCase() === "true";
     if (isCi || process.platform === "win32") {
-      env.PW_VSCODE_TEST_WS_CONNECT_TIMEOUT_MS = "120000";
+      // Must be >= playwright.config.ts timeout (CI) to avoid confusing double timeouts.
+      env.PW_VSCODE_TEST_WS_CONNECT_TIMEOUT_MS = "240000";
     }
   }
 

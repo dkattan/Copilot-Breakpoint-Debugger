@@ -11,7 +11,9 @@ const repoRoot = __dirname;
 const config = {
   testDir: path.join(repoRoot, "playwright"),
   reporter: [["list"]],
-  timeout: process.env.ACT ? 240_000 : 90_000,
+  // On CI (especially cold starts), launching VS Code + extension host can be slow.
+  // Keep local runs snappy, but give CI/act enough breathing room to avoid flakes.
+  timeout: process.env.ACT || process.env.CI ? 240_000 : 90_000,
   expect: {
     timeout: 15_000,
   },

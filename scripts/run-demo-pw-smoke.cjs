@@ -18,16 +18,6 @@ function buildEnv() {
     env.PW_VSCODE_TEST_TRANSPORT = "pipe";
   }
 
-  // Starting VS Code + extension host can be slower on CI (cold starts) and Windows.
-  // Increase the connection timeout unless the user has explicitly set one.
-  if (!env.PW_VSCODE_TEST_WS_CONNECT_TIMEOUT_MS) {
-    const isCi = String(env.CI).toLowerCase() === "true";
-    if (isCi || process.platform === "win32") {
-      // Must be >= playwright.config.ts timeout (CI) to avoid confusing double timeouts.
-      env.PW_VSCODE_TEST_WS_CONNECT_TIMEOUT_MS = "240000";
-    }
-  }
-
   return env;
 }
 

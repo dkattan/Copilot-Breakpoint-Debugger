@@ -406,6 +406,19 @@ jobs:
           npm test
         env:
           CI: true
+          # Enable detailed handshake tracing for the VS Code test server.
+          # This writes logs into test-results/** and also emits to stderr.
+          PW_VSCODE_TEST_TRACE: '1'
+
+      - name: Upload test results (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.os }}-${{ matrix.node-version }}
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            test-results/**
 
   build-and-test-linux:
     name: Build and Test (Linux)
@@ -456,6 +469,17 @@ jobs:
           xvfb-run --auto-servernum --server-args='-screen 0 1280x1024x24' npm test
         env:
           CI: true
+          PW_VSCODE_TEST_TRACE: '1'
+
+      - name: Upload test results (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-linux-${{ matrix.node-version }}
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            test-results/**
 
   auto-release:
     name: Auto Release

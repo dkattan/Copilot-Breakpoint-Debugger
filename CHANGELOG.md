@@ -1,3 +1,109 @@
+## [0.0.51] - 2026-01-23
+
+Based on my analysis of the commits and code changes between version 0.0.50 and 0.0.51, here are the release notes:
+
+---
+
+# Release 0.0.51
+
+## Summary
+
+This release focuses on comprehensive CI/CD improvements, enhanced testing infrastructure with Playwright integration, better DAP (Debug Adapter Protocol) tracing, and improved Windows compatibility. The release includes significant refinements to the development workflow with video demonstration capabilities, automated testing, and better diagnostic output for debugging issues.
+
+## New Features
+
+- **Playwright Integration**: Added complete Playwright testing infrastructure with demo video generation capabilities
+  - New `playwright.config.ts` and demo test specs for UI-driven testing
+  - Automated demo video generation in CI pipeline with artifacts uploaded as MP4
+  - PowerShell script (`Test-Playwright.ps1`) for local Playwright testing
+  - Git submodules for `playwright-test-videos` and `vscode-test-playwright`
+
+- **Enhanced DAP Tracing**: Significantly improved Debug Adapter Protocol message visibility
+  - Quieter, more intelligent trace output that filters noisy internal events
+  - Better formatting of DAP messages for debugging timeout issues
+  - De-duplication of DAP logs to prevent spam from multiple hook invocations
+
+- **Local Development with Act**: Added support for running GitHub Actions workflows locally using `act`
+  - New `.actrc` configuration for GitHub Actions local testing
+  - Documentation in `docs/act.md` for local CI workflow execution
+  - Act artifact debug workflow for troubleshooting
+
+## Improvements
+
+- **CI/CD Enhancements**:
+  - Stabilized Playwright smoke tests across platforms (Linux, macOS, Windows)
+  - Run Linux CI jobs in Playwright Docker images for consistency
+  - Fixed DBus environment configuration for headless VS Code testing
+  - Increased CI timeouts to reduce flakiness
+  - Enhanced CI handshake tracing for better debugging
+  - Auto Release workflow now includes proper apt dependencies
+
+- **Windows Compatibility**:
+  - Fixed Windows-specific issues with NODE_OPTIONS environment variable handling
+  - Made npm scripts Windows-safe across the board
+  - Improved task output capture for Windows environments
+
+- **Build and Error Handling**:
+  - Unified JSON formatters across the codebase
+  - Enhanced task command error handling for build failures
+  - New test workspace for build error scenarios (stdout and stderr testing)
+
+- **Test Infrastructure**:
+  - Stabilized serverReady vscodeCommand tests for deterministic behavior
+  - Fixed test issue where capture breakpoints could incorrectly become logpoints
+  - Improved task output capture stability
+  - Better CI submodule initialization (only required submodules in PRs)
+
+- **Code Quality**:
+  - Applied extensive ESLint autofixes and formatting improvements
+  - Removed deprecated `inspectJustification` parameter (simplified API)
+  - Better code style consistency across TypeScript source files
+  - Added pre-commit git hooks for code quality enforcement
+
+- **Documentation**:
+  - New `agents.md` file documenting agent workflows
+  - Enhanced README with demo video integration
+  - Comprehensive act.md documentation for local CI testing
+
+## Bug Fixes
+
+- **CI Fixes**:
+  - Fixed Auto Release apt dependencies preventing proper workflow execution
+  - Corrected Playwright demo workspace path to be portable across environments
+  - Fixed issue where vscode-test-playwright needed to be built before typecheck
+  - Resolved npm script compatibility issues on Windows
+
+- **Test Fixes**:
+  - Prevented capture breakpoints from incorrectly becoming logpoints during tests
+  - Made serverReady vscodeCommand test deterministic to avoid race conditions
+  - Stabilized task output capture to prevent test flakiness
+
+## Breaking Changes
+
+None
+
+## Technical Details
+
+**Changed Files**: 85 files modified
+- Major CI/CD improvements in `.github/workflows/ci.yml` (+434 lines)
+- New Playwright infrastructure (config, tests, scripts)
+- Enhanced session management in `src/session.ts` (+2,236 lines modified)
+- Improved DAP event handling in `src/events.ts` (+813 lines)
+- Better logging in `src/logger.ts` (+135 lines)
+- Dependencies updated in `package-lock.json` (3,090 lines modified)
+
+**Platform Support**:
+- Linux (fully tested in CI)
+- macOS (Playwright smoke tests skipped in CI, manual testing supported)
+- Windows (Playwright smoke tests skipped in CI, manual testing supported with fixed NODE_OPTIONS handling)
+
+**Development Workflow**:
+- Added support for local GitHub Actions testing with `act`
+- Enhanced video generation pipeline for demos
+- Improved git submodule management for external dependencies
+
+---
+
 ## [0.0.49] - 2026-01-07
 
 # Release 0.0.49

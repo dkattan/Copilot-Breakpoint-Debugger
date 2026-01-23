@@ -8,6 +8,11 @@
 const cp = require("node:child_process");
 const process = require("node:process");
 
+if ((process.env.PW_VSCODE_TEST_SKIP_SMOKE ?? "").trim() === "1") {
+  console.log("PW_VSCODE_TEST_SKIP_SMOKE=1: skipping Playwright smoke test (demo spec).");
+  process.exit(0);
+}
+
 function buildEnv() {
   const env = { ...process.env, NODE_OPTIONS: "" };
 

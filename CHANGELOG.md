@@ -1,3 +1,58 @@
+## [0.0.54] - 2026-01-24
+
+## Version 0.0.54
+
+### Summary
+
+This release introduces stricter breakpoint requirements and implements automatic step-over behavior for capture actions to improve the reliability of variable inspection during debugging.
+
+### Breaking Changes
+
+**Mandatory `variable` field for all breakpoints**
+
+- All breakpoints now **require** a `variable` field (previously `variableFilter` was optional)
+- Use `variable: "variableName"` to focus on a single exact variable name (case-sensitive)
+- Use `variable: "*"` to opt into capture-all mode (auto-captures up to `captureMaxVariables` locals)
+- This change affects both `startDebugSessionWithBreakpoints` and `resumeDebugSession` tools
+
+**Schema changes:**
+- `variableFilter` (array) → `variable` (string)
+- Matching is now simple string equality instead of list membership
+- No regex evaluation
+
+### New Features
+
+**Automatic step-over for capture actions**
+
+Capture actions (`captureAndContinue` and `captureAndStopDebugging`) now automatically perform a single step-over (F10 / DAP `next`) before capturing variables. This solves the common problem where breakpoints placed on assignment lines would capture pre-assignment values instead of the expected post-assignment values.
+
+- Applied when `autoStepOver` is not explicitly set
+- Can be disabled by setting `autoStepOver: false`
+- Enhanced with explicit `autoStepOver: true` for before/after variable snapshots
+
+### Improvements
+
+- Updated all documentation, examples, and test fixtures to reflect the new `variable` field requirement
+- Improved error messages to guide users toward the correct schema
+- Enhanced configuration descriptions to clarify capture-all mode (`variable: "*"`)
+- Updated VS Code quick-insert command to prompt for single variable name or `*`
+
+### Documentation Updates
+
+- README.md: Updated breakpoint examples and usage instructions
+- agents.md: Revised variable filtering semantics documentation
+- package.json: Updated tool descriptions and schema definitions for both Language Model Tools
+
+### Technical Details
+
+Modified files include:
+- `src/BreakpointDefinition.ts`: Updated interface with new `variable` field
+- `src/session.ts`: Implemented default step-over logic for capture actions
+- `src/extension.ts`: Updated VS Code command prompts for new schema
+- `src/stopInfoMarkdown.ts`: Updated variable display logic
+- `src/resumeDebugSessionTool.ts`: Applied new schema to resume operations
+- All test files updated to use new `variable` field instead of `variableFilter`
+
 ## [0.0.53] - 2026-01-23
 
 ## Version 0.0.53

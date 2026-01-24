@@ -60,6 +60,9 @@ describe("multi-Root Workspace Integration", () => {
 
   afterEach(async () => {
     await stopAllDebugSessions();
+    if (vscode.debug.breakpoints.length) {
+      vscode.debug.removeBreakpoints(vscode.debug.breakpoints);
+    }
   });
 
   before(() => {
@@ -133,7 +136,7 @@ describe("multi-Root Workspace Integration", () => {
               path: scriptUri.fsPath,
               code: bpSnippet,
               onHit: "break" as const,
-              variableFilter: ["i"],
+              variable: "i",
             },
           ],
         },
@@ -202,7 +205,7 @@ describe("multi-Root Workspace Integration", () => {
               code: bpSnippet,
               condition,
               onHit: "break" as const,
-              variableFilter: ["i"],
+              variable: "i",
             },
           ],
         },

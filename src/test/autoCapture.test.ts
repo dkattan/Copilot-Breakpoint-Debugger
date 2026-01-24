@@ -9,7 +9,7 @@ import {
   stopAllDebugSessions,
 } from "./utils/startDebuggerToolTestUtils";
 
-describe("startDebuggingAndWaitForStop - capture-all (variableFilter empty)", () => {
+describe("startDebuggingAndWaitForStop - capture-all (variable='*')", () => {
   const configurationName = "Run test.js";
   let workspaceFolder: string;
   let scriptPath: string;
@@ -33,7 +33,7 @@ describe("startDebuggingAndWaitForStop - capture-all (variableFilter empty)", ()
     await stopAllDebugSessions();
   });
 
-  it("capture action without variableFilter auto-captures variables and interpolates log message", async () => {
+  it("capture action with variable='*' auto-captures variables and interpolates log message", async () => {
     const bpSnippet = "Loop iteration";
     const doc = await vscode.workspace.openTextDocument(scriptPath);
     const expectedLine
@@ -55,31 +55,21 @@ describe("startDebuggingAndWaitForStop - capture-all (variableFilter empty)", ()
               code: bpSnippet,
               onHit: "captureAndStopDebugging" as const,
               logMessage: "i={i}",
-              // variableFilter required; empty array opts into auto-capture
-              variableFilter: [],
+              variable: "*",
             },
           ],
         },
       }),
     );
 
-    assert.strictEqual(
-      context.frame.line,
-      expectedLine,
-      "Did not pause at expected line for capture-all test",
+    assert.ok(
+      typeof context.frame.line === "number" && context.frame.line > expectedLine,
+      "Expected default step-over to advance past the breakpoint line before capture",
     );
     assert.ok(context.hitBreakpoint, "hitBreakpoint missing");
     assert.strictEqual(context.hitBreakpoint?.onHit, "captureAndStopDebugging");
-    assert.strictEqual(
-      Array.isArray(context.hitBreakpoint?.variableFilter),
-      true,
-      "variableFilter should be present on hitBreakpoint",
-    );
-    assert.strictEqual(
-      context.hitBreakpoint?.variableFilter.length,
-      0,
-      "variableFilter should be empty when opting into auto-capture",
-    );
+    assert.strictEqual(context.hitBreakpoint?.variable, "*");
+    assert.strictEqual(context.hitBreakpoint?.line, expectedLine);
     assert.ok(
       Array.isArray(context.capturedLogMessages)
       && context.capturedLogMessages.length === 1,

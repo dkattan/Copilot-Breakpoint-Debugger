@@ -15,7 +15,6 @@ describe("build diagnostics integration tests", () => {
 
   it("should capture build errors from problem matcher when preLaunchTask fails", async function () {
     this.timeout(60000);
-
     const workspaceFolder = vscode.workspace.workspaceFolders?.find(
       f => f.uri.fsPath === testWorkspaceRoot,
     );
@@ -48,7 +47,7 @@ describe("build diagnostics integration tests", () => {
               path: "broken.ts",
               code: breakpointSnippet,
               onHit: "break",
-              variableFilter: ["x"],
+              variable: "x",
             },
           ],
         },
@@ -224,7 +223,7 @@ describe("build diagnostics integration tests", () => {
               path: "good.js",
               code: breakpointSnippet,
               onHit: "break",
-              variableFilter: ["process"],
+              variable: "process",
             },
           ],
         },

@@ -2,7 +2,7 @@ export type Part = { value?: string, text?: string } | string;
 
 export interface StartDebuggerInvocationOptions {
   scriptRelativePath: string
-  variableFilter?: string[]
+  variable?: string
   configurationName?: string
   breakpointSnippets?: string[]
   workspaceFolder?: string // optional explicit workspace folder selection

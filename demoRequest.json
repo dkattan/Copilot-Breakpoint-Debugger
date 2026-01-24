@@ -7,7 +7,7 @@
       {
         "path": "server.js",
         "code": "queryParamForDebugger = queryParam",
-        "variableFilter": ["queryParam"],
+        "variable": "queryParam",
         "onHit": "captureAndStopDebugging"
       }
     ]

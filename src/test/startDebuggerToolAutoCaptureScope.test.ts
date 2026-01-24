@@ -32,7 +32,7 @@ describe("startDebuggerTool auto-capture nearest scope", function () {
     await stopAllDebugSessions();
   });
 
-  it("auto-captures nearest scope variables when variableFilter is omitted", async () => {
+  it("auto-captures nearest scope variables when variable='*'", async () => {
     const expectedLine
       = (await vscode.workspace.openTextDocument(scriptPath))
         .getText()
@@ -51,8 +51,7 @@ describe("startDebuggerTool auto-capture nearest scope", function () {
               path: scriptPath,
               code: "Loop iteration",
               onHit: "break" as const,
-              // variableFilter required; empty array opts into auto-capture
-              variableFilter: [],
+              variable: "*",
             },
           ],
         },

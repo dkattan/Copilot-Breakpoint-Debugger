@@ -71,7 +71,7 @@ describe("debugUtils - DAPHelpers", function () {
               code: loopSnippet,
               hitCount: 3,
               onHit: "break" as const,
-              variableFilter: ["i"],
+              variable: "i",
             },
           ],
         },
@@ -129,13 +129,13 @@ describe("debugUtils - DAPHelpers", function () {
               // condition: 'i > 2',
               logMessage: "Logpoint Loop iteration: {i}",
               onHit: "break" as const,
-              variableFilter: ["i"],
+              variable: "i",
             },
             {
               path: scriptPath,
               code: postLoopSnippet,
               onHit: "break" as const,
-              variableFilter: ["i"],
+              variable: "i",
             },
           ],
         },
@@ -170,7 +170,7 @@ describe("debugUtils - DAPHelpers", function () {
               path: scriptPath,
               code: "Random value",
               onHit: "break" as const,
-              variableFilter: ["i"],
+              variable: "i",
             },
           ],
         },
@@ -216,7 +216,7 @@ describe("debugUtils - DAPHelpers", function () {
               path: scriptPath,
               code: loopSnippet,
               onHit: "break" as const,
-              variableFilter: ["i"],
+              variable: "i",
             },
           ],
         },
@@ -247,7 +247,7 @@ describe("debugUtils - DAPHelpers", function () {
               path: scriptPath,
               code: "Random value",
               onHit: "break" as const,
-              variableFilter: ["i"],
+              variable: "i",
             },
           ],
         },
@@ -277,7 +277,7 @@ describe("debugUtils - DAPHelpers", function () {
               path: scriptPath,
               code: functionSnippet,
               onHit: "break" as const,
-              variableFilter: ["numberVar", "fnVar"],
+              variable: "*",
             },
           ],
         },
@@ -319,8 +319,8 @@ describe("debugUtils - DAPHelpers", function () {
               {
                 path: scriptPath,
                 code: functionSnippet,
-                // Empty array means auto-capture elsewhere; here we want to inspect raw variables.
-                variableFilter: [],
+                // Use '*' to opt into auto-capture elsewhere; here we want to inspect raw variables.
+                variable: "*",
                 onHit: "break" as const,
               },
             ],
@@ -423,7 +423,7 @@ describe("debugUtils - DAPHelpers", function () {
               path: scriptPath,
               code: "Random value",
               onHit: "break" as const,
-              variableFilter: ["i"],
+              variable: "i",
             },
           ],
         },
@@ -458,18 +458,18 @@ describe("debugUtils - DAPHelpers", function () {
             {
               path: scriptPath,
               code: targetSnippet,
-              variableFilter: ["i"],
+              variable: "i",
               onHit: "captureAndStopDebugging" as const,
             },
           ],
         },
       }),
     );
-    assert.strictEqual(
-      context.frame.line,
-      targetLine,
-      "Did not stop at expected line",
+    assert.ok(
+      typeof context.frame.line === "number" && context.frame.line > targetLine,
+      "Expected default step-over to advance past the breakpoint line before capture",
     );
+    assert.strictEqual(context.hitBreakpoint?.line, targetLine);
     const active = vscode.debug.activeDebugSession;
     assert.strictEqual(
       active,

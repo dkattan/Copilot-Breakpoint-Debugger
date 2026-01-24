@@ -58,7 +58,7 @@ export async function invokeStartDebuggerTool(
     path: scriptUri.fsPath,
     code,
     onHit: "break" as const,
-    variableFilter: opts.variableFilter ?? ["PWD", "HOME"],
+    variable: opts.variable ?? "PWD",
   }));
 
   const result = await tool.invoke({

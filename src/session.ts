@@ -1408,7 +1408,7 @@ function monitorTask(taskExecution: vscode.TaskExecution, baseCwd: string): Prom
  * Start a new debug session using either a named configuration from .vscode/launch.json or a direct configuration object,
  * then wait until a breakpoint is hit before returning with detailed debug information.
  *
- * @param params - Object containing workspaceFolder, nameOrConfiguration, and optional variableFilter.
+ * @param params - Object containing workspaceFolder, nameOrConfiguration, and optional variable.
  * @param params.sessionName - Name to assign to the debug session.
  * @param params.workspaceFolder - Absolute path to the workspace folder where the debug session will run.
  * @param params.nameOrConfiguration - Either a string name of a launch configuration or a DebugConfiguration object.
@@ -3154,6 +3154,7 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
     );
     const orderedScopes = reorderScopesForCapture(debugContext.scopes ?? []);
     debugContext = { ...debugContext, scopes: orderedScopes };
+    let scopesForCapture = orderedScopes;
     // Determine which breakpoint was actually hit (exact file + line match)
     let hitBreakpoint: BreakpointDefinition | undefined;
     const framePath = debugContext.frame?.source?.path;
@@ -3174,7 +3175,7 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
           path: absPath,
           line: frameLine,
           code: bp.code,
-          variableFilter: bp.variableFilter,
+          variable: bp.variable,
           onHit: bp.onHit,
           condition: bp.condition,
           hitCount: bp.hitCount,
@@ -3186,13 +3187,56 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
       }
     }
 
-    // Capture variables; if requested, auto-step-over once and capture before/after.
+    // Capture variables.
+    // For capture actions (captureAndContinue / captureAndStopDebugging), we default to a
+    // single step-over (DAP 'next') before collecting variables. This avoids the common
+    // scenario where a breakpoint is placed on an assignment line and variables still
+    // reflect their pre-assignment values.
+    //
+    // If autoStepOver=true, we do a richer before/after capture instead.
+    // If autoStepOver=false, we do not step.
     let stepOverCapture: StartDebuggerStopInfo["stepOverCapture"] | undefined;
     let scopeVariables: ScopeVariables[] = [];
+    const isCaptureAction
+      = hitBreakpoint?.onHit === "captureAndContinue"
+        || hitBreakpoint?.onHit === "captureAndStopDebugging";
+    const shouldDefaultStepBeforeCapture
+      = isCaptureAction
+        && hitBreakpoint?.autoStepOver !== true
+        && hitBreakpoint?.autoStepOver !== false;
+
+    if (shouldDefaultStepBeforeCapture) {
+      const stepped = await customRequestAndWaitForStop({
+        session: finalStop.session,
+        sessionId: finalStop.session.id,
+        command: "next",
+        threadId: finalStop.threadId,
+        timeout: remainingMs,
+        failureMessage:
+          "capture action default step-over failed: debug adapter did not accept DAP 'next'",
+      });
+      if (stepped.reason === "terminated") {
+        throw new Error(
+          withRuntimeDiagnostics(
+            "Capture action requested, but the debug session terminated during default step-over.",
+            finalStop.session.id,
+          ),
+        );
+      }
+      finalStop = stepped;
+      debugContext = await DAPHelpers.getDebugContext(
+        finalStop.session,
+        finalStop.threadId,
+      );
+      const steppedScopes = reorderScopesForCapture(debugContext.scopes ?? []);
+      debugContext = { ...debugContext, scopes: steppedScopes };
+      scopesForCapture = steppedScopes;
+    }
+
     if (hitBreakpoint?.autoStepOver) {
       const before = await captureScopeVariables({
         session: finalStop.session,
-        scopes: orderedScopes,
+        scopes: scopesForCapture,
       });
       const fromLine = debugContext.frame?.line;
 
@@ -3239,7 +3283,7 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
     else {
       scopeVariables = await captureScopeVariables({
         session: finalStop.session,
-        scopes: orderedScopes,
+        scopes: scopesForCapture,
       });
     }
     // Build variable lookup for interpolation (for capture action log message expansion)
@@ -3661,15 +3705,6 @@ export async function resumeDebugSession(params: {
   const orderedScopes = reorderScopesForCapture(debugContext.scopes ?? []);
   const normalizedContext = { ...debugContext, scopes: orderedScopes };
 
-  const scopeVariables: ScopeVariables[] = [];
-  for (const scope of orderedScopes) {
-    const variables = await DAPHelpers.getVariablesFromReference(
-      stopInfo.session,
-      scope.variablesReference,
-    );
-    scopeVariables.push({ scopeName: scope.name, variables });
-  }
-
   // Determine which breakpoint was actually hit (exact file + line match) based on provided breakpointConfig.
   let hitBreakpoint: BreakpointDefinition | undefined;
   const framePath = normalizedContext.frame?.source?.path;
@@ -3721,6 +3756,49 @@ export async function resumeDebugSession(params: {
       };
       break;
     }
+  }
+
+  // For capture actions, default to a single step-over (DAP 'next') before collecting variables
+  // to avoid pre-assignment values when the breakpoint is set on an assignment line.
+  const isCaptureAction
+    = hitBreakpoint?.onHit === "captureAndContinue"
+      || hitBreakpoint?.onHit === "captureAndStopDebugging";
+  const shouldDefaultStepBeforeCapture
+    = isCaptureAction
+      && hitBreakpoint?.autoStepOver !== true
+      && hitBreakpoint?.autoStepOver !== false;
+
+  let contextForVariables = normalizedContext;
+  if (shouldDefaultStepBeforeCapture) {
+    const stepped = await customRequestAndWaitForStop({
+      session: stopInfo.session,
+      sessionId: stopInfo.session.id,
+      command: "next",
+      threadId: stopInfo.threadId,
+      timeout: 30000,
+      failureMessage:
+        "capture action default step-over failed: debug adapter did not accept DAP 'next'",
+    });
+    if (stepped.reason === "terminated") {
+      throw new Error(
+        "Capture action requested, but the debug session terminated during default step-over.",
+      );
+    }
+    const steppedContext = await DAPHelpers.getDebugContext(
+      stepped.session,
+      stepped.threadId,
+    );
+    const steppedScopes = reorderScopesForCapture(steppedContext.scopes ?? []);
+    contextForVariables = { ...steppedContext, scopes: steppedScopes };
+  }
+
+  const scopeVariables: ScopeVariables[] = [];
+  for (const scope of contextForVariables.scopes ?? []) {
+    const variables = await DAPHelpers.getVariablesFromReference(
+      stopInfo.session,
+      scope.variablesReference,
+    );
+    scopeVariables.push({ scopeName: scope.name, variables });
   }
 
   // Build variable lookup for interpolation (for capture action log message expansion)
@@ -3808,7 +3886,7 @@ export async function resumeDebugSession(params: {
   };
 
   return {
-    ...normalizedContext,
+    ...contextForVariables,
     scopeVariables,
     hitBreakpoint: hitBreakpoint ?? undefined,
     capturedLogMessages,

@@ -30,7 +30,7 @@ describe("startDebuggerTool concise text output", function () {
     const result = await invokeStartDebuggerTool({
       scriptRelativePath: "test-workspace/b/test.js",
       configurationName: "Run test.js",
-      variableFilter: ["i"],
+      variable: "i",
       breakpointSnippets: ["Loop iteration"],
       workspaceFolder: "test-workspace/b",
     });

@@ -15,7 +15,7 @@
       "name": "Node Exception Test",
       "program": "${workspaceFolder}/exception.js",
       "skipFiles": ["<node_internals>/**"],
-      "console": "integratedTerminal"
+      "console": "internalConsole"
     },
     {
       "type": "node",
@@ -23,7 +23,7 @@
       "name": "Node Caught Exception Test",
       "program": "${workspaceFolder}/caughtException.js",
       "skipFiles": ["<node_internals>/**"],
-      "console": "integratedTerminal"
+      "console": "internalConsole"
     },
     {
       "type": "PowerShell",

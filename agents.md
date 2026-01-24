@@ -301,7 +301,7 @@ This project is primarily consumed by language models, so release metadata empha
 
 ### v0.0.6 Changes (Historical Reference)
 
-- Introduced exact per-breakpoint `variableFilter` (top-level filter removed).
+- Introduced exact per-breakpoint variable selection (top-level filtering removed).
 - Added optional per-breakpoint `action` (e.g., `captureAndStopDebugging`).
 - Added `logger.ts` for structured tool logging.
 - Cleaned CHANGELOG formatting (headings/lists/code fences compliance).
@@ -309,10 +309,11 @@ This project is primarily consumed by language models, so release metadata empha
 
 ### Variable Filtering Semantics
 
-- Previous behavior: top-level `variableFilter` aggregated regex fragments.
-- Current behavior: each breakpoint declares a required `variableFilter` array of exact (case-sensitive) names.
-- Matching is simple set membership; no regex evaluation.
-- Schema updated in `package.json` and tool logic updated in `src/startDebuggerTool.ts`.
+- Previous behavior: top-level variable filtering aggregated regex fragments.
+- Current behavior: each breakpoint declares a required `variable` string (case-sensitive exact name).
+- Capture-all mode: set `variable` to `"*"` to auto-capture (up to `copilot-debugger.captureMaxVariables`).
+- Matching is simple equality; no regex evaluation.
+- Schema is defined in `package.json`; implementation lives under `src/` (notably `src/session.ts`, `src/BreakpointDefinition.ts`).
 
 ### Git Hooks & Quality Gates
 

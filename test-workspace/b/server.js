@@ -2,7 +2,7 @@ const http = require('node:http');
 
 const port = 31337;
 // eslint-disable-next-line no-unused-vars, unused-imports/no-unused-vars
-let started = false; // referenced by breakpoint variableFilter
+let started = false; // referenced by breakpoint variable
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url ?? '/', `http://localhost:${port}`);

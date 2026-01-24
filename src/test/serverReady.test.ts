@@ -61,7 +61,7 @@ describe("serverReady breakpoint", function () {
           {
             path: userScriptPath,
             code: userBreakpointSnippet,
-            variableFilter: ["started"],
+            variable: "started",
             onHit: "break",
           },
         ],
@@ -75,7 +75,6 @@ describe("serverReady breakpoint", function () {
         },
       },
     });
-
     assert.strictEqual(
       context.serverReadyInfo.configured,
       true,
@@ -159,7 +158,7 @@ describe("serverReady breakpoint", function () {
           {
             path: serverPath,
             code: userBreakpointSnippet,
-            variableFilter: ["started"],
+            variable: "started",
             onHit: "break",
           },
         ],
@@ -235,7 +234,7 @@ describe("serverReady breakpoint", function () {
           {
             path: serverPath,
             code: userBreakpointSnippet,
-            variableFilter: ["readyHits"],
+            variable: "readyHits",
             onHit: "break",
           },
         ],
@@ -287,7 +286,7 @@ describe("serverReady breakpoint", function () {
         breakpoints: Array<{
           path: string
           code: string
-          variableFilter: string[]
+          variable: string
           onHit: "break" | "captureAndContinue" | "captureAndStopDebugging"
         }>
       }
@@ -347,7 +346,7 @@ describe("serverReady breakpoint", function () {
           {
             path: serverPath,
             code: apiBreakpointSnippet,
-            variableFilter: demoBreakpoint.variableFilter,
+            variable: demoBreakpoint.variable,
             onHit: demoBreakpoint.onHit,
           },
         ],
@@ -370,11 +369,11 @@ describe("serverReady breakpoint", function () {
       context.serverReadyInfo.phases.some(phase => phase.phase === "immediate"),
       "serverReady pattern should execute immediate phase (demo scenario)",
     );
-    assert.strictEqual(
-      context.frame.line,
-      apiBreakpointLine,
-      "Did not pause at expected API handler breakpoint line",
+    assert.ok(
+      typeof context.frame.line === "number" && context.frame.line > apiBreakpointLine,
+      "Expected default step-over to advance past the API handler breakpoint line before capture",
     );
+    assert.strictEqual(context.hitBreakpoint?.line, apiBreakpointLine);
 
     const queryParamVar = (context.scopeVariables ?? [])
       .flatMap(scope => scope.variables)

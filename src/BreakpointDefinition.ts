@@ -1,8 +1,9 @@
 // Parameters for starting a debug session. The tool starts a debugger using the
 // configured default launch configuration and waits for the first breakpoint hit,
 // returning call stack and (optionally) filtered variables.
-// Individual breakpoint definition now includes a required variableFilter so
-// each breakpoint can specify its own variable name patterns (regex fragments).
+// Individual breakpoint definition now includes a required variable so
+// each breakpoint can specify the single variable name it cares about.
+// Use variable="*" to opt into capture-all (auto-capture) behavior.
 
 export interface BreakpointDefinition {
   path: string
@@ -16,7 +17,11 @@ export interface BreakpointDefinition {
    * Populated in stop info when a breakpoint is hit.
    */
   line?: number
-  variableFilter: string[]
+  /**
+   * Exact variable name to capture/report (case-sensitive).
+   * Use "*" to opt into capture-all (auto-capture) behavior.
+   */
+  variable: string
   onHit?: "break" | "captureAndStopDebugging" | "captureAndContinue" // captureAndContinue returns data then continues (non-blocking)
   condition?: string // Expression evaluated at breakpoint; stop only if true
   hitCount?: number // Exact numeric hit count (3 means pause on 3rd hit)

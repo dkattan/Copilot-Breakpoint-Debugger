@@ -107,26 +107,19 @@ function registerTools(context: vscode.ExtensionContext) {
           );
           return;
         }
-        const variableFilterInput = await vscode.window.showInputBox({
-          prompt: "Variable names to capture (comma-separated, at least one)",
+        const variableInput = await vscode.window.showInputBox({
+          prompt:
+            "Variable name to focus (case-sensitive). Use '*' to auto-capture locals.",
           validateInput: (value) => {
-            const arr = value
-              .split(",")
-              .map(v => v.trim())
-              .filter(Boolean);
-            return arr.length
-              ? undefined
-              : "Provide at least one variable name";
+            const v = value.trim();
+            return v.length ? undefined : "Provide a variable name (or '*')";
           },
         });
-        if (!variableFilterInput) {
+        if (!variableInput) {
           vscode.window.showInformationMessage("Breakpoint setup canceled.");
           return;
         }
-        const variableFilter = variableFilterInput
-          .split(",")
-          .map(v => v.trim())
-          .filter(Boolean);
+        const variable = variableInput.trim();
         // Convert existing breakpoints into the expected configuration shape.
         // The tool contract is snippet-based; derive a snippet from the source line at each breakpoint.
         const breakpoints = await Promise.all(
@@ -148,7 +141,7 @@ function registerTools(context: vscode.ExtensionContext) {
             return {
               path: sb.location.uri.fsPath,
               code: lineText,
-              variableFilter,
+              variable,
               onHit: "break" as const,
             };
           }),
@@ -260,7 +253,7 @@ function registerTools(context: vscode.ExtensionContext) {
                 code: "console.log('listening')",
                 onHit: "captureAndContinue",
                 logMessage: "port={PORT}",
-                variableFilter: ["PORT"],
+                variable: "PORT",
               },
             ],
           },

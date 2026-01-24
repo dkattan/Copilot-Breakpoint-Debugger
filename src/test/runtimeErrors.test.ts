@@ -13,7 +13,6 @@ describe("runtime error diagnostics tests", () => {
 
   it("should capture stderr and exit code from Node.js crash", async function () {
     this.timeout(60000);
-
     const workspaceFolder = vscode.workspace.workspaceFolders?.find(
       f => f.uri.fsPath === testWorkspaceRoot,
     );
@@ -32,11 +31,10 @@ describe("runtime error diagnostics tests", () => {
       );
       const crashDoc = await vscode.workspace.openTextDocument(crashDocUri);
       const crashText = crashDoc.getText();
-      const breakpointSnippet
-        = crashText
-          .split(/\r?\n/)
-          .find(l => l.includes("UNREACHABLE_AFTER_EXIT"))
-          ?.trim() ?? "";
+      const breakpointSnippet = crashText
+        .split(/\r?\n/)
+        .find(l => l.includes("UNREACHABLE_AFTER_EXIT"))
+        ?.trim() ?? "";
       await startDebuggingAndWaitForStop({
         sessionName: "Node Crash Test Session",
         workspaceFolder: workspaceFolder.uri.fsPath,
@@ -46,12 +44,11 @@ describe("runtime error diagnostics tests", () => {
               path: "crash.js",
               code: breakpointSnippet, // Line after the crash
               onHit: "break",
-              variableFilter: ["_nonexistent"],
+              variable: "_nonexistent",
             },
           ],
         },
         nameOrConfiguration: "Node Crash Test",
-        timeoutSeconds: 45,
       });
     }
     catch (error) {
@@ -122,7 +119,7 @@ describe("runtime error diagnostics tests", () => {
               path: "exception.js",
               code: breakpointSnippet,
               onHit: "break",
-              variableFilter: ["_nonexistent"],
+              variable: "_nonexistent",
             },
           ],
         },
@@ -139,10 +136,7 @@ describe("runtime error diagnostics tests", () => {
       `Should not throw. Got error: ${caughtError?.message}`,
     );
     assert.ok(stopInfo, "Should return stopInfo for exception stop.");
-    assert.ok(
-      stopInfo!.exceptionInfo?.description,
-      "Expected exceptionInfo.description to be present",
-    );
+    assert.ok(stopInfo!.exceptionInfo?.description);
     assert.ok(
       /uncaught|unhandled|exception|error/i.test(
         stopInfo!.exceptionInfo?.description ?? "",
@@ -198,7 +192,7 @@ describe("runtime error diagnostics tests", () => {
             path: "caughtException.js",
             code: breakpointSnippet,
             onHit: "break",
-            variableFilter: ["_nonexistent"],
+            variable: "_nonexistent",
           },
         ],
       },
@@ -262,7 +256,9 @@ describe("runtime error diagnostics tests", () => {
   });
 
   it("should capture DAP output events", async function () {
-    this.timeout(30000);
+    // Starting a debug session in the VS Code test harness can be slow on cold
+    // runs (downloaded VS Code, extension host spin-up, etc.), so allow extra time.
+    this.timeout(60000);
 
     const workspaceFolder = vscode.workspace.workspaceFolders?.find(
       f => f.uri.fsPath === testWorkspaceRoot,
@@ -272,6 +268,10 @@ describe("runtime error diagnostics tests", () => {
       this.skip();
       return;
     }
+
+    // Ensure we start from a clean slate; an in-flight termination from a prior
+    // test can cause subsequent startDebugging calls to stall.
+    await vscode.debug.stopDebugging();
 
     // Start a debug session that will produce output
     const started = await vscode.debug.startDebugging(
@@ -296,7 +296,9 @@ describe("runtime error diagnostics tests", () => {
   });
 
   it("should capture process exit codes from DAP exited events", async function () {
-    this.timeout(30000);
+    // This test relies on starting a debug session; allow extra time for the
+    // VS Code test harness to spin up on slower / colder runs.
+    this.timeout(60000);
 
     const workspaceFolder = vscode.workspace.workspaceFolders?.find(
       f => f.uri.fsPath === testWorkspaceRoot,
@@ -306,6 +308,10 @@ describe("runtime error diagnostics tests", () => {
       this.skip();
       return;
     }
+
+    // Ensure we start from a clean slate; an in-flight termination from a prior
+    // test can cause subsequent startDebugging calls to stall.
+    await vscode.debug.stopDebugging();
 
     // Start debugging with a script that exits with code 42
     const started = await vscode.debug.startDebugging(
@@ -340,6 +346,9 @@ describe("runtime error diagnostics tests", () => {
         );
       }
     }
+
+    // Best-effort cleanup so this test doesn't leak sessions into subsequent tests.
+    await vscode.debug.stopDebugging();
   });
 
   it("should format stderr lines concisely in error messages", async function () {
@@ -376,7 +385,7 @@ describe("runtime error diagnostics tests", () => {
               path: "crash.js",
               code: breakpointSnippet,
               onHit: "break",
-              variableFilter: ["_test"],
+              variable: "_test",
             },
           ],
         },

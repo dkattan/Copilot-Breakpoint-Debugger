@@ -70,7 +70,7 @@
         "copilot-debugger.captureMaxVariables": {
           "type": "integer",
           "default": 40,
-          "description": "Maximum number of variables auto-captured when a breakpoint onHit=captureAndContinue omits variableFilter (capture-all mode)."
+          "description": "Maximum number of variables auto-captured when a breakpoint onHit=captureAndContinue uses variable='*' (capture-all mode)."
         },
         "copilot-debugger.serverReadyEnabled": {
           "type": "boolean",
@@ -133,8 +133,8 @@
         "displayName": "Start Debugger",
         "toolReferenceName": "startDebugSessionWithBreakpoints",
         "canBeReferencedInPrompt": true,
-        "userDescription": "Start a debug session, set breakpoints, and wait until a breakpoint is hit. Supports onHit behaviors: break (pause), captureAndContinue (collect variables then auto-resume), captureAndStopDebugging (terminate after hit). Supports autoStepOver to capture variables before and after a single step-over (useful for assignments/invocations). Default mode is singleShot: the tool terminates the session before returning so the model cannot accidentally run external curl/browser probes against a paused debuggee. If you need an interactive paused workflow, set mode=inspect.",
-        "modelDescription": "Start a debug session using the configured default launch configuration or an explicitly provided configurationName. Auto-selects sole launch config when none specified and no default setting is present. Defaults to 'singleShot' mode (safest), which runs the session, hits a breakpoint, collects data, and terminates automatically. Use 'inspect' mode to pause at a breakpoint for interactive debugging; while paused, use debugger tools (evaluateExpression) instead of external requests (curl) which may block. Supports 'serverReady' to automatically wait for app startup and trigger a request to hit your breakpoints. Breakpoints support path, code snippet, onHit behavior (break, captureAndContinue, captureAndStopDebugging), variableFilter, condition, hitCount, and autoStepOver (capture variables before and after stepping over once; helpful for post-assignment values).",
+        "userDescription": "Start a debug session, set breakpoints, and wait until a breakpoint is hit. Supports onHit behaviors: break (pause), captureAndContinue (collect variables then auto-resume), captureAndStopDebugging (terminate after hit). For capture actions, the tool automatically steps once (F10 / DAP 'next') before capturing variables to avoid the common pre-assignment value trap. Supports autoStepOver to capture variables before and after a single step-over (useful for assignments/invocations). Default mode is singleShot: the tool terminates the session before returning so the model cannot accidentally run external curl/browser probes against a paused debuggee. If you need an interactive paused workflow, set mode=inspect.",
+        "modelDescription": "Start a debug session using the configured default launch configuration or an explicitly provided configurationName. Auto-selects sole launch config when none specified and no default setting is present. Defaults to 'singleShot' mode (safest), which runs the session, hits a breakpoint, collects data, and terminates automatically. Use 'inspect' mode to pause at a breakpoint for interactive debugging; while paused, use debugger tools (evaluateExpression) instead of external requests (curl) which may block. Supports 'serverReady' to automatically wait for app startup and trigger a request to hit your breakpoints. Breakpoints support path, code snippet, onHit behavior (break, captureAndContinue, captureAndStopDebugging), variable (exact name or '*' for capture-all), condition, hitCount, and autoStepOver (capture variables before and after stepping over once; helpful for post-assignment values).",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -171,12 +171,9 @@
                         "type": "string",
                         "description": "Exact code snippet (substring) to break on. The tool will search the file and set breakpoints on every matching line."
                       },
-                      "variableFilter": {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        },
-                        "description": "Required list of exact variable names to include when reporting variables for this breakpoint or for interpolation in captureAndContinue onHit. Use an empty array to opt into auto-capture (up to captureMaxVariables). Ignored for break/captureAndStopDebugging. Case-sensitive."
+                      "variable": {
+                        "type": "string",
+                        "description": "Required variable name to focus in output (case-sensitive). Use '*' to opt into capture-all (auto-capture up to captureMaxVariables)."
                       },
                       "onHit": {
                         "type": "string",
@@ -212,7 +209,7 @@
                       "path",
                       "code",
                       "onHit",
-                      "variableFilter"
+                      "variable"
                     ]
                   },
                   "description": "Breakpoints to add before starting session."
@@ -312,12 +309,10 @@
                 "breakpoints": [
                   {
                     "path": "src/server.ts",
-                    "line": 27,
-                    "action": "capture",
-                    "logMessage": "port={PORT}",
-                    "variableFilter": [
-                      "PORT"
-                    ]
+                    "code": "console.log('listening')",
+                    "variable": "PORT",
+                    "onHit": "captureAndContinue",
+                    "logMessage": "port={PORT}"
                   }
                 ]
               },
@@ -338,7 +333,9 @@
                 "breakpoints": [
                   {
                     "path": "src/index.ts",
-                    "code": "console.log('hello')"
+                    "code": "console.log('hello')",
+                    "variable": "*",
+                    "onHit": "break"
                   }
                 ]
               },
@@ -375,6 +372,7 @@
               "properties": {
                 "breakpoints": {
                   "type": "array",
+                  "minItems": 1,
                   "items": {
                     "type": "object",
                     "properties": {
@@ -385,12 +383,9 @@
                         "type": "string",
                         "description": "Exact code snippet (substring) to break on. The tool will search the file and set breakpoints on every matching line."
                       },
-                      "variableFilter": {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        },
-                        "description": "Variable names to include in reporting or interpolation for capture action."
+                      "variable": {
+                        "type": "string",
+                        "description": "Required variable name to focus in output (case-sensitive). Use '*' to opt into capture-all (auto-capture up to captureMaxVariables)."
                       },
                       "onHit": {
                         "type": "string",
@@ -417,14 +412,13 @@
                     "required": [
                       "path",
                       "code",
-                      "variableFilter"
+                      "variable"
                     ]
                   }
                 }
               },
               "required": [
-                "workspaceFolder",
-                "breakpointConfig"
+                "breakpoints"
               ]
             }
           },

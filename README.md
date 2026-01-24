@@ -6,8 +6,8 @@ Use GitHub Copilot (or any LM-enabled workflow in VS Code) to start, inspect, an
 
 The extension contributes Language Model Tools that Copilot can invoke:
 
-1. **Start Debugger** (`startDebugSessionWithBreakpoints`) – Launch a configured debug session and wait for the first breakpoint. You must supply at least one breakpoint, but `variableFilter` is optional: include it to narrow captured variables, omit it for a pure pause (`break` / `stopDebugging`) or automatic capture-all (`capture` action).
-2. **Resume Debug Session** (`resumeDebugSession`) – Continue execution of an existing paused session and optionally wait for the next stop (new breakpoints added during resume may omit `variableFilter` if you only need a pause, but include it for scoped variable output or interpolation).
+1. **Start Debugger** (`startDebugSessionWithBreakpoints`) – Launch a configured debug session and wait for the first breakpoint. You must supply at least one breakpoint, and each breakpoint must include `variable` (a single exact name to focus) or `"*"` to opt into automatic capture-all.
+2. **Resume Debug Session** (`resumeDebugSession`) – Continue execution of an existing paused session and optionally wait for the next stop (new breakpoints added during resume use the same breakpoint contract, including mandatory `variable`).
 3. **Get Variables** (`getVariables`) – Retrieve all variables in the current top stack frame scopes.
 4. **Expand Variable** (`expandVariable`) – Drill into a single variable to inspect its immediate children.
 5. **Evaluate Expression** (`evaluateExpression`) – Run an arbitrary expression (like the Debug Console) in the paused stack frame.
@@ -101,7 +101,7 @@ Type     : `integer`
 Default        : `60`  
 
 #### `copilot-debugger.captureMaxVariables`
-Description                                                                                                                                                                                        : Maximum number of variables auto-captured when a breakpoint onHit=captureAndContinue omits variableFilter (capture-all mode).  
+Description                                                                                                                                                                                        : Maximum number of variables auto-captured when a breakpoint onHit=captureAndContinue uses variable='*' (capture-all mode).  
 Type     : `integer`  
 Default        : `40`  
 
@@ -148,7 +148,7 @@ Default        : `false`
 | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | --------------- |
 | `copilot-debugger.defaultLaunchConfiguration`   | Name of the default launch configuration to use when starting the debugger                                                                                                                          | `string`  | `""`            |
 | `copilot-debugger.entryTimeoutSeconds`          | Timeout in seconds waiting for initial entry stop after launching (before first user breakpoint). Supports long startup/build times; must be &gt; 0.                                                | `integer` | `60`            |
-| `copilot-debugger.captureMaxVariables`          | Maximum number of variables auto-captured when a breakpoint onHit=captureAndContinue omits variableFilter (capture-all mode).                                                                       | `integer` | `40`            |
+| `copilot-debugger.captureMaxVariables`          | Maximum number of variables auto-captured when a breakpoint onHit=captureAndContinue uses variable='*' (capture-all mode).                                                                          | `integer` | `40`            |
 | `copilot-debugger.serverReadyEnabled`           | Enable serverReady automation (trigger + action). When disabled, provided serverReady payloads are ignored.                                                                                         | `boolean` | `true`          |
 | `copilot-debugger.serverReadyDefaultActionType` | Preferred serverReady action type surfaced in samples and quick insert command.                                                                                                                     | `string`  | `"httpRequest"` |
 | `copilot-debugger.maxBuildErrors`               | Maximum number of build diagnostics (from problem matchers) to include in error messages when debug session fails to start.                                                                         | `integer` | `5`             |
@@ -173,7 +173,7 @@ Default        : `60`
 
 #### `copilot-debugger.captureMaxVariables`
 
-Description                                                                                                                                                                                        : Maximum number of variables auto-captured when a breakpoint onHit=captureAndContinue omits variableFilter (capture-all mode).
+Description                                                                                                                                                                                        : Maximum number of variables auto-captured when a breakpoint sets `variable` to `"*"` (capture-all mode).
 Type     : `integer`
 Default        : `40`
 
@@ -225,7 +225,12 @@ Default        : `false`
 
 The repo already ships with a workspace-level Run on Save configuration (see `.vscode/settings.json`) that fires `npm run update` any time `package.json` is saved. Just install the [Run on Save](https://marketplace.visualstudio.com/items?itemName=emeraldwalk.RunOnSave) extension when VS Code recommends it and the tables will stay in sync automatically.
 
-> **Important (updated):** `startDebugSessionWithBreakpoints` requires at least one breakpoint. `variableFilter` is **only required** when you want a _subset_ of variables for a `capture` action. If you set `action: "capture"` and omit `variableFilter`, the tool auto-captures the first `captureMaxVariables` locals (case‑sensitive exact names) to reduce friction. For `break` or `stopDebugging` actions, omit `variableFilter` for a pure pause without variable output.
+> **Important (updated):** `startDebugSessionWithBreakpoints` requires at least one breakpoint and each breakpoint must include `variable`.
+>
+> - Use `variable: "name"` to focus output on a single exact variable name.
+> - Use `variable: "*"` to opt into auto-capture of up to `captureMaxVariables` locals.
+>
+> For capture actions (`captureAndContinue` / `captureAndStopDebugging`), the tool also performs a default step-over (F10 / DAP `next`) before capturing variables to avoid the common pre-assignment value trap.
 
 ### Entry Timeout Diagnostics
 
@@ -412,10 +417,10 @@ Capture example:
 ````text
 Start debug with configurationName "Run test.js" and capture action at test-workspace/b/test.js line 9 filtering i and log message "i={i}".
 
-Auto-capture example (omit variableFilter – first N locals collected):
+Auto-capture example (`variable: "*"` – first N locals collected):
 
 ```text
-Start debug with configurationName "Run test.js" and capture action at test-workspace/b/test.js line 9 with log message "i={i}" (omit variableFilter for automatic capture).
+Start debug with configurationName "Run test.js" and capture action at test-workspace/b/test.js line 9 with log message "i={i}" and `variable: "*"` for automatic capture.
 ````
 
 ### Quick Start: Auto Warm Swagger + Capture (Port Token Replacement)
@@ -431,7 +436,7 @@ Start debug with configurationName "Run test.js" and capture action at test-work
         "line": 27,
         "action": "capture",
         "logMessage": "port={PORT}",
-        "variableFilter": ["PORT"]
+        "variable": "PORT"
       }
     ]
   },

@@ -36,7 +36,7 @@ describe("startDebuggerTool timeout behavior", () => {
     const result = await invokeStartDebuggerTool({
       scriptRelativePath: "test-workspace/b/test.js",
       configurationName: "Run test.js with preLaunchTask",
-      variableFilter: ["delayedValue"],
+      variable: "delayedValue",
       breakpointSnippets: [
         'console.log("Running test.js inside test-workspace/b");',
       ],

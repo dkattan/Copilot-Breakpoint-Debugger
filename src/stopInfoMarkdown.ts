@@ -35,7 +35,9 @@ export function renderStopInfoMarkdown(params: {
     ? stopInfo.stepOverCapture
     : undefined;
 
-  const providedFilters = stopInfo.hitBreakpoint?.variableFilter ?? [];
+  const providedVariable = stopInfo.hitBreakpoint?.variable;
+  const providedFilters
+    = !providedVariable || providedVariable === "*" ? [] : [providedVariable];
   const hasExplicitFilters = providedFilters.length > 0;
   let activeFilters: string[] = [...providedFilters];
   const maxAuto = config.captureMaxVariables ?? 40;
@@ -318,13 +320,13 @@ export function renderStopInfoMarkdown(params: {
 
   if (onHit === "captureAndContinue" && activeFilters.length === 0) {
     guidance.push(
-      `captureAndContinue auto-captured ${totalVars} variable(s); set variableFilter to focus only the names you care about.`,
+      `captureAndContinue auto-captured ${totalVars} variable(s); set 'variable' to focus only the name you care about (or use '*' to keep auto-capture).`,
     );
   }
 
   if (truncatedVariables) {
     guidance.push(
-      "Values were truncated to 100 characters. Provide variableFilter to return full values without truncation.",
+      "Values were truncated to 100 characters. Provide 'variable' to focus output and reduce truncation.",
     );
   }
 

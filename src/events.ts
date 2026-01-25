@@ -623,6 +623,9 @@ useDisposable(
           const body = event.body as StoppedEventBody;
           const validReasons = [
             "breakpoint",
+            "function breakpoint",
+            "data breakpoint",
+            "instruction breakpoint",
             "step",
             "pause",
             "exception",

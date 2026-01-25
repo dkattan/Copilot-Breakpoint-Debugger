@@ -1,7 +1,11 @@
-import type { BreakpointDefinition } from "./BreakpointDefinition";
+import type {
+  BreakpointDefinition,
+  FunctionBreakpointDefinition,
+} from "./BreakpointDefinition";
 
 export interface BreakpointConfiguration {
-  breakpoints: BreakpointDefinition[]
+  breakpoints?: BreakpointDefinition[]
+  functionBreakpoints?: FunctionBreakpointDefinition[]
 }
 
 type ServerReadyAction

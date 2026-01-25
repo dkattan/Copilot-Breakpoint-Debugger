@@ -1,4 +1,7 @@
-import type { BreakpointDefinition } from "./BreakpointDefinition";
+import type {
+  BreakpointDefinition,
+  FunctionBreakpointDefinition,
+} from "./BreakpointDefinition";
 import type { StartDebuggerStopInfo } from "./session";
 import { markdownTable } from "markdown-table";
 import { config } from "./config";
@@ -7,7 +10,8 @@ import { version } from "./generated-meta";
 // Keep rendering logic shared between StartDebuggerTool and ResumeDebugSessionTool.
 
 export interface BreakpointConfiguration {
-  breakpoints: BreakpointDefinition[]
+  breakpoints?: BreakpointDefinition[]
+  functionBreakpoints?: FunctionBreakpointDefinition[]
 }
 
 export function renderStopInfoMarkdown(params: {
@@ -25,17 +29,18 @@ export function renderStopInfoMarkdown(params: {
     reason: stopInfo.frame?.name,
   };
 
-  if (!stopInfo.hitBreakpoint && !stopInfo.exceptionInfo) {
+  if (!stopInfo.hitBreakpoint && !stopInfo.hitFunctionBreakpoint && !stopInfo.exceptionInfo) {
     // If we have neither a breakpoint match nor an exception, we just report generic stop.
     // No throw.
   }
 
-  const onHit = stopInfo.hitBreakpoint?.onHit ?? "break";
+  const effectiveHit = stopInfo.hitBreakpoint ?? stopInfo.hitFunctionBreakpoint;
+  const onHit = effectiveHit?.onHit ?? "break";
   const stepOver = stopInfo.stepOverCapture?.performed
     ? stopInfo.stepOverCapture
     : undefined;
 
-  const providedVariable = stopInfo.hitBreakpoint?.variable;
+  const providedVariable = effectiveHit?.variable;
   const providedFilters
     = !providedVariable || providedVariable === "*" ? [] : [providedVariable];
   const hasExplicitFilters = providedFilters.length > 0;
@@ -206,6 +211,9 @@ export function renderStopInfoMarkdown(params: {
       header = `Breakpoint ${fileName}:${summary.line} onHit=${onHit}`;
     }
   }
+  else if (stopInfo.hitFunctionBreakpoint) {
+    header = `Function breakpoint ${stopInfo.hitFunctionBreakpoint.functionName} onHit=${onHit}`;
+  }
   else {
     header = `Stopped: reason=${stopInfo.reason ?? "unknown"} at ${fileName}:${
       summary.line
@@ -300,10 +308,13 @@ export function renderStopInfoMarkdown(params: {
     ].join("\n");
   })();
 
-  const hasConfiguredOnHit = breakpointConfig.breakpoints.some(
-    bp => !!bp.onHit,
-  );
-  const multipleBreakpoints = breakpointConfig.breakpoints.length > 1;
+  const configuredBreakpointsCount
+    = (breakpointConfig.breakpoints?.length ?? 0)
+      + (breakpointConfig.functionBreakpoints?.length ?? 0);
+  const hasConfiguredOnHit
+    = (breakpointConfig.breakpoints ?? []).some(bp => !!bp.onHit)
+      || (breakpointConfig.functionBreakpoints ?? []).some(bp => !!bp.onHit);
+  const multipleBreakpoints = configuredBreakpointsCount > 1;
   const guidance: string[] = [];
 
   if (stopInfo.debuggerState.status === "terminated" && !hasConfiguredOnHit) {

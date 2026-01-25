@@ -1,5 +1,8 @@
 import type { Buffer } from "node:buffer";
-import type { BreakpointDefinition } from "./BreakpointDefinition";
+import type {
+  BreakpointDefinition,
+  FunctionBreakpointDefinition,
+} from "./BreakpointDefinition";
 import type { BreakpointHitInfo } from "./common";
 import type { DebugContext, VariableInfo } from "./debugUtils";
 import { spawnSync } from "node:child_process";
@@ -121,6 +124,23 @@ async function tryContinueWithoutWaiting(params: {
       }`,
     );
   }
+}
+
+async function waitForSessionCapabilities(params: {
+  sessionId: string
+  timeoutMs: number
+}): Promise<Record<string, unknown> | undefined> {
+  const { sessionId, timeoutMs } = params;
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const caps = getSessionCapabilities(sessionId);
+    if (caps && typeof caps === "object") {
+      return caps as Record<string, unknown>;
+    }
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  const caps = getSessionCapabilities(sessionId);
+  return caps && typeof caps === "object" ? (caps as Record<string, unknown>) : undefined;
 }
 
 async function startDebuggingWithTimeout(params: {
@@ -275,6 +295,7 @@ export interface StartDebuggerStopInfo extends DebugContext {
     after: ScopeVariables[]
   }
   hitBreakpoint?: BreakpointDefinition
+  hitFunctionBreakpoint?: FunctionBreakpointDefinition
   capturedLogMessages?: string[]
   serverReadyInfo: ServerReadyInfo
   debuggerState: DebuggerStateSnapshot
@@ -1435,7 +1456,8 @@ export interface StartDebuggingAndWaitForStopParams {
    */
   mode?: "singleShot" | "inspect"
   breakpointConfig: {
-    breakpoints: Array<BreakpointDefinition>
+    breakpoints?: Array<BreakpointDefinition>
+    functionBreakpoints?: Array<FunctionBreakpointDefinition>
   }
   serverReady?: {
     trigger?: { path?: string, line?: number, pattern?: string }
@@ -2071,12 +2093,10 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
   };
 
   // Basic breakpoint configuration validation (moved from StartDebuggerTool)
-  if (!breakpointConfig || !Array.isArray(breakpointConfig.breakpoints)) {
-    throw new Error("breakpointConfig.breakpoints is required.");
-  }
-  if (breakpointConfig.breakpoints.length === 0) {
+  // Accept either source breakpoints (path+code) or function breakpoints (functionName).
+  if (!breakpointConfig) {
     throw new Error(
-      "Provide at least one breakpoint (path + code snippet) before starting the debugger.",
+      "breakpointConfig is required (provide breakpoints and/or functionBreakpoints).",
     );
   }
   if (!path.isAbsolute(workspaceFolder)) {
@@ -2149,14 +2169,28 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
     vscode.debug.removeBreakpoints(originalBreakpoints);
   }
 
+  const sourceBreakpointRequests = breakpointConfig.breakpoints ?? [];
+  const functionBreakpointRequests = breakpointConfig.functionBreakpoints ?? [];
+  if (!sourceBreakpointRequests.length && !functionBreakpointRequests.length) {
+    throw new Error(
+      "breakpointConfig must provide at least one of: breakpoints (source) or functionBreakpoints.",
+    );
+  }
+
   const seen = new Set<string>();
   // Keep association between original request and created SourceBreakpoint
   const validated: Array<{
-    bp: (typeof breakpointConfig.breakpoints)[number]
+    bp: BreakpointDefinition
     sb: vscode.SourceBreakpoint
     resolvedLine: number
   }> = [];
-  for (const bp of breakpointConfig.breakpoints) {
+  // Keep association between original request and created FunctionBreakpoint
+  const validatedFunctions: Array<{
+    bp: FunctionBreakpointDefinition
+    fb: vscode.FunctionBreakpoint
+  }> = [];
+
+  for (const bp of sourceBreakpointRequests) {
     const absolutePath = path.isAbsolute(bp.path)
       ? bp.path
       : path.join(folderFsPath, bp.path);
@@ -2204,6 +2238,34 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
       );
       validated.push({ bp, sb: sourceBp, resolvedLine: line });
     }
+  }
+
+  for (const bp of functionBreakpointRequests) {
+    const name = bp.functionName?.trim();
+    if (!name) {
+      throw new Error("Function breakpoint is missing required 'functionName'.");
+    }
+    const effectiveHitCondition
+      = bp.hitCount !== undefined ? String(bp.hitCount) : undefined;
+
+    // For capture-style breakpoints we intentionally do NOT attempt to configure a logpoint.
+    // VS Code's FunctionBreakpoint constructor does not accept a logMessage consistently across versions,
+    // and capture semantics require a real pause.
+    const key = `fn:${name}|cond:${bp.condition ?? ""}|hit:${effectiveHitCondition ?? ""}`;
+    if (seen.has(key)) {
+      logger.debug(`Skipping duplicate function breakpoint ${key}.`);
+      continue;
+    }
+    seen.add(key);
+
+    // Note: constructor signature varies slightly across VS Code versions; keep to the stable args.
+    const fnBp = new vscode.FunctionBreakpoint(
+      name,
+      true,
+      bp.condition,
+      effectiveHitCondition,
+    );
+    validatedFunctions.push({ bp, fb: fnBp });
   }
   const updateResolvedBreakpointLine = (source: vscode.SourceBreakpoint) => {
     const match = validated.find(entry => entry.sb === source);
@@ -2282,9 +2344,15 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
       );
     }
   }
-  if (validated.length) {
-    vscode.debug.addBreakpoints(validated.map(v => v.sb));
-    logger.info(`Added ${validated.length} validated breakpoint(s).`);
+  const addedBreakpoints: vscode.Breakpoint[] = [
+    ...validated.map(v => v.sb),
+    ...validatedFunctions.map(v => v.fb),
+  ];
+  if (addedBreakpoints.length) {
+    vscode.debug.addBreakpoints(addedBreakpoints);
+    logger.info(
+      `Added ${validated.length} source breakpoint(s) and ${validatedFunctions.length} function breakpoint(s).`,
+    );
     await new Promise(resolve => setTimeout(resolve, 500));
   }
   else {
@@ -2936,6 +3004,21 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
     await configureExceptions(entryStop.session);
 
     const sessionId = entryStop.session.id;
+
+    // Fail fast if caller requested function breakpoints but adapter doesn't support them.
+    if (validatedFunctions.length) {
+      const caps = await waitForSessionCapabilities({
+        sessionId,
+        timeoutMs: 2000,
+      });
+      const supportsFunctionBreakpoints
+        = (caps?.supportsFunctionBreakpoints as unknown) === true;
+      if (!supportsFunctionBreakpoints) {
+        throw new Error(
+          "The active debug adapter does not advertise supportsFunctionBreakpoints=true, so functionBreakpoints are not supported in this session.",
+        );
+      }
+    }
     // Determine if entry stop is serverReady breakpoint
     // Tolerate serverReady breakpoint being the first ("entry") stop even if a user breakpoint
     // might also be hit first in some adapters. We only require line equality; path mismatch is
@@ -2944,10 +3027,17 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
     const isServerReadyHit
       = !!serverReadySource && entryStop.line === serverReady?.trigger?.line;
     // Decide whether to continue immediately (entry not at user breakpoint OR serverReady hit)
-    const entryLineOneBased = entryStop.line ?? -1;
-    const hitRequestedBreakpoint
-      = entryLineOneBased > 0
-        && validated.some(v => v.resolvedLine === entryLineOneBased);
+    const isRequestedStop = (stop: BreakpointHitInfo): boolean => {
+      if (stop.reason === "function breakpoint" && validatedFunctions.length) {
+        return true;
+      }
+      return (
+        typeof stop.line === "number"
+        && validated.some(v => v.resolvedLine === stop.line)
+      );
+    };
+
+    const hitRequestedBreakpoint = isRequestedStop(entryStop);
     logger.info(
       `EntryStop diagnostics: line=${entryStop.line} serverReadyLine=${serverReady?.trigger?.line} isServerReadyHit=${isServerReadyHit} hitRequestedBreakpoint=${hitRequestedBreakpoint}`,
     );
@@ -2989,10 +3079,7 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
         while (
           nextStop.reason !== "terminated"
           && nextStop.reason !== "exception"
-          && !(
-            typeof nextStop.line === "number"
-            && validated.some(v => v.resolvedLine === nextStop.line)
-          )
+          && !isRequestedStop(nextStop)
           && hops < maxHops
         ) {
           // Special-case: serverReady breakpoint stop (after entry).
@@ -3157,6 +3244,7 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
     let scopesForCapture = orderedScopes;
     // Determine which breakpoint was actually hit (exact file + line match)
     let hitBreakpoint: BreakpointDefinition | undefined;
+    let hitFunctionBreakpoint: FunctionBreakpointDefinition | undefined;
     const framePath = debugContext.frame?.source?.path;
     const frameLine = debugContext.frame?.line;
     if (framePath && typeof frameLine === "number") {
@@ -3187,6 +3275,22 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
       }
     }
 
+    // DAP stopped events do not include a unique "function breakpoint id".
+    // If we can unambiguously match the top frame name to the requested functionName, report it.
+    if (
+      finalStop.reason === "function breakpoint"
+      && validatedFunctions.length
+      && typeof debugContext.frame?.name === "string"
+    ) {
+      const frameName = debugContext.frame.name;
+      const matches = validatedFunctions
+        .map(v => v.bp)
+        .filter(bp => bp.functionName === frameName);
+      if (matches.length === 1) {
+        hitFunctionBreakpoint = { ...matches[0] };
+      }
+    }
+
     // Capture variables.
     // For capture actions (captureAndContinue / captureAndStopDebugging), we default to a
     // single step-over (DAP 'next') before collecting variables. This avoids the common
@@ -3197,13 +3301,14 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
     // If autoStepOver=false, we do not step.
     let stepOverCapture: StartDebuggerStopInfo["stepOverCapture"] | undefined;
     let scopeVariables: ScopeVariables[] = [];
+    const effectiveHit = hitBreakpoint ?? hitFunctionBreakpoint;
     const isCaptureAction
-      = hitBreakpoint?.onHit === "captureAndContinue"
-        || hitBreakpoint?.onHit === "captureAndStopDebugging";
+      = effectiveHit?.onHit === "captureAndContinue"
+        || effectiveHit?.onHit === "captureAndStopDebugging";
     const shouldDefaultStepBeforeCapture
       = isCaptureAction
-        && hitBreakpoint?.autoStepOver !== true
-        && hitBreakpoint?.autoStepOver !== false;
+        && effectiveHit?.autoStepOver !== true
+        && effectiveHit?.autoStepOver !== false;
 
     if (shouldDefaultStepBeforeCapture) {
       const stepped = await customRequestAndWaitForStop({
@@ -3233,7 +3338,7 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
       scopesForCapture = steppedScopes;
     }
 
-    if (hitBreakpoint?.autoStepOver) {
+    if (effectiveHit?.autoStepOver) {
       const before = await captureScopeVariables({
         session: finalStop.session,
         scopes: scopesForCapture,
@@ -3295,8 +3400,8 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
     }
     let capturedLogMessages: string[] | undefined;
     if (
-      hitBreakpoint?.onHit === "captureAndContinue"
-      || hitBreakpoint?.onHit === "captureAndStopDebugging"
+      effectiveHit?.onHit === "captureAndContinue"
+      || effectiveHit?.onHit === "captureAndStopDebugging"
     ) {
       const interpolate = (msg: string) =>
         msg.replace(/\{([^{}]+)\}/g, (_m, name) => {
@@ -3309,8 +3414,13 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
           capturedLogMessages.push(interpolate(bp.logMessage));
         }
       }
+      for (const { bp } of validatedFunctions) {
+        if (bp.logMessage) {
+          capturedLogMessages.push(interpolate(bp.logMessage));
+        }
+      }
     }
-    if (hitBreakpoint?.onHit === "captureAndStopDebugging") {
+    if (effectiveHit?.onHit === "captureAndStopDebugging") {
       logger.info("Terminating all debug sessions per breakpoint action.");
       await vscode.debug.stopDebugging();
       const now = Date.now();
@@ -3320,7 +3430,7 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
       const waitTime = Date.now() - now;
       logger.info(`All debug sessions terminated after ${waitTime}ms.`);
     }
-    else if (hitBreakpoint?.onHit === "captureAndContinue") {
+    else if (effectiveHit?.onHit === "captureAndContinue") {
       await tryContinueWithoutWaiting({
         session: finalStop.session,
         threadId: finalStop.threadId,
@@ -3338,10 +3448,10 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
       triggerSummary: serverReadyTriggerSummary,
     };
     let debuggerState: DebuggerStateSnapshot;
-    if (hitBreakpoint?.onHit === "captureAndStopDebugging") {
+    if (effectiveHit?.onHit === "captureAndStopDebugging") {
       debuggerState = { status: "terminated" };
     }
-    else if (hitBreakpoint?.onHit === "captureAndContinue") {
+    else if (effectiveHit?.onHit === "captureAndContinue") {
       debuggerState = {
         status: "running",
         sessionId: finalStop.session.id,
@@ -3402,6 +3512,7 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
       scopeVariables,
       stepOverCapture,
       hitBreakpoint: hitBreakpoint ?? undefined,
+      hitFunctionBreakpoint: hitFunctionBreakpoint ?? undefined,
       capturedLogMessages,
       serverReadyInfo,
       debuggerState,
@@ -3464,20 +3575,14 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
     const current = vscode.debug.breakpoints;
     if (current.length) {
       // Remove only the breakpoints we added (avoid touching restored originals twice)
-      const currentSource = current.filter(
-        bp => bp instanceof vscode.SourceBreakpoint,
-      ) as vscode.SourceBreakpoint[];
-      const addedKeys = new Set(
-        validated.map(
-          v =>
-            `${v.sb.location.uri.fsPath}:${v.sb.location.range.start.line}`,
-        ),
-      );
-      const toRemove = currentSource.filter(sb =>
-        addedKeys.has(
-          `${sb.location.uri.fsPath}:${sb.location.range.start.line}`,
-        ),
-      );
+      const added = new Set<vscode.Breakpoint>([
+        ...validated.map(v => v.sb),
+        ...validatedFunctions.map(v => v.fb),
+      ]);
+      if (serverReadySource) {
+        added.add(serverReadySource);
+      }
+      const toRemove = current.filter(bp => added.has(bp));
       if (toRemove.length) {
         vscode.debug.removeBreakpoints(toRemove);
         logger.debug(
@@ -3558,11 +3663,13 @@ export async function stopDebugSession(params: { sessionId: string }) {
  * @param params.sessionId - ID of the debug session to resume.
  * @param params.breakpointConfig - Optional configuration for managing breakpoints when resuming.
  * @param params.breakpointConfig.breakpoints - Array of breakpoint configurations to set before resuming.
+ * @param params.breakpointConfig.functionBreakpoints - Array of function breakpoint configurations to set before resuming.
  */
 export async function resumeDebugSession(params: {
   sessionId: string
   breakpointConfig?: {
     breakpoints?: Array<BreakpointDefinition>
+    functionBreakpoints?: Array<FunctionBreakpointDefinition>
   }
 }) {
   const { sessionId, breakpointConfig } = params;
@@ -3587,11 +3694,40 @@ export async function resumeDebugSession(params: {
 
   // Handle breakpoint configuration if provided
   if (breakpointConfig) {
-    // Add new breakpoints if provided
-    if (
-      breakpointConfig.breakpoints
-      && breakpointConfig.breakpoints.length > 0
-    ) {
+    // Fail fast if caller requested function breakpoints but adapter doesn't support them.
+    if (breakpointConfig.functionBreakpoints?.length) {
+      const caps = await waitForSessionCapabilities({
+        sessionId: session.id,
+        timeoutMs: 2000,
+      });
+      const supportsFunctionBreakpoints
+        = (caps?.supportsFunctionBreakpoints as unknown) === true;
+      if (!supportsFunctionBreakpoints) {
+        throw new Error(
+          "The active debug adapter does not advertise supportsFunctionBreakpoints=true, so functionBreakpoints are not supported in this session.",
+        );
+      }
+    }
+
+    const functionBreakpoints: vscode.FunctionBreakpoint[] = [];
+    if (breakpointConfig.functionBreakpoints?.length) {
+      for (const bp of breakpointConfig.functionBreakpoints) {
+        const name = bp.functionName?.trim();
+        if (!name) {
+          throw new Error(
+            "Function breakpoint is missing required 'functionName'.",
+          );
+        }
+        const hitCond
+          = bp.hitCount !== undefined ? String(bp.hitCount) : undefined;
+        functionBreakpoints.push(
+          new vscode.FunctionBreakpoint(name, true, bp.condition, hitCond),
+        );
+      }
+    }
+
+    // Add new source breakpoints if provided
+    if (breakpointConfig.breakpoints?.length) {
       if (!workspaceFolder) {
         throw new Error(
           "Cannot determine workspace folder for breakpoint paths",
@@ -3662,21 +3798,29 @@ export async function resumeDebugSession(params: {
             = entry.bp.hitCount !== undefined
               ? String(entry.bp.hitCount)
               : undefined;
+          const adapterLogMessage
+            = entry.bp.onHit === "captureAndContinue"
+              || entry.bp.onHit === "captureAndStopDebugging"
+              ? undefined
+              : entry.bp.logMessage;
           newBreakpoints.push(
             new vscode.SourceBreakpoint(
               new vscode.Location(uri, location),
               true,
               entry.bp.condition,
               hitCond,
-              entry.bp.logMessage,
+              adapterLogMessage,
             ),
           );
         }
       }
-      vscode.debug.addBreakpoints(newBreakpoints);
+      vscode.debug.addBreakpoints([...newBreakpoints, ...functionBreakpoints]);
 
       // Replace breakpointConfig breakpoints with resolved entries for downstream correlation.
       // (We keep original code snippet on each entry, but the hit line is checked via resolved mapping below.)
+    }
+    else if (functionBreakpoints.length) {
+      vscode.debug.addBreakpoints(functionBreakpoints);
     }
   }
 
@@ -3707,6 +3851,7 @@ export async function resumeDebugSession(params: {
 
   // Determine which breakpoint was actually hit (exact file + line match) based on provided breakpointConfig.
   let hitBreakpoint: BreakpointDefinition | undefined;
+  let hitFunctionBreakpoint: FunctionBreakpointDefinition | undefined;
   const framePath = normalizedContext.frame?.source?.path;
   const frameLine = normalizedContext.frame?.line;
   if (
@@ -3758,15 +3903,30 @@ export async function resumeDebugSession(params: {
     }
   }
 
+  if (
+    stopInfo.reason === "function breakpoint"
+    && breakpointConfig?.functionBreakpoints?.length
+    && typeof normalizedContext.frame?.name === "string"
+  ) {
+    const frameName = normalizedContext.frame.name;
+    const matches = breakpointConfig.functionBreakpoints.filter(
+      bp => bp.functionName === frameName,
+    );
+    if (matches.length === 1) {
+      hitFunctionBreakpoint = { ...matches[0] };
+    }
+  }
+
   // For capture actions, default to a single step-over (DAP 'next') before collecting variables
   // to avoid pre-assignment values when the breakpoint is set on an assignment line.
+  const effectiveHit = hitBreakpoint ?? hitFunctionBreakpoint;
   const isCaptureAction
-    = hitBreakpoint?.onHit === "captureAndContinue"
-      || hitBreakpoint?.onHit === "captureAndStopDebugging";
+    = effectiveHit?.onHit === "captureAndContinue"
+      || effectiveHit?.onHit === "captureAndStopDebugging";
   const shouldDefaultStepBeforeCapture
     = isCaptureAction
-      && hitBreakpoint?.autoStepOver !== true
-      && hitBreakpoint?.autoStepOver !== false;
+      && effectiveHit?.autoStepOver !== true
+      && effectiveHit?.autoStepOver !== false;
 
   let contextForVariables = normalizedContext;
   if (shouldDefaultStepBeforeCapture) {
@@ -3811,8 +3971,8 @@ export async function resumeDebugSession(params: {
 
   let capturedLogMessages: string[] | undefined;
   if (
-    hitBreakpoint?.onHit === "captureAndContinue"
-    || hitBreakpoint?.onHit === "captureAndStopDebugging"
+    effectiveHit?.onHit === "captureAndContinue"
+    || effectiveHit?.onHit === "captureAndStopDebugging"
   ) {
     const interpolate = (msg: string) =>
       msg.replace(/\{([^{}]+)\}/g, (_m, name) => {
@@ -3825,13 +3985,18 @@ export async function resumeDebugSession(params: {
         capturedLogMessages.push(interpolate(bp.logMessage));
       }
     }
+    for (const bp of breakpointConfig?.functionBreakpoints ?? []) {
+      if (bp.logMessage) {
+        capturedLogMessages.push(interpolate(bp.logMessage));
+      }
+    }
   }
 
-  if (hitBreakpoint?.onHit === "captureAndStopDebugging") {
+  if (effectiveHit?.onHit === "captureAndStopDebugging") {
     logger.info("Terminating all debug sessions per breakpoint action.");
     await vscode.debug.stopDebugging();
   }
-  else if (hitBreakpoint?.onHit === "captureAndContinue") {
+  else if (effectiveHit?.onHit === "captureAndContinue") {
     await tryContinueWithoutWaiting({
       session: stopInfo.session,
       threadId: stopInfo.threadId,
@@ -3846,10 +4011,10 @@ export async function resumeDebugSession(params: {
   };
 
   let debuggerState: DebuggerStateSnapshot;
-  if (hitBreakpoint?.onHit === "captureAndStopDebugging") {
+  if (effectiveHit?.onHit === "captureAndStopDebugging") {
     debuggerState = { status: "terminated" };
   }
-  else if (hitBreakpoint?.onHit === "captureAndContinue") {
+  else if (effectiveHit?.onHit === "captureAndContinue") {
     debuggerState = {
       status: "running",
       sessionId: stopInfo.session.id,
@@ -3889,6 +4054,7 @@ export async function resumeDebugSession(params: {
     ...contextForVariables,
     scopeVariables,
     hitBreakpoint: hitBreakpoint ?? undefined,
+    hitFunctionBreakpoint: hitFunctionBreakpoint ?? undefined,
     capturedLogMessages,
     serverReadyInfo,
     debuggerState,

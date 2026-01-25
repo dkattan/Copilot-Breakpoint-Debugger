@@ -6,7 +6,10 @@ import type {
   LanguageModelToolResult,
   ProviderResult,
 } from "vscode";
-import type { BreakpointDefinition } from "./BreakpointDefinition";
+import type {
+  BreakpointDefinition,
+  FunctionBreakpointDefinition,
+} from "./BreakpointDefinition";
 import { createTruncatedToolResult } from "./outputTruncation";
 import { resumeDebugSession } from "./session";
 import { renderStopInfoMarkdown } from "./stopInfoMarkdown";
@@ -16,6 +19,7 @@ export interface ResumeDebugSessionToolParameters {
   waitForStop?: boolean // Wait for next breakpoint after resume
   breakpointConfig?: {
     breakpoints?: Array<BreakpointDefinition>
+    functionBreakpoints?: Array<FunctionBreakpointDefinition>
   }
 }
 
@@ -34,6 +38,7 @@ export class ResumeDebugSessionTool implements LanguageModelTool<ResumeDebugSess
           stopInfo,
           breakpointConfig: {
             breakpoints: breakpointConfig?.breakpoints ?? [],
+            functionBreakpoints: breakpointConfig?.functionBreakpoints ?? [],
           },
           success: true,
         }),

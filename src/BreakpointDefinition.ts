@@ -33,3 +33,19 @@ export interface BreakpointDefinition {
   autoStepOver?: boolean
   reasonCode?: string // Internal telemetry tag (not surfaced)
 }
+
+// Function breakpoint definition (DAP setFunctionBreakpoints) exposed via VS Code's FunctionBreakpoint.
+// Note: DAP does not provide a stable "which function breakpoint hit" identifier on stopped events,
+// so hit correlation is best-effort (see session.ts).
+export interface FunctionBreakpointDefinition {
+  /** Function name (adapter-specific). Examples: "myFunc", "MyClass.method" */
+  functionName: string
+  /** Exact variable name to capture/report (case-sensitive). Use "*" for capture-all. */
+  variable: string
+  onHit?: "break" | "captureAndStopDebugging" | "captureAndContinue"
+  condition?: string
+  hitCount?: number
+  logMessage?: string
+  autoStepOver?: boolean
+  reasonCode?: string
+}

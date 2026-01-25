@@ -11,3 +11,18 @@ export interface ToolInvocationResult {
   content?: unknown[]
   parts?: unknown[]
 }
+
+/**
+ * Subset of DAP initialize response capabilities we care about when probing the
+ * built-in Node/JavaScript debug adapter.
+ */
+export interface InitializeCapabilities {
+  supportsConditionalBreakpoints?: boolean
+  supportsHitConditionalBreakpoints?: boolean
+  supportsLogPoints?: boolean
+  supportsFunctionBreakpoints?: boolean
+  supportsDataBreakpoints?: boolean
+  supportsInstructionBreakpoints?: boolean
+  supportsExceptionOptions?: boolean
+  exceptionBreakpointFilters?: Array<{ filter?: string }>
+}

@@ -154,9 +154,22 @@ test("Copilot Breakpoint Debugger demo", async ({ workbox, vscode, evaluateInVSC
   await chatMarkdownParts.last().click();
   await workbox.keyboard.press("ArrowUp");
 
+  // Wait for processing to start (best-effort).
+  // In CI, Copilot Chat can sometimes transition from idle → processing → idle fast enough
+  // that the stop icon never becomes observable. We avoid making that a hard requirement.
+  //
+  // We still prefer UI observation only (no clicking) to keep this stable across notification toasts.
+  try {
+    await Promise.race([
+      chatStopIcon.first().waitFor({ state: "visible", timeout: 5_000 }),
+      chatSendIcon.first().waitFor({ state: "hidden", timeout: 5_000 }),
+    ]);
+  }
+  catch {
+    // If neither transition is observed quickly, continue; the completion wait below is authoritative.
+  }
+
   // Wait for processing to complete.
-  // We use UI observation only (no clicking) to keep this stable across notification toasts.
-  await expect(chatStopIcon.first()).toBeVisible({ timeout: 30_000 });
   await expect(chatSendIcon.first()).toBeVisible({ timeout: 180_000 });
 
   // Expand the Copilot "Request" message (tool invocation payload) using accessibility

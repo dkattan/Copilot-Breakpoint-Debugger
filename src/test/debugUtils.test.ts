@@ -30,16 +30,16 @@ describe("debugUtils - DAPHelpers", function () {
 
   before(async () => {
     const extensionRoot = getExtensionRoot();
-    const workspaceRelative = "test-workspace/b";
+    const workspaceRelative = "test-workspace/node";
     const scriptRelative = `${workspaceRelative}/test.js`;
     const scriptUri = vscode.Uri.file(path.join(extensionRoot, scriptRelative));
     assert.ok(vscode.workspace.workspaceFolders?.length);
     workspaceFolder = vscode.workspace.workspaceFolders.find(
-      folder => folder.name === "workspace-b",
+      folder => folder.name === "workspace-node",
     )!.uri.fsPath!;
     assert.ok(
       workspaceFolder,
-      "Workspace folder 'b' not found in test workspace",
+      "Workspace folder 'node' not found in test workspace",
     );
     scriptPath = scriptUri.fsPath;
     await openScriptDocument(scriptUri);

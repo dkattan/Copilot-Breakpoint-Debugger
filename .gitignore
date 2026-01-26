@@ -30,3 +30,9 @@ playwright-demo.config.js.map
 # Local Playwright Test Explorer env
 .env.playwright
 test-results
+**/bin
+**/obj
+
+# Local VSIX artifacts
+*.vsix
+tmp-vsix-smoke/

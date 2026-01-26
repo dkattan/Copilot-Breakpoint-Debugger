@@ -52,5 +52,7 @@
       }
     ]
   },
-  "editor.formatOnPaste": true
+  "editor.formatOnPaste": true,
+  "knip.enabled": true,
+  "knip.requireConfig": true
 }

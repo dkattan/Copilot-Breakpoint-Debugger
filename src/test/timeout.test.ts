@@ -34,13 +34,13 @@ describe("startDebuggerTool timeout behavior", () => {
 
   it("reports timeout when breakpoint not hit within configured seconds", async () => {
     const result = await invokeStartDebuggerTool({
-      scriptRelativePath: "test-workspace/b/test.js",
+      scriptRelativePath: "test-workspace/node/test.js",
       configurationName: "Run test.js with preLaunchTask",
       variable: "delayedValue",
       breakpointSnippets: [
-        'console.log("Running test.js inside test-workspace/b");',
+        'console.log("Running test.js inside test-workspace/node");',
       ],
-      workspaceFolder: "test-workspace/b",
+      workspaceFolder: "test-workspace/node",
     });
     const { content } = result;
     assert.ok(content.length === 1, "expected single output part");

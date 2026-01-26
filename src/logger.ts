@@ -15,7 +15,7 @@ const levelOrder: Record<ConsoleLogLevel, number> = {
 };
 
 const baseLogger = useLogger("Copilot Breakpoint Debugger", { toConsole: [] });
-export const logChannel = baseLogger;
+const logChannel = baseLogger;
 
 const consoleLevel = computed<ConsoleLogLevel>(
   () => {
@@ -170,5 +170,3 @@ export const logger = {
     emitConsole("error", message, extra);
   },
 };
-
-export const logging = { logger, logChannel };

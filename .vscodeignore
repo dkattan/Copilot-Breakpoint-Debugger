@@ -16,6 +16,9 @@ test-workspace.code-workspace
 .gitattributes
 .githooks/**
 .github/**
+.tmp/**
+.act-cache/**
+.gh-artifacts/**
 .vscode/**
 *.vsix
 
@@ -24,6 +27,12 @@ node_modules/**
 coverage/**
 *.map
 esbuild.js
+
+# Local test/artifact folders (not needed in packaged extension)
+external/**
+playwright/**
+test-results/**
+coverage/**
 
 # Documentation and project files
 eslint.config.mjs

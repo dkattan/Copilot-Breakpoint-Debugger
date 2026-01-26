@@ -24,7 +24,7 @@ describe("serverReady vscodeCommand action", () => {
 
     await activateCopilotDebugger();
     const extensionRoot = getExtensionRoot();
-    const workspaceFolder = path.join(extensionRoot, "test-workspace", "b");
+    const workspaceFolder = path.join(extensionRoot, "test-workspace", "node");
     const serverPath = path.join(workspaceFolder, "server.js");
     const serverDoc = await vscode.workspace.openTextDocument(serverPath);
     await openScriptDocument(serverDoc.uri);
@@ -47,7 +47,7 @@ describe("serverReady vscodeCommand action", () => {
     const context = await startDebuggingAndWaitForStop({
       sessionName: "",
       workspaceFolder,
-      nameOrConfiguration: "Run b/server.js",
+      nameOrConfiguration: "Run node/server.js",
       timeoutSeconds: 180,
       breakpointConfig: {
         breakpoints: [

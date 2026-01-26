@@ -84,15 +84,42 @@ async function customRequestAndWaitForStop(params: {
   const { session, sessionId, command, threadId, timeout, failureMessage }
     = params;
   const waiter = createStopWaiterBySessionId({ sessionId, timeout });
-  try {
-    await session.customRequest(command, { threadId });
-    return await waiter.promise;
-  }
-  catch (e) {
-    waiter.dispose();
-    const msg = e instanceof Error ? e.message : String(e);
-    throw new Error(`${failureMessage}: ${msg}`);
-  }
+
+  // Some debug adapters can emit stop events (and even continue events) but fail to resolve
+  // the corresponding request promise in a timely manner. If we await the request first,
+  // we risk hanging even though the stop event already occurred.
+  //
+  // Instead:
+  // - Set up the stop waiter first (already done)
+  // - Fire the request and observe *rejection* (fail fast)
+  // - Resolve as soon as the stop waiter resolves
+  // - Ensure we always dispose listeners exactly once and avoid unhandled rejections
+  const requestPromise = session.customRequest(command, { threadId });
+  return await new Promise<BreakpointHitInfo>((resolve, reject) => {
+    let finished = false;
+    const finish = (fn: () => void) => {
+      if (finished) {
+        return;
+      }
+      finished = true;
+      waiter.dispose();
+      fn();
+    };
+
+    void waiter.promise
+      .then(event => finish(() => resolve(event)))
+      .catch(err => finish(() => reject(err)));
+
+    void requestPromise.then(
+      () => {
+        // Success path: we still wait for the stop waiter, which owns the timeout.
+      },
+      (e: unknown) => {
+        const msg = e instanceof Error ? e.message : String(e);
+        finish(() => reject(new Error(`${failureMessage}: ${msg}`)));
+      },
+    );
+  });
 }
 
 /**
@@ -217,54 +244,6 @@ export interface RuntimeOutputPreview {
   truncated: boolean
 }
 
-/**
- * Call stack information for a debug session
- */
-export interface CallStackInfo {
-  callStacks: Array<{
-    sessionId: string
-    sessionName: string
-    threads?: Array<{
-      threadId: number
-      threadName: string
-      stackFrames?: Array<{
-        id: number
-        name: string
-        source?: {
-          name?: string
-          path?: string
-        }
-        line: number
-        column: number
-      }>
-      error?: string
-    }>
-    error?: string
-  }>
-}
-
-/**
- * Structured debug information returned when a breakpoint is hit
- */
-export interface DebugInfo {
-  breakpoint: BreakpointHitInfo
-  callStack: CallStackInfo | null
-  variables: ScopeVariables[] | null
-  variablesError: string | null
-}
-
-/**
- * Result from starting a debug session
- */
-export interface StartDebugSessionResult {
-  content: Array<{
-    type: "text" | "json"
-    text?: string
-    json?: DebugInfo
-  }>
-  isError: boolean
-}
-
 export interface StartDebuggerStopInfo extends DebugContext {
   scopeVariables: ScopeVariables[]
   stepOverCapture?: {
@@ -336,31 +315,6 @@ function buildProtocol(state: DebuggerStateSnapshot): CopilotDebuggerProtocol {
     ],
     nextStepSuggestion:
       "Session is terminated. Start a new session with startDebugSessionWithBreakpoints.",
-  };
-}
-
-/**
- * List all active debug sessions in the workspace.
- *
- * Exposes debug session information, including each session's ID, name, and associated launch configuration.
- */
-export function listDebugSessions() {
-  // Retrieve all active debug sessions using the activeSessions array.
-  const sessions = activeSessions.map((session: vscode.DebugSession) => ({
-    id: session.id,
-    name: session.name,
-    configuration: session.configuration,
-  }));
-
-  // Return session list
-  return {
-    content: [
-      {
-        type: "json",
-        json: { sessions },
-      },
-    ],
-    isError: false,
   };
 }
 
@@ -1429,6 +1383,11 @@ export interface StartDebuggingAndWaitForStopParams {
   nameOrConfiguration?: string // may be omitted; auto-selection logic will attempt resolution
   timeoutSeconds?: number // optional override; falls back to workspace setting copilot-debugger.entryTimeoutSeconds
   /**
+   * Optional task label to auto-start before launching the debugger.
+   * Intended for long-running watcher tasks (e.g. `dotnet watch run`).
+   */
+  watcherTaskLabel?: string
+  /**
    * Tool mode:
    * - 'singleShot' (default): tool will terminate the debug session before returning.
    * - 'inspect': tool may return with the session paused so the caller can inspect state and resume.
@@ -1468,6 +1427,91 @@ export interface StartDebuggingAndWaitForStopParams {
    * Defaults to false.
    */
   useExistingBreakpoints?: boolean
+}
+
+async function ensureTaskIsRunningByLabel(params: {
+  taskLabel: string
+  timeoutMs: number
+}): Promise<void> {
+  const { taskLabel, timeoutMs } = params;
+
+  // If already running, we're done.
+  if (vscode.tasks.taskExecutions.some(exec => exec.task.name === taskLabel)) {
+    logger.info(`Watcher task already running: ${taskLabel}`);
+    return;
+  }
+
+  const tasks = await vscode.tasks.fetchTasks();
+  const matching = tasks.filter(t => t.name === taskLabel);
+  if (matching.length === 0) {
+    const known = tasks
+      .map(t => t.name)
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b));
+    throw new Error(
+      `watcherTaskLabel '${taskLabel}' did not match any tasks. Available task labels: ${known.join(", ")}`,
+    );
+  }
+  if (matching.length > 1) {
+    throw new Error(
+      `watcherTaskLabel '${taskLabel}' matched multiple tasks (${matching.length}). Use a unique task label.`,
+    );
+  }
+
+  const taskToRun = matching[0];
+  logger.info(`Starting watcher task: ${taskLabel}`);
+
+  const started = new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(
+        new Error(
+          `Timed out waiting for task '${taskLabel}' to start after ${timeoutMs}ms.`,
+        ),
+      );
+    }, timeoutMs);
+
+    let startDisposable = { dispose: () => {} } as vscode.Disposable;
+    let endDisposable = { dispose: () => {} } as vscode.Disposable;
+
+    endDisposable = vscode.tasks.onDidEndTaskProcess((event) => {
+      if (event.execution.task.name !== taskLabel) {
+        return;
+      }
+      clearTimeout(timer);
+      startDisposable.dispose();
+      endDisposable.dispose();
+      reject(
+        new Error(
+          `Task '${taskLabel}' exited before start could be observed (exitCode=${String(
+            event.exitCode,
+          )}).`,
+        ),
+      );
+    });
+
+    startDisposable = vscode.tasks.onDidStartTaskProcess((event) => {
+      if (event.execution.task.name !== taskLabel) {
+        return;
+      }
+      clearTimeout(timer);
+      startDisposable.dispose();
+      endDisposable.dispose();
+
+      if (typeof event.processId !== "number") {
+        reject(
+          new Error(
+            `Task '${taskLabel}' did not report a process id; it may have failed to start.`,
+          ),
+        );
+        return;
+      }
+
+      resolve();
+    });
+  });
+
+  await vscode.tasks.executeTask(taskToRun);
+  await started;
 }
 
 function runPreLaunchTaskFromTasksJson(workspaceFolderFsPath: string, taskLabel: string): { exitCode: number | undefined, outputLines: string[] } {
@@ -1818,6 +1862,7 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
     nameOrConfiguration,
     timeoutSeconds: timeoutOverride,
     mode = "singleShot",
+    watcherTaskLabel,
     breakpointConfig,
     serverReady: serverReadyParam,
     useExistingBreakpoints: _useExistingBreakpoints = false,
@@ -1843,6 +1888,13 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
     );
   }
   const serverReady = serverReadyEnabled ? serverReadyParam : undefined;
+
+  if (watcherTaskLabel && watcherTaskLabel.trim().length > 0) {
+    await ensureTaskIsRunningByLabel({
+      taskLabel: watcherTaskLabel.trim(),
+      timeoutMs: 30_000,
+    });
+  }
 
   let serverReadyPatternRegex: RegExp | undefined;
   if (serverReady?.trigger?.pattern) {
@@ -3585,100 +3637,11 @@ export async function resumeDebugSession(params: {
     = session.workspaceFolder?.uri.fsPath
       || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
-  // Handle breakpoint configuration if provided
-  if (breakpointConfig) {
-    // Add new breakpoints if provided
-    if (
-      breakpointConfig.breakpoints
-      && breakpointConfig.breakpoints.length > 0
-    ) {
-      if (!workspaceFolder) {
-        throw new Error(
-          "Cannot determine workspace folder for breakpoint paths",
-        );
-      }
-
-      const resolved = [] as Array<{
-        bp: BreakpointDefinition
-        absPath: string
-        lines: number[]
-      }>;
-      for (const bp of breakpointConfig.breakpoints) {
-        let absPath: string;
-        if (path.isAbsolute(bp.path)) {
-          absPath = bp.path;
-        }
-        else {
-          // Try to resolve relative path against session folder, then any workspace folder
-          const candidates = [
-            session.workspaceFolder?.uri.fsPath,
-            ...(vscode.workspace.workspaceFolders ?? []).map(
-              f => f.uri.fsPath,
-            ),
-          ].filter((p): p is string => !!p);
-
-          const found = candidates.find(base =>
-            fs.existsSync(path.join(base, bp.path)),
-          );
-          if (found) {
-            absPath = path.join(found, bp.path);
-          }
-          else {
-            // Legacy determination
-            if (!workspaceFolder) {
-              throw new Error(
-                `Cannot determine workspace folder for '${bp.path}'`,
-              );
-            }
-            absPath = path.join(workspaceFolder, bp.path);
-          }
-        }
-
-        if (!bp.code || !bp.code.trim()) {
-          throw new Error(
-            `Breakpoint for '${absPath}' is missing required 'code' snippet.`,
-          );
-        }
-        const doc = await vscode.workspace.openTextDocument(
-          vscode.Uri.file(absPath),
-        );
-        const lines = findAllLineNumbersForSnippet(doc, bp.code);
-        if (lines.length === 0) {
-          throw new Error(
-            `Breakpoint snippet not found in '${absPath}': '${truncateSnippet(
-              bp.code,
-            )}'`,
-          );
-        }
-        resolved.push({ bp, absPath, lines });
-      }
-
-      const newBreakpoints: vscode.SourceBreakpoint[] = [];
-      for (const entry of resolved) {
-        for (const line of entry.lines) {
-          const uri = vscode.Uri.file(entry.absPath);
-          const location = new vscode.Position(line - 1, 0);
-          const hitCond
-            = entry.bp.hitCount !== undefined
-              ? String(entry.bp.hitCount)
-              : undefined;
-          newBreakpoints.push(
-            new vscode.SourceBreakpoint(
-              new vscode.Location(uri, location),
-              true,
-              entry.bp.condition,
-              hitCond,
-              entry.bp.logMessage,
-            ),
-          );
-        }
-      }
-      vscode.debug.addBreakpoints(newBreakpoints);
-
-      // Replace breakpointConfig breakpoints with resolved entries for downstream correlation.
-      // (We keep original code snippet on each entry, but the hit line is checked via resolved mapping below.)
-    }
-  }
+  await applySnippetBreakpointConfigForSession({
+    session,
+    workspaceFolder,
+    breakpointConfig,
+  });
 
   // Send the continue request to the debug adapter
   logger.info(`Resuming debug session '${session.name}' (ID: ${sessionId})`);
@@ -3897,4 +3860,466 @@ export async function resumeDebugSession(params: {
     reason: stopInfo.reason,
     exceptionInfo: stopInfo.exceptionInfo,
   };
+}
+
+export async function resumeDebugSessionWithoutWaiting(params: {
+  sessionId: string
+  breakpointConfig?: {
+    breakpoints?: Array<BreakpointDefinition>
+  }
+}): Promise<{ sessionId: string, sessionName: string }> {
+  const { sessionId, breakpointConfig } = params;
+
+  // Find the session with the given ID
+  let session = activeSessions.find(s => s.id === sessionId);
+
+  // If not found by ID, try to find by name pattern (VSCode creates child sessions with modified names)
+  if (!session) {
+    session = activeSessions.find(s => s.name.includes(sessionId));
+  }
+
+  if (!session) {
+    throw new Error(`No debug session found with ID '${sessionId}'.`);
+  }
+
+  const workspaceFolder
+    = session.workspaceFolder?.uri.fsPath
+      || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+
+  await applySnippetBreakpointConfigForSession({
+    session,
+    workspaceFolder,
+    breakpointConfig,
+  });
+
+  logger.info(
+    `Resuming debug session '${session.name}' (ID: ${sessionId}) without waiting for next stop`,
+  );
+  await tryContinueWithoutWaiting({
+    session,
+    threadId: 0,
+    failureContext: "resumeDebugSession(waitForStop=false)",
+  });
+
+  return { sessionId: session.id, sessionName: session.name };
+}
+
+async function applySnippetBreakpointConfigForSession(params: {
+  session: vscode.DebugSession
+  workspaceFolder?: string
+  breakpointConfig?: {
+    breakpoints?: Array<BreakpointDefinition>
+  }
+}): Promise<void> {
+  const { session, workspaceFolder, breakpointConfig } = params;
+
+  // Handle breakpoint configuration if provided
+  if (!breakpointConfig?.breakpoints || breakpointConfig.breakpoints.length === 0) {
+    return;
+  }
+
+  if (!workspaceFolder) {
+    throw new Error("Cannot determine workspace folder for breakpoint paths");
+  }
+
+  const resolved = [] as Array<{
+    bp: BreakpointDefinition
+    absPath: string
+    lines: number[]
+  }>;
+  for (const bp of breakpointConfig.breakpoints) {
+    let absPath: string;
+    if (path.isAbsolute(bp.path)) {
+      absPath = bp.path;
+    }
+    else {
+      // Try to resolve relative path against session folder, then any workspace folder
+      const candidates = [
+        session.workspaceFolder?.uri.fsPath,
+        ...(vscode.workspace.workspaceFolders ?? []).map(f => f.uri.fsPath),
+      ].filter((p): p is string => !!p);
+
+      const found = candidates.find(base => fs.existsSync(path.join(base, bp.path)));
+      if (found) {
+        absPath = path.join(found, bp.path);
+      }
+      else {
+        // Legacy determination
+        if (!workspaceFolder) {
+          throw new Error(`Cannot determine workspace folder for '${bp.path}'`);
+        }
+        absPath = path.join(workspaceFolder, bp.path);
+      }
+    }
+
+    if (!bp.code || !bp.code.trim()) {
+      throw new Error(
+        `Breakpoint for '${absPath}' is missing required 'code' snippet.`,
+      );
+    }
+    const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(absPath));
+    const lines = findAllLineNumbersForSnippet(doc, bp.code);
+    if (lines.length === 0) {
+      throw new Error(
+        `Breakpoint snippet not found in '${absPath}': '${truncateSnippet(bp.code)}'`,
+      );
+    }
+    resolved.push({ bp, absPath, lines });
+  }
+
+  const newBreakpoints: vscode.SourceBreakpoint[] = [];
+  for (const entry of resolved) {
+    for (const line of entry.lines) {
+      const uri = vscode.Uri.file(entry.absPath);
+      const location = new vscode.Position(line - 1, 0);
+      const hitCond
+        = entry.bp.hitCount !== undefined ? String(entry.bp.hitCount) : undefined;
+      newBreakpoints.push(
+        new vscode.SourceBreakpoint(
+          new vscode.Location(uri, location),
+          true,
+          entry.bp.condition,
+          hitCond,
+          entry.bp.logMessage,
+        ),
+      );
+    }
+  }
+  vscode.debug.addBreakpoints(newBreakpoints);
+}
+
+export async function triggerBreakpointAndWaitForStop(params: {
+  sessionId: string
+  /**
+   * Optional timeout in seconds to wait for the next stop after the trigger.
+   * Defaults to 30 seconds.
+   */
+  timeoutSeconds?: number
+  /**
+   * Tool mode:
+   * - 'singleShot' (default): terminate the session before returning.
+   * - 'inspect': return while paused for follow-up debugger tool calls.
+   */
+  mode?: "singleShot" | "inspect"
+  /**
+   * Optional breakpoint configuration to add before resuming + triggering.
+   * Paths may be absolute or relative to the debug session's workspace folder.
+   */
+  breakpointConfig?: {
+    breakpoints?: Array<BreakpointDefinition>
+  }
+  /**
+   * Trigger action to execute after resuming.
+   * IMPORTANT: httpRequest is fire-and-forget to avoid deadlocks when the handler hits a breakpoint.
+   */
+  action: NonNullable<StartDebuggingAndWaitForStopParams["serverReady"]>["action"]
+}): Promise<StartDebuggerStopInfo> {
+  const {
+    sessionId,
+    timeoutSeconds = 30,
+    mode = "singleShot",
+    breakpointConfig,
+    action,
+  } = params;
+
+  if (!sessionId || !sessionId.trim()) {
+    throw new Error("sessionId is required.");
+  }
+  const session = activeSessions.find(s => s.id === sessionId);
+  if (!session) {
+    throw new Error(
+      `No debug session found with id '${sessionId}'. Use listDebugSessions and pass the session 'id' (UUID).`,
+    );
+  }
+
+  const folderFsPath = session.workspaceFolder?.uri.fsPath;
+  const shouldResolveRelative = (value: string) => !path.isAbsolute(value);
+  const resolveBreakpointPath = (bpPath: string) => {
+    if (!shouldResolveRelative(bpPath)) {
+      return bpPath;
+    }
+    if (!folderFsPath) {
+      throw new Error(
+        `Cannot resolve relative breakpoint path '${bpPath}' because the debug session has no workspaceFolder.`,
+      );
+    }
+    return path.join(folderFsPath, bpPath);
+  };
+
+  const validated: Array<{
+    bp: BreakpointDefinition
+    resolvedLine: number
+    absPath: string
+  }> = [];
+  if (breakpointConfig?.breakpoints?.length) {
+    const newBreakpoints: vscode.SourceBreakpoint[] = [];
+    for (const bp of breakpointConfig.breakpoints) {
+      const absPath = resolveBreakpointPath(bp.path);
+      if (!bp.code || !bp.code.trim()) {
+        throw new Error(
+          `Breakpoint for '${absPath}' is missing required 'code' snippet.`,
+        );
+      }
+      const doc = await vscode.workspace.openTextDocument(
+        vscode.Uri.file(absPath),
+      );
+      const lines = findAllLineNumbersForSnippet(doc, bp.code);
+      if (lines.length === 0) {
+        throw new Error(
+          `Breakpoint snippet not found in '${absPath}': '${truncateSnippet(
+            bp.code,
+          )}'`,
+        );
+      }
+      for (const line of lines) {
+        const uri = vscode.Uri.file(absPath);
+        const location = new vscode.Position(line - 1, 0);
+        const hitCond
+          = bp.hitCount !== undefined ? String(bp.hitCount) : undefined;
+        newBreakpoints.push(
+          new vscode.SourceBreakpoint(
+            new vscode.Location(uri, location),
+            true,
+            bp.condition,
+            hitCond,
+            bp.logMessage,
+          ),
+        );
+        validated.push({ bp, resolvedLine: line, absPath });
+      }
+    }
+    vscode.debug.addBreakpoints(newBreakpoints);
+  }
+
+  const executeTriggerAction = async () => {
+    // Determine action shape (new flat with type discriminator OR legacy union)
+    const actionAny = action as unknown as Record<string, unknown>;
+    const discriminator
+      = typeof actionAny.type === "string" ? (actionAny.type as string) : undefined;
+    const kind = discriminator
+      || (typeof actionAny.shellCommand === "string"
+        ? "shellCommand"
+        : typeof actionAny.httpRequest === "object" && actionAny.httpRequest
+          ? "httpRequest"
+          : typeof actionAny.vscodeCommand === "object" && actionAny.vscodeCommand
+            ? "vscodeCommand"
+            : undefined);
+
+    switch (kind) {
+      case "shellCommand": {
+        const cmd
+          = discriminator
+            ? (actionAny.shellCommand as string | undefined)
+            : (actionAny.shellCommand as string | undefined);
+        if (!cmd) {
+          throw new Error("trigger action shellCommand missing command text.");
+        }
+        const terminal = vscode.window.createTerminal({
+          name: "triggerBreakpoint",
+          isTransient: true,
+          hideFromUser: true,
+        });
+        const autoDisposeTimer = setTimeout(() => {
+          try {
+            terminal.dispose();
+          }
+          catch {
+            // ignore
+          }
+        }, 60_000);
+        const closeListener = vscode.window.onDidCloseTerminal(
+          (closedTerminal) => {
+            if (closedTerminal === terminal) {
+              clearTimeout(autoDisposeTimer);
+              closeListener.dispose();
+            }
+          },
+        );
+        terminal.sendText(cmd, true);
+        logger.info(`Executed triggerBreakpoint shellCommand: ${cmd}`);
+        break;
+      }
+      case "httpRequest": {
+        const url
+          = discriminator
+            ? (actionAny.url as string | undefined)
+            : (actionAny.httpRequest as { url?: string } | undefined)?.url;
+        if (!url) {
+          throw new Error("trigger action httpRequest missing url.");
+        }
+        const legacyReq = discriminator
+          ? undefined
+          : (actionAny.httpRequest as Record<string, unknown> | undefined);
+        const method = discriminator
+          ? ((actionAny.method as string | undefined) ?? "GET")
+          : (typeof legacyReq?.method === "string" ? legacyReq.method : "GET");
+        const headers = discriminator
+          ? (actionAny.headers as Record<string, string> | undefined)
+          : (legacyReq?.headers as Record<string, string> | undefined);
+        const body = discriminator
+          ? (actionAny.body as string | undefined)
+          : (typeof legacyReq?.body === "string" ? legacyReq.body : undefined);
+
+        logger.info(
+          `Dispatching triggerBreakpoint httpRequest to ${url} method=${method}`,
+        );
+        fireAndForgetHttpRequest({
+          url,
+          method,
+          headers,
+          body,
+          timeoutMs: 15_000,
+          onDone: (statusCode) => {
+            logger.info(
+              `triggerBreakpoint httpRequest response status=${
+                statusCode ?? "unknown"
+              }`,
+            );
+          },
+          onError: (httpErr) => {
+            logger.error(
+              `triggerBreakpoint httpRequest failed: ${
+                httpErr instanceof Error ? httpErr.message : String(httpErr)
+              }`,
+            );
+          },
+        });
+        break;
+      }
+      case "vscodeCommand": {
+        const command
+          = discriminator
+            ? (actionAny.command as string | undefined)
+            : (actionAny.vscodeCommand as { command?: string } | undefined)
+                ?.command;
+        if (!command) {
+          throw new Error("trigger action vscodeCommand missing command id.");
+        }
+        const args
+          = discriminator
+            ? ((actionAny.args as unknown[] | undefined) ?? [])
+            : (((actionAny.vscodeCommand as { args?: unknown[] } | undefined)
+                ?.args as unknown[] | undefined) ?? []);
+        logger.info(`Executing triggerBreakpoint vscodeCommand: ${command}`);
+        await vscode.commands.executeCommand(command, ...args);
+        break;
+      }
+      default:
+        throw new Error("trigger action type not recognized.");
+    }
+  };
+
+  const timeoutMs = Math.max(1, timeoutSeconds) * 1000;
+  const waiter = createStopWaiterBySessionId({
+    sessionId: session.id,
+    timeout: timeoutMs,
+  });
+  try {
+    // Resume first so triggers can run (e.g., HTTP handlers) before we dispatch the action.
+    await session.customRequest("continue", { threadId: 0 });
+    await executeTriggerAction();
+    const stopInfo = await waiter.promise;
+
+    if (stopInfo.reason === "terminated") {
+      throw new Error(
+        `Debug session '${session.name}' terminated before hitting a breakpoint after trigger.`,
+      );
+    }
+
+    const debugContext = await DAPHelpers.getDebugContext(
+      stopInfo.session,
+      stopInfo.threadId,
+    );
+    const orderedScopes = reorderScopesForCapture(debugContext.scopes ?? []);
+    const normalizedContext = { ...debugContext, scopes: orderedScopes };
+
+    // Determine which configured breakpoint was hit (exact file + line match)
+    let hitBreakpoint: BreakpointDefinition | undefined;
+    const framePath = normalizedContext.frame?.source?.path;
+    const frameLine = normalizedContext.frame?.line;
+    if (framePath && typeof frameLine === "number") {
+      const normalizedFramePath = normalizeFsPath(framePath);
+      for (const { bp, resolvedLine, absPath } of validated) {
+        if (normalizeFsPath(absPath) !== normalizedFramePath) {
+          continue;
+        }
+        if (frameLine !== resolvedLine) {
+          continue;
+        }
+        hitBreakpoint = { ...bp, path: absPath, line: frameLine };
+        break;
+      }
+    }
+
+    const scopeVariables = await captureScopeVariables({
+      session: stopInfo.session,
+      scopes: orderedScopes,
+    });
+
+    // Apply safe-by-default singleShot behavior.
+    let debuggerState: DebuggerStateSnapshot = {
+      status: "paused",
+      sessionId: stopInfo.session.id,
+      sessionName: stopInfo.session.name,
+    };
+    if (mode === "singleShot") {
+      try {
+        logger.info(
+          `singleShot mode: terminating debug session '${stopInfo.session.name}' (id=${stopInfo.session.id}) before returning.`,
+        );
+        await vscode.debug.stopDebugging(stopInfo.session);
+      }
+      catch (stopErr) {
+        logger.warn(
+          `singleShot mode: failed to stop debug session before return: ${
+            stopErr instanceof Error ? stopErr.message : String(stopErr)
+          }`,
+        );
+      }
+      debuggerState = { status: "terminated" };
+    }
+
+    const protocol = buildProtocol(debuggerState);
+    const formattedOutput = getSessionOutput(stopInfo.session.id)
+      .map((line) => {
+        const category = line.category || "output";
+        const sanitized = truncateLine(stripAnsiEscapeCodes(line.text).trim());
+        if (!sanitized) {
+          return undefined;
+        }
+        return `[${category}] ${sanitized}`;
+      })
+      .filter((line): line is string => typeof line === "string");
+    const totalLines = formattedOutput.length;
+    const previewCount = Math.min(MAX_RETURNED_DEBUG_OUTPUT_LINES, totalLines);
+    const runtimeOutput: RuntimeOutputPreview = {
+      lines:
+        previewCount > 0
+          ? formattedOutput.slice(totalLines - previewCount)
+          : [],
+      totalLines,
+      truncated: previewCount < totalLines,
+    };
+
+    const serverReadyInfo: ServerReadyInfo = {
+      configured: false,
+      triggerMode: "disabled",
+      phases: [],
+    };
+
+    return {
+      ...normalizedContext,
+      scopeVariables,
+      hitBreakpoint: hitBreakpoint ?? undefined,
+      serverReadyInfo,
+      debuggerState,
+      protocol,
+      runtimeOutput,
+      reason: stopInfo.reason,
+      exceptionInfo: stopInfo.exceptionInfo,
+    };
+  }
+  finally {
+    waiter.dispose();
+  }
 }

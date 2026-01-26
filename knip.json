@@ -1,0 +1,41 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "src/extension.ts",
+    "src/test/**/*.test.ts",
+    "src/test/suite/index.ts",
+    "playwright/demo.spec.ts",
+    "scripts/clean-vscode-test-user-data.cjs",
+    ".vscode-test.mjs"
+  ],
+  "project": [
+    "src/**/*.{ts,tsx}",
+    "playwright/**/*.{ts,tsx}",
+    ".github/scripts/**/*.{ts,tsx}",
+    "scripts/**/*.{js,cjs,mjs,ts,tsx}"
+  ],
+  "ignoreExportsUsedInFile": true,
+  "ignoreFiles": [
+    "src/inspection.ts",
+    "src/prompts/startDebuggerPrompt.tsx",
+    "taze.config.{js,ts}"
+  ],
+  "ignoreIssues": {
+    "src/generated-meta.ts": ["exports", "types"]
+  },
+  "ignoreBinaries": ["code"],
+  "ignoreDependencies": [
+    "@actions/core",
+    "@actions/github",
+    "@anthropic-ai/sdk",
+    "@esbuild-plugins/node-modules-polyfill",
+    "@reactive-vscode/reactivity",
+    "@typescript-eslint/eslint-plugin",
+    "@typescript-eslint/parser",
+    "@vscode/test-electron",
+    "baseline-browser-mapping",
+    "esbuild-register",
+    "ts-node",
+    "vscode-test-playwright"
+  ]
+}

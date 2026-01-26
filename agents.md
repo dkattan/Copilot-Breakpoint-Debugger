@@ -20,6 +20,15 @@
 
 - `copilotBreakpointDebugger.setDefaultLaunchConfiguration` lets users set the workspace-scoped `copilot-debugger.defaultLaunchConfiguration` setting via a quick pick of launch configurations found in `.vscode/launch.json`.
 
+## New Language Model Tool
+
+- `triggerBreakpoint` triggers an action against an **existing** debug session and waits for the next stop.
+
+  - Requires `sessionId` (use `listDebugSessions` to discover ids).
+  - Supports `action` types: `httpRequest` (fire-and-forget), `shellCommand`, `vscodeCommand`.
+  - Optionally supports `breakpointConfig.breakpoints` (same snippet-based contract as start/resume).
+  - Default mode is `singleShot` (terminates the session before returning). Use `mode=inspect` to keep the session paused for follow-up tool calls.
+
 ### New Internal Parameter
 
 `startDebuggingAndWaitForStop` accepts an optional `useExistingBreakpoints?: boolean` (default `false`). Currently informational—manual command constructs the full `breakpointConfig` from existing breakpoints—but this flag documents intent for future evolution (e.g., auto-harvesting breakpoints internally when config omitted).

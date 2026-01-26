@@ -89,7 +89,7 @@ async function dumpVisibleAccessible(page: Page): Promise<RoleDumpItem[]> {
 test("Copilot Breakpoint Debugger demo", async ({ workbox, vscode, evaluateInVSCode }) => {
   // Use repo-relative absolute paths so this works in CI (Linux) and locally.
   const repoRoot = path.join(__dirname, "..");
-  const workspaceB = path.join(repoRoot, "test-workspace", "b");
+  const workspaceB = path.join(repoRoot, "test-workspace", "node");
 
   // Open the file we plan to debug BEFORE interacting with Copilot Chat.
   const scriptPath = path.join(workspaceB, "server.js");

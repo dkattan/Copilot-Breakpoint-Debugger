@@ -8,7 +8,7 @@ import type {
 } from "vscode";
 import type { BreakpointDefinition } from "./BreakpointDefinition";
 import { createTruncatedToolResult } from "./outputTruncation";
-import { resumeDebugSession } from "./session";
+import { resumeDebugSession, resumeDebugSessionWithoutWaiting } from "./session";
 import { renderStopInfoMarkdown } from "./stopInfoMarkdown";
 
 export interface ResumeDebugSessionToolParameters {
@@ -23,12 +23,24 @@ export class ResumeDebugSessionTool implements LanguageModelTool<ResumeDebugSess
   async invoke(
     options: LanguageModelToolInvocationOptions<ResumeDebugSessionToolParameters>,
   ): Promise<LanguageModelToolResult> {
-    const { sessionId, breakpointConfig } = options.input;
+    const { sessionId, breakpointConfig, waitForStop } = options.input;
     try {
-      const stopInfo = await resumeDebugSession({
-        sessionId,
-        breakpointConfig,
-      });
+      if (!waitForStop) {
+        const resumed = await resumeDebugSessionWithoutWaiting({
+          sessionId,
+          breakpointConfig,
+        });
+        const breakpoints = breakpointConfig?.breakpoints ?? [];
+        const bpLine
+          = breakpoints.length > 0
+            ? `\n\nBreakpoints added: ${breakpoints.length} (snippet-based).`
+            : "";
+        return createTruncatedToolResult(
+          `Resumed debug session '${resumed.sessionName}' (id=${resumed.sessionId}) and returned without waiting for the next stop.${bpLine}\n\nIf you want to wait for the next breakpoint/stop, call resumeDebugSession again with waitForStop=true.`,
+        );
+      }
+
+      const stopInfo = await resumeDebugSession({ sessionId, breakpointConfig });
       return createTruncatedToolResult(
         renderStopInfoMarkdown({
           stopInfo,

@@ -9,6 +9,7 @@ import { ResumeDebugSessionTool } from "./resumeDebugSessionTool";
 import { startDebuggingAndWaitForStop } from "./session";
 import { StartDebuggerTool } from "./startDebuggerTool";
 import { StopDebugSessionTool } from "./stopDebugSessionTool";
+import { TriggerBreakpointTool } from "./triggerBreakpointTool";
 
 const workspaceFoldersRef = useWorkspaceFolders();
 
@@ -27,6 +28,7 @@ function registerTools(context: vscode.ExtensionContext) {
     ),
     vscode.lm.registerTool("listDebugSessions", new ListDebugSessionsTool()),
     vscode.lm.registerTool("resumeDebugSession", new ResumeDebugSessionTool()),
+    vscode.lm.registerTool("triggerBreakpoint", new TriggerBreakpointTool()),
     vscode.lm.registerTool("getVariables", new GetVariablesTool()),
     vscode.lm.registerTool("expandVariable", new ExpandVariableTool()),
     vscode.lm.registerTool("evaluateExpression", new EvaluateExpressionTool()),

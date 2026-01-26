@@ -25,7 +25,7 @@ describe("serverReady breakpoint", function () {
   it("runs command at serverReady breakpoint then pauses at user breakpoint", async () => {
     await activateCopilotDebugger();
     const extensionRoot = getExtensionRoot();
-    const workspaceFolder = path.join(extensionRoot, "test-workspace", "b");
+    const workspaceFolder = path.join(extensionRoot, "test-workspace", "node");
     const serverPath = path.join(workspaceFolder, "server.js");
     const userScriptPath = serverPath; // set user breakpoint after serverReady
 
@@ -54,7 +54,7 @@ describe("serverReady breakpoint", function () {
     const context = await startDebuggingAndWaitForStop({
       sessionName: "",
       workspaceFolder,
-      nameOrConfiguration: "Run b/server.js",
+      nameOrConfiguration: "Run node/server.js",
       timeoutSeconds: 180,
       breakpointConfig: {
         breakpoints: [
@@ -128,7 +128,7 @@ describe("serverReady breakpoint", function () {
   it("runs httpRequest at serverReady breakpoint then pauses at user breakpoint", async () => {
     await activateCopilotDebugger();
     const extensionRoot = getExtensionRoot();
-    const workspaceFolder = path.join(extensionRoot, "test-workspace", "b");
+    const workspaceFolder = path.join(extensionRoot, "test-workspace", "node");
     const serverPath = path.join(workspaceFolder, "server.js");
     const serverDoc = await vscode.workspace.openTextDocument(serverPath);
     await openScriptDocument(serverDoc.uri);
@@ -151,7 +151,7 @@ describe("serverReady breakpoint", function () {
     const context = await startDebuggingAndWaitForStop({
       sessionName: "",
       workspaceFolder,
-      nameOrConfiguration: "Run b/server.js",
+      nameOrConfiguration: "Run node/server.js",
       timeoutSeconds: 180,
       breakpointConfig: {
         breakpoints: [
@@ -207,7 +207,7 @@ describe("serverReady breakpoint", function () {
   it("runs action when serverReady pattern matches output", async () => {
     await activateCopilotDebugger();
     const extensionRoot = getExtensionRoot();
-    const workspaceFolder = path.join(extensionRoot, "test-workspace", "b");
+    const workspaceFolder = path.join(extensionRoot, "test-workspace", "node");
     const serverPath = path.join(workspaceFolder, "serverPattern.js");
     const serverDoc = await vscode.workspace.openTextDocument(serverPath);
     await openScriptDocument(serverDoc.uri);
@@ -227,7 +227,7 @@ describe("serverReady breakpoint", function () {
     const context = await startDebuggingAndWaitForStop({
       sessionName: "",
       workspaceFolder,
-      nameOrConfiguration: "Run b/serverPattern.js",
+      nameOrConfiguration: "Run node/serverPattern.js",
       timeoutSeconds: 90,
       breakpointConfig: {
         breakpoints: [
@@ -304,7 +304,7 @@ describe("serverReady breakpoint", function () {
       )}`,
     );
 
-    const workspaceFolder = path.join(extensionRoot, "test-workspace", "b");
+    const workspaceFolder = path.join(extensionRoot, "test-workspace", "node");
     const serverPath = path.join(workspaceFolder, "server.js");
     const serverDoc = await vscode.workspace.openTextDocument(serverPath);
     await openScriptDocument(serverDoc.uri);

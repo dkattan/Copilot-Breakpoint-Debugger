@@ -25,6 +25,7 @@ export class StartDebuggerTool implements LanguageModelTool<StartDebuggerToolPar
       workspaceFolder,
       configurationName,
       mode,
+      watcherTaskLabel,
       breakpointConfig,
       serverReady,
     } = options.input;
@@ -35,6 +36,7 @@ export class StartDebuggerTool implements LanguageModelTool<StartDebuggerToolPar
         workspaceFolder,
         nameOrConfiguration: configurationName,
         mode,
+        watcherTaskLabel,
         breakpointConfig,
         sessionName: "",
         serverReady,

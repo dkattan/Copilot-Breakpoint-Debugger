@@ -17,12 +17,12 @@ describe("startDebuggerTool auto-capture nearest scope", function () {
 
   before(async () => {
     const extensionRoot = getExtensionRoot();
-    const scriptRelative = "test-workspace/b/test.js";
+    const scriptRelative = "test-workspace/node/test.js";
     scriptPath = path.join(extensionRoot, scriptRelative);
     const targetWorkspace = vscode.workspace.workspaceFolders?.find(
-      f => f.name === "workspace-b",
+      f => f.name === "workspace-node",
     );
-    assert.ok(targetWorkspace, "workspace-b folder missing");
+    assert.ok(targetWorkspace, "workspace-node folder missing");
     workspaceFolder = targetWorkspace!.uri.fsPath;
     await openScriptDocument(vscode.Uri.file(scriptPath));
     await activateCopilotDebugger();

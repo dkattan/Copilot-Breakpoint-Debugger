@@ -7,24 +7,8 @@ export type { Variable };
 
 // Create an output channel for debugging
 export const outputChannel = useOutputChannel("Debug Tools");
-
-export interface ThreadData {
-  threadId: number
-  threadName: string
-  stackFrames: Array<{
-    id: number
-    name: string
-    source?: {
-      name: string
-      path: string
-    }
-    line: number
-    column: number
-  }>
-}
 /** Event emitter for debug session start notifications */
 export const sessionStartEventEmitter = useEventEmitter<vscode.DebugSession>();
-export const onSessionStart = sessionStartEventEmitter.event;
 
 /** Maintain a list of active debug sessions. */
 export const activeSessions: vscode.DebugSession[] = [];

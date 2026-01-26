@@ -25,6 +25,8 @@ export function renderStopInfoMarkdown(params: {
     reason: stopInfo.frame?.name,
   };
 
+  const lineLabel = typeof summary.line === "number" ? String(summary.line) : "?";
+
   if (!stopInfo.hitBreakpoint && !stopInfo.exceptionInfo) {
     // If we have neither a breakpoint match nor an exception, we just report generic stop.
     // No throw.
@@ -199,17 +201,19 @@ export function renderStopInfoMarkdown(params: {
     header = `Exception: ${stopInfo.exceptionInfo.description} (see Exception Details below)`;
   }
   else if (stopInfo.hitBreakpoint) {
-    if (stepOver?.performed && stepOver.fromLine && stepOver.toLine) {
+    if (
+      stepOver?.performed
+      && typeof stepOver.fromLine === "number"
+      && typeof stepOver.toLine === "number"
+    ) {
       header = `Breakpoint ${fileName}:${stepOver.fromLine} onHit=${onHit} (autoStepOver -> stopped at line ${stepOver.toLine})`;
     }
     else {
-      header = `Breakpoint ${fileName}:${summary.line} onHit=${onHit}`;
+      header = `Breakpoint ${fileName}:${lineLabel} onHit=${onHit}`;
     }
   }
   else {
-    header = `Stopped: reason=${stopInfo.reason ?? "unknown"} at ${fileName}:${
-      summary.line
-    }`;
+    header = `Stopped: reason=${stopInfo.reason ?? "unknown"} at ${fileName}:${lineLabel}`;
   }
 
   let bodyVars: string;

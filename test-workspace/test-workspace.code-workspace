@@ -1,12 +1,16 @@
 {
   "folders": [
     {
-      "name": "workspace-a",
-      "path": "a"
+      "name": "workspace-powershell",
+      "path": "powershell"
     },
     {
-      "name": "workspace-b",
-      "path": "b"
+      "name": "workspace-node",
+      "path": "node"
+    },
+    {
+      "name": "workspace-dotnet",
+      "path": "dotnet"
     },
     {
       "name": "workspace-root",
@@ -29,7 +33,7 @@
     "copilot-debugger.defaultLaunchConfiguration": "Run test.ps1",
     "copilot-debugger.enableTraceLogging": true,
     "copilot-debugger.consoleLogLevel": "trace",
-    "powershell.cwd": "workspace-a",
+    "powershell.cwd": "workspace-powershell",
     "git.openRepositoryInParentFolders": "never",
     "git.scanRepositories": [],
     "git.autoRepositoryDetection": false,
@@ -47,30 +51,30 @@
         "name": "Run test.ps1",
         "type": "PowerShell",
         "request": "launch",
-        "script": "${workspaceFolder:workspace-a}/test.ps1",
-        "cwd": "${workspaceFolder:workspace-a}"
+        "script": "${workspaceFolder:workspace-powershell}/test.ps1",
+        "cwd": "${workspaceFolder:workspace-powershell}"
       },
       {
         "name": "Run test.js",
         "type": "node",
         "request": "launch",
-        "program": "${workspaceFolder:workspace-b}/test.js",
-        "cwd": "${workspaceFolder:workspace-b}",
+        "program": "${workspaceFolder:workspace-node}/test.js",
+        "cwd": "${workspaceFolder:workspace-node}",
         "console": "internalConsole"
       },
       {
-        "name": "Debug PowerShell (workspace a)",
+        "name": "Debug PowerShell (workspace powershell)",
         "type": "PowerShell",
         "request": "launch",
-        "script": "${workspaceFolder:workspace-a}/test.ps1",
-        "cwd": "${workspaceFolder:workspace-a}"
+        "script": "${workspaceFolder:workspace-powershell}/test.ps1",
+        "cwd": "${workspaceFolder:workspace-powershell}"
       },
       {
-        "name": "Debug Node.js (workspace b)",
+        "name": "Debug Node.js (workspace node)",
         "type": "node",
         "request": "launch",
-        "program": "${workspaceFolder:workspace-b}/test.js",
-        "cwd": "${workspaceFolder:workspace-b}",
+        "program": "${workspaceFolder:workspace-node}/test.js",
+        "cwd": "${workspaceFolder:workspace-node}",
         "console": "internalConsole"
       }
     ],
@@ -79,8 +83,27 @@
         "name": "Debug Both (Compound)",
         "configurations": [
           "Run test.js with preLaunchTask",
-          "Debug Node.js (workspace b)"
+          "Debug Node.js (workspace node)"
         ]
+      }
+    ]
+  },
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "dotnet watch (workspace dotnet)",
+        "type": "shell",
+        "command": "dotnet",
+        "args": [
+          "watch",
+          "run"
+        ],
+        "options": {
+          "cwd": "${workspaceFolder:workspace-dotnet}"
+        },
+        "isBackground": true,
+        "problemMatcher": "$msCompile"
       }
     ]
   },

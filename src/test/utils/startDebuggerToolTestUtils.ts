@@ -97,32 +97,6 @@ export async function invokeStartDebuggerTool(
   return result;
 }
 
-/** Common assertions verifying the debug session started and breakpoint info captured. */
-export function assertStartDebuggerOutput(textOutput: string): void {
-  const timedOut = /timed out/i.test(textOutput);
-  const startError = /Error starting debug session/i.test(textOutput);
-  if (timedOut) {
-    throw new Error("Debug session timed out waiting for breakpoint");
-  }
-  if (startError) {
-    throw new Error("Encountered error starting debug session");
-  }
-  if (!/Debug session .* stopped|breakpoint/i.test(textOutput)) {
-    throw new Error("Missing stopped-session or breakpoint descriptor");
-  }
-  if (!/\\?"breakpoint\\?"|breakpoint\s*:/i.test(textOutput)) {
-    throw new Error("Missing breakpoint JSON info");
-  }
-  if (
-    !(
-      /"line"\s*:\s*\d+/.test(textOutput)
-      || /test\.ps1|test\.js/i.test(textOutput)
-    )
-  ) {
-    throw new Error("Missing line number or script reference in debug info");
-  }
-}
-
 /** Stop any debug sessions left running after a test. */
 export async function stopAllDebugSessions(): Promise<void> {
   // Best-effort: stop all sessions first (covers sessions not tracked in activeSessions).

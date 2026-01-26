@@ -1,6 +1,6 @@
 {
   "workspaceFolder": "__WORKSPACE_B__",
-  "configurationName": "Run b/server.js",
+  "configurationName": "Run node/server.js",
   "mode": "singleShot",
   "breakpointConfig": {
     "breakpoints": [

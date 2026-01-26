@@ -17,11 +17,11 @@ describe("startDebuggingAndWaitForStop - capture-all (variable='*')", () => {
 
   before(async () => {
     const extensionRoot = getExtensionRoot();
-    const scriptRelative = "test-workspace/b/test.js";
+    const scriptRelative = "test-workspace/node/test.js";
     const scriptUri = vscode.Uri.file(path.join(extensionRoot, scriptRelative));
     assert.ok(vscode.workspace.workspaceFolders?.length);
     workspaceFolder = vscode.workspace.workspaceFolders.find(
-      f => f.name === "workspace-b",
+      f => f.name === "workspace-node",
     )!.uri.fsPath;
     scriptPath = scriptUri.fsPath;
     await openScriptDocument(scriptUri);

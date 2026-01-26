@@ -99,11 +99,11 @@ describe("multi-Root Workspace Integration", () => {
     );
   });
 
-  it("workspace B (Node.js) - individual debug session", async function () {
+  it("workspace node (Node.js) - individual debug session", async function () {
     this.timeout(60_000);
 
     const extensionRoot = getExtensionRoot();
-    const workspaceFolder = path.join(extensionRoot, "test-workspace", "b");
+    const workspaceFolder = path.join(extensionRoot, "test-workspace", "node");
     const scriptUri = vscode.Uri.file(path.join(workspaceFolder, "test.js"));
     const bpSnippet = "Loop iteration";
 
@@ -129,7 +129,7 @@ describe("multi-Root Workspace Integration", () => {
 
     const context = await startDebuggingAndWaitForStop(
       Object.assign({}, baseParams, {
-        sessionName: "workspace-b-node",
+        sessionName: "workspace-node",
         breakpointConfig: {
           breakpoints: [
             {
@@ -167,11 +167,11 @@ describe("multi-Root Workspace Integration", () => {
     assertVariablesPresent(allVariables, ["i"]);
   });
 
-  it("workspace B with conditional breakpoint (Node.js)", async function () {
+  it("workspace node with conditional breakpoint (Node.js)", async function () {
     this.timeout(60_000);
 
     const extensionRoot = getExtensionRoot();
-    const workspaceFolder = path.join(extensionRoot, "test-workspace", "b");
+    const workspaceFolder = path.join(extensionRoot, "test-workspace", "node");
     const scriptUri = vscode.Uri.file(path.join(workspaceFolder, "test.js"));
 
     await openScriptDocument(scriptUri);
@@ -197,7 +197,7 @@ describe("multi-Root Workspace Integration", () => {
 
     const context = await startDebuggingAndWaitForStop(
       Object.assign({}, baseParams, {
-        sessionName: "workspace-b-conditional-node",
+        sessionName: "workspace-node-conditional",
         breakpointConfig: {
           breakpoints: [
             {

@@ -29,6 +29,11 @@ export interface StartDebuggerToolParameters {
   workspaceFolder: string
   configurationName?: string
   /**
+   * Optional task label to auto-start before launching the debugger.
+   * Intended for long-running watcher tasks (e.g. `dotnet watch run`).
+   */
+  watcherTaskLabel?: string
+  /**
    * Tool mode:
    * - 'singleShot' (default): terminate the debug session before returning.
    * - 'inspect': allow returning while paused so the caller can inspect state and resume.

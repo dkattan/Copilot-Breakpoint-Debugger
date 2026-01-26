@@ -19,7 +19,7 @@
       "preLaunchTask": "sleep-build-delay"
     },
     {
-      "name": "Run b/server.js",
+      "name": "Run node/server.js",
       "type": "node",
       "request": "launch",
       "program": "${workspaceFolder}/server.js",
@@ -27,7 +27,7 @@
       "console": "internalConsole"
     },
     {
-      "name": "Run b/serverPattern.js",
+      "name": "Run node/serverPattern.js",
       "type": "node",
       "request": "launch",
       "program": "${workspaceFolder}/serverPattern.js",

@@ -191,7 +191,6 @@ export const onBreakpointHit = breakpointEventEmitter.event;
 
 /** Event emitter for debug adapter exit notifications */
 export const sessionExitEventEmitter = useEventEmitter<SessionExitInfo>();
-export const onSessionExit = sessionExitEventEmitter.event;
 
 // Per-session output buffers for DAP output events
 const sessionOutputBuffers = new Map<string, OutputLine[]>();
@@ -786,27 +785,7 @@ export function getSessionExitCode(sessionId: string): number | undefined {
 /**
  * Clear output buffer and exit code for a session (cleanup)
  */
-export function clearSessionDiagnostics(sessionId: string): void {
-  sessionOutputBuffers.delete(sessionId);
-  sessionExitCodes.delete(sessionId);
-  sessionCapabilities.delete(sessionId);
-}
-
 // Legacy waitForDebuggerStop removed in favor of session id and entry specific helpers.
-
-/**
- * Wait for a debugger stop event (breakpoint/step/etc.) filtering by session id instead of name.
- * This is useful after acquiring the concrete session id from an initial 'entry' stop.
- */
-export async function waitForDebuggerStopBySessionId(params: {
-  sessionId: string
-  timeout?: number
-}): Promise<BreakpointHitInfo> {
-  const { sessionId, timeout = 30000 } = params;
-
-  const waiter = createStopWaiterBySessionId({ sessionId, timeout });
-  return await waiter.promise;
-}
 
 /**
  * Create a stop waiter that can be disposed.

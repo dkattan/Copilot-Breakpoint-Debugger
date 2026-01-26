@@ -104,6 +104,9 @@ jobs:
       - name: Build extension bundle
         run: npm run build:dist
 
+      - name: Build extension bundle
+        run: npm run build:dist
+
       - name: Install system dependencies for Playwright demo
         run: |
           apt-get update

@@ -109,7 +109,7 @@ while ($true) {
     "--commit",
     $sha,
     "--json",
-    "databaseId,name,status,conclusion,htmlUrl,createdAt,updatedAt"
+    "databaseId,name,status,conclusion,url,createdAt,updatedAt"
   )
 
   $runs = @()
@@ -157,7 +157,7 @@ while ($true) {
     if ($failedRuns.Count -gt 0) {
       Write-Host "\nOne or more workflow runs failed:" -ForegroundColor Red
       foreach ($fr in $failedRuns) {
-        Write-Host ("- {0}: {1} ({2})" -f $fr.name, $fr.conclusion, $fr.htmlUrl)
+        Write-Host ("- {0}: {1} ({2})" -f $fr.name, $fr.conclusion, $fr.url)
       }
       exit 1
     }

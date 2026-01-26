@@ -86,10 +86,57 @@ async function dumpVisibleAccessible(page: Page): Promise<RoleDumpItem[]> {
   return results;
 }
 
+async function failIfExtensionActivationToastVisible(page: Page): Promise<void> {
+  // Fail fast if VS Code surfaced an extension activation failure.
+  // This is the exact kind of issue that makes the demo video look broken even if the test keeps going.
+  const activationFailedToast = page.getByText(
+    /Activating extension ['"]dkattan\.copilot-breakpoint-debugger['"] failed/i,
+  );
+  const count = await activationFailedToast.count();
+  if (count > 0) {
+    // Include a small accessibility dump to help diagnose what was on screen.
+    const dump = await dumpVisibleAccessible(page);
+    throw new Error(
+      `VS Code reported an extension activation failure toast for dkattan.copilot-breakpoint-debugger. Visible accessible sample: ${JSON.stringify(
+        dump,
+      )}`,
+    );
+  }
+}
+
 test("Copilot Breakpoint Debugger demo", async ({ workbox, vscode, evaluateInVSCode }) => {
   // Use repo-relative absolute paths so this works in CI (Linux) and locally.
   const repoRoot = path.join(__dirname, "..");
   const workspaceB = path.join(repoRoot, "test-workspace", "node");
+
+  // Ensure our extension can actually activate before we start recording UI interactions.
+  // If activation fails, the demo video is effectively invalid.
+  await evaluateInVSCode(async (vscode) => {
+    const ext = vscode.extensions.getExtension(
+      "dkattan.copilot-breakpoint-debugger",
+    );
+    if (!ext) {
+      throw new Error(
+        "Expected dkattan.copilot-breakpoint-debugger to be installed/available in the Extension Host, but it was not found.",
+      );
+    }
+
+    try {
+      await ext.activate();
+    }
+    catch (err) {
+      const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
+      throw new Error(
+        `Failed to activate dkattan.copilot-breakpoint-debugger: ${message}`,
+      );
+    }
+
+    if (!ext.isActive) {
+      throw new Error(
+        "dkattan.copilot-breakpoint-debugger activation returned but extension isActive=false.",
+      );
+    }
+  });
 
   // Open the file we plan to debug BEFORE interacting with Copilot Chat.
   const scriptPath = path.join(workspaceB, "server.js");
@@ -99,11 +146,17 @@ test("Copilot Breakpoint Debugger demo", async ({ workbox, vscode, evaluateInVSC
     await vscode.window.showTextDocument(doc, { preview: false });
   }, scriptPath);
 
+  // If a toast is already visible, fail immediately instead of continuing and producing a broken demo video.
+  await failIfExtensionActivationToastVisible(workbox);
+
   const chatPanel = workbox.locator("#workbench\\.panel\\.chat");
 
   await vscode.commands.executeCommand("workbench.panel.chat.view.copilot.focus");
 
   await expect(chatPanel).toBeVisible({ timeout: 30_000 });
+
+  // Some failures surface only once the workbench is fully visible.
+  await failIfExtensionActivationToastVisible(workbox);
 
   // Prefer codicon-based selectors for stability across label text and locale.
   // - When idle, the execute button is a paper-plane (send) icon.
@@ -145,6 +198,8 @@ test("Copilot Breakpoint Debugger demo", async ({ workbox, vscode, evaluateInVSC
   await vscode.commands.executeCommand("workbench.action.chat.submit");
   await workbox.waitForTimeout(250);
 
+  await failIfExtensionActivationToastVisible(workbox);
+
   // The chat transcript sometimes leaves the top of the just-submitted prompt
   // slightly clipped. Click the rendered markdown and nudge upward.
   const chatMarkdownParts = chatPanel.locator(
@@ -172,6 +227,8 @@ test("Copilot Breakpoint Debugger demo", async ({ workbox, vscode, evaluateInVSC
   // Wait for processing to complete.
   await expect(chatSendIcon.first()).toBeVisible({ timeout: 180_000 });
 
+  await failIfExtensionActivationToastVisible(workbox);
+
   // Expand the Copilot "Request" message (tool invocation payload) using accessibility
   // queries, not brittle CSS selectors.
   //
@@ -194,6 +251,8 @@ test("Copilot Breakpoint Debugger demo", async ({ workbox, vscode, evaluateInVSC
   await workbox.keyboard.press("Escape");
   await workbox.waitForTimeout(250);
   await requestMessage.first().click();
+
+  await failIfExtensionActivationToastVisible(workbox);
 
   // Final grace period to let the response render fully (and for manual runs).
   await workbox.waitForTimeout(5000);

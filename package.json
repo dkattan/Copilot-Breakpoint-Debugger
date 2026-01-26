@@ -564,7 +564,11 @@
                       "type": "string"
                     },
                     "args": {
-                      "type": "array"
+                      "type": "array",
+                      "description": "Optional VS Code command arguments.",
+                      "items": {
+                        "type": "string"
+                      }
                     }
                   },
                   "required": [

@@ -10,6 +10,7 @@
 
 "use strict";
 
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const process = require("node:process");
@@ -51,6 +52,17 @@ function maybePrintRuntimeEnvDebug() {
   );
 }
 
+async function sha256FileHex(filePath) {
+  const hash = crypto.createHash("sha256");
+  await new Promise((resolve, reject) => {
+    const stream = fs.createReadStream(filePath);
+    stream.on("data", chunk => hash.update(chunk));
+    stream.on("error", reject);
+    stream.on("end", resolve);
+  });
+  return hash.digest("hex");
+}
+
 async function uploadSingleFileArtifact() {
   maybePrintRuntimeEnvDebug();
 
@@ -72,6 +84,9 @@ async function uploadSingleFileArtifact() {
     );
     return;
   }
+
+  const sha256 = await sha256FileHex(artifactFileAbs);
+  console.log(`SHA256(upload)=${sha256}`);
 
   const retentionDaysRaw = process.env.SINGLE_ARTIFACT_RETENTION_DAYS;
   const retentionDays = retentionDaysRaw ? Number(retentionDaysRaw) : undefined;
@@ -130,6 +145,16 @@ async function uploadSingleFileArtifact() {
   console.log(
     `Uploaded single-file artifact '${artifactName}': id=${id} size=${size} digest=${digest}`,
   );
+
+  // Best-effort: print a clickable artifact link.
+  // NOTE: Artifacts are scoped to the run; this link is stable as long as artifacts are retained.
+  const repo = process.env.GITHUB_REPOSITORY;
+  const runId = process.env.GITHUB_RUN_ID;
+  if (repo && runId && id !== "<unknown>") {
+    console.log(
+      `Artifact URL: https://github.com/${repo}/actions/runs/${runId}/artifacts/${id}`,
+    );
+  }
 }
 
 module.exports = {

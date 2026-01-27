@@ -2,6 +2,15 @@ name: Artifact runtime env smoke
 
 on:
   workflow_dispatch: {}
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/artifact-runtime-smoke.yml
+      - .github/actions/**
+      - scripts/upload-single-file-artifact.cjs
+      - scripts/download-single-file-artifact.cjs
+      - test-assets/smoke.mp4
 
 jobs:
   smoke-host:
@@ -31,14 +40,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "hello from smoke" > smoke.txt
-          ls -la smoke.txt
+          ls -la test-assets/smoke.mp4
+
+      - name: Compute SHA-256 (source)
+        id: sha
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha=$(sha256sum test-assets/smoke.mp4 | awk '{print $1}')
+          echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+          echo "SHA256(source)=$sha"
 
       - name: Upload tiny file (official upload-artifact)
         uses: actions/upload-artifact@v4
         with:
           name: smoke-official
-          path: smoke.txt
+          path: test-assets/smoke.mp4
           if-no-files-found: error
 
       - name: Init toolkit submodule
@@ -58,8 +75,16 @@ jobs:
         uses: ./.github/actions/upload-single-file-artifact
         with:
           name: smoke-toolkit
-          file: smoke.txt
+          file: test-assets/smoke.mp4
           retention-days: '1'
+          debug-env: 'true'
+
+      - name: Download tiny file (toolkit) + verify SHA-256
+        uses: ./.github/actions/download-single-file-artifact
+        with:
+          name: smoke-toolkit
+          download-dir: downloaded
+          expected-sha256: ${{ steps.sha.outputs.sha256 }}
           debug-env: 'true'
 
   smoke-container:
@@ -91,14 +116,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "hello from container smoke" > smoke-container.txt
-          ls -la smoke-container.txt
+          ls -la test-assets/smoke.mp4
+
+      - name: Compute SHA-256 (source)
+        id: sha
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha=$(sha256sum test-assets/smoke.mp4 | awk '{print $1}')
+          echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+          echo "SHA256(source)=$sha"
 
       - name: Upload tiny file (official upload-artifact)
         uses: actions/upload-artifact@v4
         with:
           name: smoke-official-container
-          path: smoke-container.txt
+          path: test-assets/smoke.mp4
           if-no-files-found: error
 
       - name: Init toolkit submodule
@@ -118,6 +151,14 @@ jobs:
         uses: ./.github/actions/upload-single-file-artifact
         with:
           name: smoke-toolkit-container
-          file: smoke-container.txt
+          file: test-assets/smoke.mp4
           retention-days: '1'
+          debug-env: 'true'
+
+      - name: Download tiny file (toolkit) + verify SHA-256
+        uses: ./.github/actions/download-single-file-artifact
+        with:
+          name: smoke-toolkit-container
+          download-dir: downloaded
+          expected-sha256: ${{ steps.sha.outputs.sha256 }}
           debug-env: 'true'

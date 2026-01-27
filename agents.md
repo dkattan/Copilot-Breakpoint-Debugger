@@ -12,11 +12,6 @@
 
   - If ESLint reports something is "potentially fixable with the `--fix` option", run the autofix command (e.g. `npm run lint -- --fix`) instead of hand-editing.
 
-## CI: Single-file demo video artifact
-
-- The single-file artifact smoke testing and iteration now lives in `dkattan/toolkit`.
-- This repo currently uses standard artifact upload (zipped) until the single-file flow is proven stable.
-
 ## User-Facing Commands Added
 
 - `copilotBreakpointDebugger.startAndWaitManual` now uses existing workspace breakpoints. It will:

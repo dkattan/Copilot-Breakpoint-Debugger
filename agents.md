@@ -10,6 +10,13 @@
 - **Prepare for publish**: `npm run vscode:prepublish` - Runs compile before publishing
 - **Formatting**: Formatting is handled by ESLint autofix (`npm run lint -- --fix` or just `npm run lint` if configured).
 
+  - If ESLint reports something is "potentially fixable with the `--fix` option", run the autofix command (e.g. `npm run lint -- --fix`) instead of hand-editing.
+
+## CI: Single-file demo video artifact
+
+- The repo includes `external/toolkit` (git submodule) to consume the `dkattan/toolkit` fork of `@actions/artifact`, which supports uploading/downloading a single file without zipping.
+- The workflow `playwright-demo` uses `scripts/upload-single-file-artifact.cjs` to upload `docs/pw-videos/demo.mp4` as an unzipped, single-file artifact.
+
 ## User-Facing Commands Added
 
 - `copilotBreakpointDebugger.startAndWaitManual` now uses existing workspace breakpoints. It will:

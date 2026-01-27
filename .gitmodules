@@ -4,3 +4,6 @@
 [submodule "external/vscode-test-playwright"]
 	path = external/vscode-test-playwright
 	url = https://github.com/dkattan/vscode-test-playwright.git
+[submodule "external/toolkit"]
+	path = external/toolkit
+	url = https://github.com/dkattan/toolkit.git

@@ -52,6 +52,31 @@ function maybePrintRuntimeEnvDebug() {
   );
 }
 
+function parseArtifactId(value) {
+  if (typeof value === "bigint") {
+    return value;
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || !Number.isSafeInteger(value) || value <= 0) {
+      throw new Error(`Invalid artifact id number: ${String(value)}`);
+    }
+    return value;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!/^\d+$/.test(trimmed)) {
+      throw new Error(`Invalid artifact id string: '${value}'`);
+    }
+    const num = Number(trimmed);
+    if (!Number.isSafeInteger(num) || num <= 0) {
+      // Use BigInt if it doesn't fit safely into a JS number.
+      return BigInt(trimmed);
+    }
+    return num;
+  }
+  throw new TypeError(`Unrecognized artifact id type: ${typeof value}`);
+}
+
 async function sha256FileHex(filePath) {
   const hash = crypto.createHash("sha256");
   await new Promise((resolve, reject) => {
@@ -102,9 +127,28 @@ async function downloadSingleFileArtifact() {
 
   const client = new DefaultArtifactClient();
 
+  if (typeof client.getArtifact !== "function") {
+    throw new TypeError(
+      "DefaultArtifactClient.getArtifact(name) is not available; cannot resolve artifact name to id for download.",
+    );
+  }
+
+  const getRes = await client.getArtifact(artifactName);
+  const artifact = (getRes && getRes.artifact) ? getRes.artifact : getRes;
+  const artifactId = parseArtifactId(artifact && artifact.id);
+
+  // Best-effort: print a clickable artifact link.
+  const repo = process.env.GITHUB_REPOSITORY;
+  const runId = process.env.GITHUB_RUN_ID;
+  if (repo && runId) {
+    console.log(
+      `Artifact URL: https://github.com/${repo}/actions/runs/${runId}/artifacts/${String(artifactId)}`,
+    );
+  }
+
   // downloadArtifact returns {downloadPath} in official @actions/artifact.
   // We'll accept either string or object to be tolerant to minor API differences.
-  const res = await client.downloadArtifact(artifactName, downloadDirAbs);
+  const res = await client.downloadArtifact(artifactId, downloadDirAbs);
   const downloadPath = typeof res === "string" ? res : res && res.downloadPath ? res.downloadPath : downloadDirAbs;
 
   // Find the single file we downloaded.

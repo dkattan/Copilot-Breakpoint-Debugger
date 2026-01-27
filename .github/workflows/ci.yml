@@ -64,7 +64,6 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config --global --add safe.directory "$GITHUB_WORKSPACE/external/vscode-test-playwright"
           git config --global --add safe.directory "$GITHUB_WORKSPACE/external/playwright-test-videos"
-          git config --global --add safe.directory "$GITHUB_WORKSPACE/external/toolkit"
 
       - name: Debug Actions runtime env (partial)
         if: always() && github.actor != 'nektos/act'
@@ -92,19 +91,13 @@ jobs:
         run: |
           git submodule update --init --depth 1 \
             external/vscode-test-playwright \
-            external/playwright-test-videos \
-            external/toolkit
+            external/playwright-test-videos
 
       - name: Verify required submodules are present (act only)
         if: github.actor == 'nektos/act'
         run: |
           test -f external/vscode-test-playwright/index.ts
           test -f external/vscode-test-playwright/tsconfig.json
-
-      - name: Init toolkit submodule (act only)
-        if: github.actor == 'nektos/act'
-        run: |
-          git submodule update --init --depth 1 external/toolkit
 
       # Local act runs also want an MP4 output for quick sharing/debugging.
       # The existing `demo:pw:videos` script converts the recorded .webm to docs/pw-videos/demo.mp4.
@@ -134,19 +127,6 @@ jobs:
 
       - name: Build extension bundle
         run: npm run build:dist
-
-      - name: Build dkattan/toolkit @actions/artifact (zip:false support)
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          cd external/toolkit
-          npm install
-          npm run bootstrap
-          npm run build
-
-          test -f packages/artifact/lib/artifact.js
 
       - name: Install system dependencies for Playwright demo
         run: |
@@ -333,30 +313,6 @@ jobs:
           mkdir -p docs/pw-videos
           cp "${mp4s[0]}" docs/pw-videos/demo.mp4
           echo "Prepared docs/pw-videos/demo.mp4 from ${mp4s[0]}"
-
-      - name: Upload demo video artifact (single file, no zip) (CI)
-        if: always() && github.actor != 'nektos/act'
-        uses: ./.github/actions/upload-single-file-artifact
-        with:
-          name: playwright-demo-video
-          file: docs/pw-videos/demo.mp4
-          retention-days: '7'
-          debug-env: 'true'
-
-      - name: Upload demo video artifact (single file, no zip) (act only)
-        if: always() && github.actor == 'nektos/act'
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          ACTIONS_RUNTIME_URL='http://host.docker.internal:34567/' \
-          ACTIONS_RESULTS_URL='http://host.docker.internal:34567/' \
-            node scripts/upload-single-file-artifact.cjs
-        env:
-          SINGLE_ARTIFACT_NAME: playwright-demo-video
-          SINGLE_ARTIFACT_FILE: docs/pw-videos/demo.mp4
-          SINGLE_ARTIFACT_RETENTION_DAYS: '3'
-          SINGLE_ARTIFACT_DEBUG_ENV: '1'
 
       - name: Upload Playwright demo artifacts (CI)
         if: always() && github.actor != 'nektos/act'

@@ -14,8 +14,8 @@
 
 ## CI: Single-file demo video artifact
 
-- The repo includes `external/toolkit` (git submodule) to consume the `dkattan/toolkit` fork of `@actions/artifact`, which supports uploading/downloading a single file without zipping.
-- The workflow `playwright-demo` uses `scripts/upload-single-file-artifact.cjs` to upload `docs/pw-videos/demo.mp4` as an unzipped, single-file artifact.
+- The single-file artifact smoke testing and iteration now lives in `dkattan/toolkit`.
+- This repo currently uses standard artifact upload (zipped) until the single-file flow is proven stable.
 
 ## User-Facing Commands Added
 

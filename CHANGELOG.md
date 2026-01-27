@@ -1,3 +1,7 @@
+## [0.0.57] - 2026-01-27
+
+Credit balance is too low
+
 ## [0.0.56] - 2026-01-26
 
 Credit balance is too low

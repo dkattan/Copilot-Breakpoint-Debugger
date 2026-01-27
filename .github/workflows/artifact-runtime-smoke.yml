@@ -58,6 +58,13 @@ jobs:
           path: test-assets/smoke.mp4
           if-no-files-found: error
 
+      - name: Mark workspace as safe for git
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/external/toolkit"
+
       - name: Init toolkit submodule
         run: git submodule update --init --depth 1 external/toolkit
 
@@ -133,6 +140,13 @@ jobs:
           name: smoke-official-container
           path: test-assets/smoke.mp4
           if-no-files-found: error
+
+      - name: Mark workspace as safe for git
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/external/toolkit"
 
       - name: Init toolkit submodule
         run: git submodule update --init --depth 1 external/toolkit

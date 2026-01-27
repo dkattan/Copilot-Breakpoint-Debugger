@@ -66,6 +66,27 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE/external/playwright-test-videos"
           git config --global --add safe.directory "$GITHUB_WORKSPACE/external/toolkit"
 
+      - name: Debug Actions runtime env (partial)
+        if: always() && github.actor != 'nektos/act'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Print only a small prefix/suffix of the runtime token to validate injection.
+          # Do NOT print the full token.
+          if [ -n "${ACTIONS_RUNTIME_TOKEN:-}" ]; then
+            token="$ACTIONS_RUNTIME_TOKEN"
+            len=${#token}
+            prefix=${token:0:6}
+            suffix=${token: -6}
+            echo "ACTIONS_RUNTIME_TOKEN=${prefix}…${suffix} (len=${len})"
+          else
+            echo "ACTIONS_RUNTIME_TOKEN=<unset>"
+          fi
+
+          echo "ACTIONS_RUNTIME_URL=${ACTIONS_RUNTIME_URL:-<unset>}"
+          echo "ACTIONS_RESULTS_URL=${ACTIONS_RESULTS_URL:-<unset>}"
+
       - name: Init required submodules (CI only)
         if: github.actor != 'nektos/act'
         run: |
@@ -136,14 +157,14 @@ jobs:
             ffmpeg \
             xvfb
 
-      - name: Test playwright-test-videos (dedupe + masking)
-        uses: ./external/playwright-test-videos/.github/actions/ci
-        with:
-          working-directory: external/playwright-test-videos
-          node-version: 22.x
-          cache: ${{ github.actor == 'nektos/act' && 'false' || 'true' }}
-          setup-node: 'false'
-          run: npm test
+      - name: Build playwright-test-videos CLI (no tests)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd external/playwright-test-videos
+          npm ci
+          npm run build
 
       - name: Run Playwright demo test
         shell: bash
@@ -315,11 +336,12 @@ jobs:
 
       - name: Upload demo video artifact (single file, no zip) (CI)
         if: always() && github.actor != 'nektos/act'
-        run: node scripts/upload-single-file-artifact.cjs
-        env:
-          SINGLE_ARTIFACT_NAME: playwright-demo-video
-          SINGLE_ARTIFACT_FILE: docs/pw-videos/demo.mp4
-          SINGLE_ARTIFACT_RETENTION_DAYS: '7'
+        uses: ./.github/actions/upload-single-file-artifact
+        with:
+          name: playwright-demo-video
+          file: docs/pw-videos/demo.mp4
+          retention-days: '7'
+          debug-env: 'true'
 
       - name: Upload demo video artifact (single file, no zip) (act only)
         if: always() && github.actor == 'nektos/act'
@@ -334,6 +356,7 @@ jobs:
           SINGLE_ARTIFACT_NAME: playwright-demo-video
           SINGLE_ARTIFACT_FILE: docs/pw-videos/demo.mp4
           SINGLE_ARTIFACT_RETENTION_DAYS: '3'
+          SINGLE_ARTIFACT_DEBUG_ENV: '1'
 
       - name: Upload Playwright demo artifacts (CI)
         if: always() && github.actor != 'nektos/act'

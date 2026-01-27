@@ -1,0 +1,123 @@
+name: Artifact runtime env smoke
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  smoke-host:
+    name: Smoke (host runner)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Print runtime env (partial)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${ACTIONS_RUNTIME_TOKEN:-}" ]; then
+            token="$ACTIONS_RUNTIME_TOKEN"
+            echo "ACTIONS_RUNTIME_TOKEN=${token:0:6}…${token: -6} (len=${#token})"
+          else
+            echo "ACTIONS_RUNTIME_TOKEN=<unset>"
+          fi
+          echo "ACTIONS_RUNTIME_URL=${ACTIONS_RUNTIME_URL:-<unset>}"
+          echo "ACTIONS_RESULTS_URL=${ACTIONS_RESULTS_URL:-<unset>}"
+
+      - name: Create tiny file
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "hello from smoke" > smoke.txt
+          ls -la smoke.txt
+
+      - name: Upload tiny file (official upload-artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-official
+          path: smoke.txt
+          if-no-files-found: error
+
+      - name: Init toolkit submodule
+        run: git submodule update --init --depth 1 external/toolkit
+
+      - name: Build dkattan/toolkit @actions/artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd external/toolkit
+          npm install
+          npm run bootstrap
+          npm run build
+          test -f packages/artifact/lib/artifact.js
+
+      - name: Upload tiny file (toolkit zip:false)
+        uses: ./.github/actions/upload-single-file-artifact
+        with:
+          name: smoke-toolkit
+          file: smoke.txt
+          retention-days: '1'
+          debug-env: 'true'
+
+  smoke-container:
+    name: Smoke (container job)
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.0-jammy
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Print runtime env (partial)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${ACTIONS_RUNTIME_TOKEN:-}" ]; then
+            token="$ACTIONS_RUNTIME_TOKEN"
+            echo "ACTIONS_RUNTIME_TOKEN=${token:0:6}…${token: -6} (len=${#token})"
+          else
+            echo "ACTIONS_RUNTIME_TOKEN=<unset>"
+          fi
+          echo "ACTIONS_RUNTIME_URL=${ACTIONS_RUNTIME_URL:-<unset>}"
+          echo "ACTIONS_RESULTS_URL=${ACTIONS_RESULTS_URL:-<unset>}"
+
+      - name: Create tiny file
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "hello from container smoke" > smoke-container.txt
+          ls -la smoke-container.txt
+
+      - name: Upload tiny file (official upload-artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-official-container
+          path: smoke-container.txt
+          if-no-files-found: error
+
+      - name: Init toolkit submodule
+        run: git submodule update --init --depth 1 external/toolkit
+
+      - name: Build dkattan/toolkit @actions/artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd external/toolkit
+          npm install
+          npm run bootstrap
+          npm run build
+          test -f packages/artifact/lib/artifact.js
+
+      - name: Upload tiny file (toolkit zip:false)
+        uses: ./.github/actions/upload-single-file-artifact
+        with:
+          name: smoke-toolkit-container
+          file: smoke-container.txt
+          retention-days: '1'
+          debug-env: 'true'

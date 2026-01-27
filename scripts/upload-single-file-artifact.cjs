@@ -19,60 +19,94 @@ function fail(message) {
   process.exit(1);
 }
 
-const artifactName = process.env.SINGLE_ARTIFACT_NAME;
-const artifactFile = process.env.SINGLE_ARTIFACT_FILE;
+function formatPartialSecret(value) {
+  if (!value) {
+    return "<unset>";
+  }
 
-if (!artifactName) {
-  fail("Missing env var SINGLE_ARTIFACT_NAME");
+  const s = String(value);
+  const len = s.length;
+  if (len <= 12) {
+    return `${s.slice(0, 2)}…${s.slice(-2)} (len=${len})`;
+  }
+
+  return `${s.slice(0, 6)}…${s.slice(-6)} (len=${len})`;
 }
 
-if (!artifactFile) {
-  fail("Missing env var SINGLE_ARTIFACT_FILE");
-}
+function maybePrintRuntimeEnvDebug() {
+  if (process.env.SINGLE_ARTIFACT_DEBUG_ENV !== "1") {
+    return;
+  }
 
-const artifactFileAbs = path.resolve(artifactFile);
-if (!fs.existsSync(artifactFileAbs)) {
-  console.warn(
-    `::warning::Single-file artifact upload skipped; file not found: ${artifactFileAbs}`,
+  // Intentionally print only a small prefix/suffix; do NOT print the full token.
+  // This helps validate whether GitHub injects these env vars in the current execution context.
+  console.log(
+    `ACTIONS_RUNTIME_TOKEN=${formatPartialSecret(process.env.ACTIONS_RUNTIME_TOKEN)}`,
   );
-  process.exit(0);
-}
-
-const retentionDaysRaw = process.env.SINGLE_ARTIFACT_RETENTION_DAYS;
-const retentionDays = retentionDaysRaw ? Number(retentionDaysRaw) : undefined;
-if (retentionDaysRaw && (!Number.isFinite(retentionDays) || retentionDays <= 0)) {
-  fail(
-    `Invalid SINGLE_ARTIFACT_RETENTION_DAYS='${retentionDaysRaw}' (expected a positive number)`,
+  console.log(
+    `ACTIONS_RUNTIME_URL=${formatPartialSecret(process.env.ACTIONS_RUNTIME_URL)}`,
   );
-}
-
-const artifactModulePath = path.resolve(
-  __dirname,
-  "../external/toolkit/packages/artifact/lib/artifact.js",
-);
-
-let DefaultArtifactClient;
-try {
-  ({ DefaultArtifactClient } = require(artifactModulePath));
-}
-catch (error) {
-  const originalErrorMessage = error && error.message ? error.message : String(error);
-  fail(
-    [
-      `Unable to load dkattan/toolkit @actions/artifact build output at ${artifactModulePath}.`,
-      "Ensure the submodule is initialized and built (external/toolkit: npm install && npm run bootstrap && npm run build).",
-      `Original error: ${originalErrorMessage}`,
-    ].join(" "),
+  console.log(
+    `ACTIONS_RESULTS_URL=${formatPartialSecret(process.env.ACTIONS_RESULTS_URL)}`,
   );
 }
 
-if (typeof DefaultArtifactClient !== "function") {
-  fail(
-    `dkattan/toolkit artifact module did not export DefaultArtifactClient (path: ${artifactModulePath})`,
-  );
-}
+async function uploadSingleFileArtifact() {
+  maybePrintRuntimeEnvDebug();
 
-async function main() {
+  const artifactName = process.env.SINGLE_ARTIFACT_NAME;
+  const artifactFile = process.env.SINGLE_ARTIFACT_FILE;
+
+  if (!artifactName) {
+    throw new Error("Missing env var SINGLE_ARTIFACT_NAME");
+  }
+
+  if (!artifactFile) {
+    throw new Error("Missing env var SINGLE_ARTIFACT_FILE");
+  }
+
+  const artifactFileAbs = path.resolve(artifactFile);
+  if (!fs.existsSync(artifactFileAbs)) {
+    console.warn(
+      `::warning::Single-file artifact upload skipped; file not found: ${artifactFileAbs}`,
+    );
+    return;
+  }
+
+  const retentionDaysRaw = process.env.SINGLE_ARTIFACT_RETENTION_DAYS;
+  const retentionDays = retentionDaysRaw ? Number(retentionDaysRaw) : undefined;
+  if (retentionDaysRaw && (!Number.isFinite(retentionDays) || retentionDays <= 0)) {
+    throw new Error(
+      `Invalid SINGLE_ARTIFACT_RETENTION_DAYS='${retentionDaysRaw}' (expected a positive number)`,
+    );
+  }
+
+  const artifactModulePath = path.resolve(
+    __dirname,
+    "../external/toolkit/packages/artifact/lib/artifact.js",
+  );
+
+  let DefaultArtifactClient;
+  try {
+    ({ DefaultArtifactClient } = require(artifactModulePath));
+  }
+  catch (error) {
+    const originalErrorMessage = error && error.message ? error.message : String(error);
+    throw new Error(
+      [
+        `Unable to load dkattan/toolkit @actions/artifact build output at ${artifactModulePath}.`,
+        "Ensure the submodule is initialized and built (external/toolkit: npm install && npm run bootstrap && npm run build).",
+        `Original error: ${originalErrorMessage}`,
+      ].join(" "),
+    );
+  }
+
+  if (typeof DefaultArtifactClient !== "function") {
+    throw new TypeError(
+      `dkattan/toolkit artifact module did not export DefaultArtifactClient (path: ${artifactModulePath})`,
+    );
+  }
+
   const rootDirectory = path.dirname(artifactFileAbs);
 
   // NOTE: zip:false is a fork-only option.
@@ -98,6 +132,12 @@ async function main() {
   );
 }
 
-main().catch((error) => {
-  fail(error && error.stack ? error.stack : String(error));
-});
+module.exports = {
+  uploadSingleFileArtifact,
+};
+
+if (require.main === module) {
+  uploadSingleFileArtifact().catch((error) => {
+    fail(error && error.stack ? error.stack : String(error));
+  });
+}

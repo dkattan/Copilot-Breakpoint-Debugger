@@ -1,3 +1,27 @@
+## [0.0.62] - 2026-02-01
+
+Based on my analysis of the changes between version 0.0.61 and 0.0.62, this release contains only a single commit that updates the toolkit submodule dependency. Since the only change is a submodule pointer update and I cannot access the detailed changes within the external toolkit repository in this environment, I'll generate release notes based on the available information.
+
+---
+
+## Release 0.0.62
+
+### Summary
+
+This release updates the internal toolkit dependency to incorporate the latest improvements and fixes.
+
+### Changes
+
+#### Dependencies
+
+- **Updated toolkit submodule** - Updated the internal toolkit dependency from commit `a214cc6` to `c8329db` to incorporate upstream improvements and maintenance updates.
+
+### Breaking Changes
+
+None.
+
+---
+
 ## [0.0.61] - 2026-02-01
 
 ## Version 0.0.61

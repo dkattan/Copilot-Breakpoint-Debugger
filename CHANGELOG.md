@@ -1,3 +1,39 @@
+## [0.0.61] - 2026-02-01
+
+## Version 0.0.61
+
+### Summary
+
+This maintenance release focuses on dependency security updates and test infrastructure improvements. The release addresses npm audit findings and implements dynamic port allocation to eliminate test flakiness caused by fixed port conflicts.
+
+### Improvements
+
+#### Dependency Updates
+- Updated `@actions/github` from `^7.0.0` to `^8.0.1` to address security vulnerabilities
+- Added override for `mocha@11.7.5` to use `diff@8.0.3`, fixing npm audit warnings
+- Removed unused `ts-node` dependency in favor of `tsx`
+
+#### Debug Configuration Enhancements
+- Added support for passing `vscode.DebugConfiguration` objects directly to `startDebuggingAndWaitForStop` and `triggerBreakpointAndWaitForStop` functions
+- The `nameOrConfiguration` parameter now accepts either a string (configuration name) or a full `DebugConfiguration` object
+- Added new `configuration` parameter to `triggerBreakpointAndWaitForStop` for direct configuration passing (primarily for test usage)
+- Improved configuration resolution logic with better error handling and validation
+
+#### Test Stability Improvements
+- Implemented dynamic port allocation using `getFreePort()` utility to prevent port conflicts in parallel test execution
+- Updated test server (`test-workspace/node/server.js`) to accept dynamic ports via `COPILOT_DEBUGGER_TEST_PORT` environment variable
+- Added `createNodeServerDebugConfig()` helper function to generate consistent Node.js debug configurations for tests
+- Updated all test suites to use dynamic ports instead of hardcoded port 31337:
+  - `triggerBreakpoint.test.ts`
+  - `serverReady.test.ts`
+  - `serverReadyVscodeCommand.test.ts`
+  - `dotnetWatchAutoStart.test.ts`
+  - `existingSessionBehavior.test.ts`
+
+### Breaking Changes
+
+None.
+
 ## [0.0.60] - 2026-02-01
 
 ## Release Notes - Version 0.0.60

@@ -1501,7 +1501,7 @@ function monitorTask(taskExecution: vscode.TaskExecution, baseCwd: string): Prom
 export interface StartDebuggingAndWaitForStopParams {
   sessionName: string
   workspaceFolder: string // absolute path to open workspace folder
-  nameOrConfiguration?: string // may be omitted; auto-selection logic will attempt resolution
+  nameOrConfiguration?: string | vscode.DebugConfiguration // may be omitted; auto-selection logic will attempt resolution
   timeoutSeconds?: number // optional override; falls back to workspace setting copilot-debugger.entryTimeoutSeconds
   /**
    * Optional task label to auto-start before launching the debugger.
@@ -2921,36 +2921,48 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
         : 60;
   let entryStopTimeoutMs = effectiveTimeoutSeconds * 1000;
 
-  // Resolve launch configuration name: provided -> setting -> single config auto-select
-  let effectiveLaunchName = nameOrConfiguration;
-  if (!effectiveLaunchName) {
-    effectiveLaunchName = config.defaultLaunchConfiguration;
+  const directConfig
+    = nameOrConfiguration && typeof nameOrConfiguration === "object"
+      ? nameOrConfiguration
+      : undefined;
+
+  let resolvedConfig: vscode.DebugConfiguration;
+  if (directConfig) {
+    resolvedConfig = { ...directConfig };
   }
-  const launchConfig = vscode.workspace.getConfiguration("launch", folder.uri);
-  const allConfigs
-    = (launchConfig.get<unknown>(
-      "configurations",
-    ) as vscode.DebugConfiguration[]) || [];
-  if (!effectiveLaunchName) {
-    if (allConfigs.length === 1 && allConfigs[0].name) {
-      effectiveLaunchName = allConfigs[0].name;
-      logger.info(
-        `[startDebuggingAndWaitForStop] Auto-selected sole launch configuration '${effectiveLaunchName}'.`,
-      );
+  else {
+    // Resolve launch configuration name: provided -> setting -> single config auto-select
+    let effectiveLaunchName
+      = typeof nameOrConfiguration === "string" ? nameOrConfiguration : undefined;
+    if (!effectiveLaunchName) {
+      effectiveLaunchName = config.defaultLaunchConfiguration;
     }
-    else {
+    const launchConfig = vscode.workspace.getConfiguration("launch", folder.uri);
+    const allConfigs
+      = (launchConfig.get<unknown>(
+        "configurations",
+      ) as vscode.DebugConfiguration[]) || [];
+    if (!effectiveLaunchName) {
+      if (allConfigs.length === 1 && allConfigs[0].name) {
+        effectiveLaunchName = allConfigs[0].name;
+        logger.info(
+          `[startDebuggingAndWaitForStop] Auto-selected sole launch configuration '${effectiveLaunchName}'.`,
+        );
+      }
+      else {
+        throw new Error(
+          "No launch configuration specified. Provide nameOrConfiguration, set copilot-debugger.defaultLaunchConfiguration, or define exactly one configuration.",
+        );
+      }
+    }
+    const found = allConfigs.find(c => c.name === effectiveLaunchName);
+    if (!found) {
       throw new Error(
-        "No launch configuration specified. Provide nameOrConfiguration, set copilot-debugger.defaultLaunchConfiguration, or define exactly one configuration.",
+        `Launch configuration '${effectiveLaunchName}' not found in ${folder.uri.fsPath}. Add it to .vscode/launch.json.`,
       );
     }
+    resolvedConfig = { ...found };
   }
-  const found = allConfigs.find(c => c.name === effectiveLaunchName);
-  if (!found) {
-    throw new Error(
-      `Launch configuration '${effectiveLaunchName}' not found in ${folder.uri.fsPath}. Add it to .vscode/launch.json.`,
-    );
-  }
-  const resolvedConfig = { ...found };
   // Inject stopOnEntry if not already present (harmless if adapter ignores it)
   // Always force stopOnEntry true (adapter may ignore)
   (resolvedConfig as Record<string, unknown>).stopOnEntry = true;
@@ -4124,6 +4136,11 @@ export async function triggerBreakpointAndWaitForStop(params: {
    */
   configurationName?: string
   /**
+   * Optional direct debug configuration to start when starting a new session.
+   * Intended for tests; tool callers should prefer configurationName.
+   */
+  configuration?: vscode.DebugConfiguration
+  /**
    * Optional task label to auto-start before launching the debugger.
    */
   watcherTaskLabel?: string
@@ -4176,6 +4193,7 @@ export async function triggerBreakpointAndWaitForStop(params: {
     sessionId: sessionIdRaw,
     workspaceFolder,
     configurationName,
+    configuration,
     watcherTaskLabel,
     existingSessionBehavior,
     serverReadyTrigger,
@@ -4189,6 +4207,12 @@ export async function triggerBreakpointAndWaitForStop(params: {
   if (serverReadyTrigger && startupBreakpointConfig?.breakpoints?.length) {
     throw new Error(
       "Provide either serverReadyTrigger or startupBreakpointConfig, not both.",
+    );
+  }
+
+  if (configurationName && configuration) {
+    throw new Error(
+      "Provide either configurationName or configuration, not both.",
     );
   }
 
@@ -4268,7 +4292,7 @@ export async function triggerBreakpointAndWaitForStop(params: {
       const stop = await startDebuggingAndWaitForStop({
         sessionName: "",
         workspaceFolder: resolvedWorkspaceFolder,
-        nameOrConfiguration: configurationName,
+        nameOrConfiguration: configuration ?? configurationName,
         watcherTaskLabel,
         timeoutSeconds: Math.max(1, timeoutSeconds),
         mode,
@@ -4292,7 +4316,7 @@ export async function triggerBreakpointAndWaitForStop(params: {
       const startStop = await startDebuggingAndWaitForStop({
         sessionName: "",
         workspaceFolder: resolvedWorkspaceFolder,
-        nameOrConfiguration: configurationName,
+        nameOrConfiguration: configuration ?? configurationName,
         watcherTaskLabel,
         timeoutSeconds: Math.max(1, timeoutSeconds),
         mode: "inspect",
@@ -4345,26 +4369,30 @@ export async function triggerBreakpointAndWaitForStop(params: {
         = (launchConfig.get<unknown>(
           "configurations",
         ) as vscode.DebugConfiguration[]) || [];
-      if (!effectiveLaunchName) {
-        if (allConfigs.length === 1 && allConfigs[0].name) {
-          effectiveLaunchName = allConfigs[0].name;
-          logger.info(
-            `[triggerBreakpoint] Auto-selected sole launch configuration '${effectiveLaunchName}'.`,
-          );
-        }
-        else {
-          throw new Error(
-            "No launch configuration specified. Provide configurationName, set copilot-debugger.defaultLaunchConfiguration, or define exactly one configuration.",
-          );
-        }
-      }
-      const found = allConfigs.find(c => c.name === effectiveLaunchName);
-      if (!found) {
-        throw new Error(
-          `Launch configuration '${effectiveLaunchName}' not found in ${folder.uri.fsPath}. Add it to .vscode/launch.json.`,
-        );
-      }
-      const resolvedConfig = { ...found };
+      const resolvedConfig: vscode.DebugConfiguration = configuration
+        ? { ...configuration }
+        : (() => {
+            if (!effectiveLaunchName) {
+              if (allConfigs.length === 1 && allConfigs[0].name) {
+                effectiveLaunchName = allConfigs[0].name;
+                logger.info(
+                  `[triggerBreakpoint] Auto-selected sole launch configuration '${effectiveLaunchName}'.`,
+                );
+              }
+              else {
+                throw new Error(
+                  "No launch configuration specified. Provide configurationName, set copilot-debugger.defaultLaunchConfiguration, or define exactly one configuration.",
+                );
+              }
+            }
+            const found = allConfigs.find(c => c.name === effectiveLaunchName);
+            if (!found) {
+              throw new Error(
+                `Launch configuration '${effectiveLaunchName}' not found in ${folder.uri.fsPath}. Add it to .vscode/launch.json.`,
+              );
+            }
+            return { ...found };
+          })();
       (resolvedConfig as Record<string, unknown>).stopOnEntry = true;
 
       const existingIds = new Set(activeSessions.map(s => s.id));

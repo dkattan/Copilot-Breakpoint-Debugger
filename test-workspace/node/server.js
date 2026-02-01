@@ -1,11 +1,14 @@
 const http = require('node:http');
 
-const port = 31337;
+const requestedPortRaw = process.env.COPILOT_DEBUGGER_TEST_PORT;
+const requestedPort = requestedPortRaw ? Number.parseInt(requestedPortRaw, 10) : NaN;
+const port = Number.isFinite(requestedPort) ? requestedPort : 31337;
+let boundPort = port;
 // eslint-disable-next-line no-unused-vars, unused-imports/no-unused-vars
 let started = false; // referenced by breakpoint variable
 
 const server = http.createServer((req, res) => {
-  const url = new URL(req.url ?? '/', `http://localhost:${port}`);
+  const url = new URL(req.url ?? '/', `http://localhost:${boundPort}`);
 
   if (url.pathname === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -24,9 +27,13 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(port, () => {
+  const address = server.address();
+  if (address && typeof address === 'object') {
+    boundPort = address.port;
+  }
   // serverReady breakpoint target (line below) - indicates server accepting connections
   started = true; // LINE_FOR_SERVER_READY
-  console.log(`Server listening on http://localhost:${port}`);
+  console.log(`Server listening on http://localhost:${boundPort}`);
 });
 
 // Emit a repeated line so breakpoint-based tests have a stable target even if the

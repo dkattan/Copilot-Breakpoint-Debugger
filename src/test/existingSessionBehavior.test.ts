@@ -187,7 +187,7 @@ describe("existingSessionBehavior", function () {
           },
           action: {
             type: "httpRequest",
-            url: "http://localhost:31337/api/echo?q=hello",
+            url: "http://localhost:1/api/echo?q=hello",
           },
         });
       },

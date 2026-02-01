@@ -814,7 +814,7 @@
   },
   "dependencies": {
     "@actions/core": "^2.0.2",
-    "@actions/github": "^7.0.0",
+    "@actions/github": "^8.0.1",
     "@anthropic-ai/sdk": "^0.71.2",
     "@reactive-vscode/reactivity": "^0.4.1",
     "@vscode/prompt-tsx": "^0.4.0-alpha.6",
@@ -846,13 +846,16 @@
     "glob": "10.5.0",
     "npm-run-all": "^4.1.5",
     "taze": "^19.9.2",
-    "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vscode-ext-gen": "^1.5.1",
     "vscode-test-playwright": "file:external/vscode-test-playwright"
   },
   "overrides": {
-    "glob": "10.5.0"
+    "glob": "10.5.0",
+
+    "mocha@11.7.5": {
+      "diff": "8.0.3"
+    }
   }
 }

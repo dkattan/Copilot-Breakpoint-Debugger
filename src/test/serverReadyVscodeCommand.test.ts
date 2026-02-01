@@ -4,7 +4,9 @@ import * as vscode from "vscode";
 import { startDebuggingAndWaitForStop } from "../session";
 import {
   activateCopilotDebugger,
+  createNodeServerDebugConfig,
   getExtensionRoot,
+  getFreePort,
   openScriptDocument,
   stopAllDebugSessions,
 } from "./utils/startDebuggerToolTestUtils";
@@ -26,13 +28,15 @@ describe("serverReady vscodeCommand action", () => {
     const extensionRoot = getExtensionRoot();
     const workspaceFolder = path.join(extensionRoot, "test-workspace", "node");
     const serverPath = path.join(workspaceFolder, "server.js");
+    const port = await getFreePort();
+    const serverConfig = createNodeServerDebugConfig({ workspaceFolder, port });
     const serverDoc = await vscode.workspace.openTextDocument(serverPath);
     await openScriptDocument(serverDoc.uri);
 
     // Use a pattern trigger instead of a breakpoint trigger.
     // The serverReady breakpoint line executes only once and can be missed if it runs
     // before VS Code finishes binding breakpoints under load.
-    const readyPattern = "Server listening on http://localhost:31337";
+    const readyPattern = `Server listening on http://localhost:${port}`;
     const userBreakpointSnippet = "TICK_FOR_USER_BREAKPOINT";
     const userBreakpointLine
       = serverDoc
@@ -47,7 +51,7 @@ describe("serverReady vscodeCommand action", () => {
     const context = await startDebuggingAndWaitForStop({
       sessionName: "",
       workspaceFolder,
-      nameOrConfiguration: "Run node/server.js",
+      nameOrConfiguration: serverConfig,
       timeoutSeconds: 180,
       breakpointConfig: {
         breakpoints: [

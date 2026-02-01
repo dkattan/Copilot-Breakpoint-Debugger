@@ -1,4 +1,5 @@
 import type { StartDebuggerInvocationOptions } from "../../testTypes";
+import * as net from "node:net";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import { activeSessions } from "../../common";
@@ -23,6 +24,51 @@ export async function activateCopilotDebugger(): Promise<void> {
 export async function openScriptDocument(scriptUri: vscode.Uri): Promise<void> {
   const doc = await vscode.workspace.openTextDocument(scriptUri);
   await vscode.window.showTextDocument(doc);
+}
+
+/** Allocate a free localhost TCP port for tests (avoids fixed-port flakiness). */
+export async function getFreePort(): Promise<number> {
+  const server = net.createServer();
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => resolve());
+  });
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    server.close();
+    throw new Error("Failed to allocate a free port (unexpected address type).");
+  }
+  const port = address.port;
+  await new Promise<void>((resolve, reject) => {
+    server.close((err) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve();
+    });
+  });
+  return port;
+}
+
+/** Create a Node debug configuration for test-workspace/node/server.js with a unique port. */
+export function createNodeServerDebugConfig(params: {
+  workspaceFolder: string
+  port: number
+  name?: string
+}): vscode.DebugConfiguration {
+  const { workspaceFolder, port, name = "Run node/server.js" } = params;
+  return {
+    name,
+    type: "node",
+    request: "launch",
+    program: path.join(workspaceFolder, "server.js"),
+    cwd: workspaceFolder,
+    console: "internalConsole",
+    env: {
+      COPILOT_DEBUGGER_TEST_PORT: String(port),
+    },
+  };
 }
 
 /** Invoke StartDebuggerTool with supplied options and return aggregated output parts. */

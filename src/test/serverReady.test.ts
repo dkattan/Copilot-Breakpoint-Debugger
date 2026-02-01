@@ -5,7 +5,9 @@ import * as vscode from "vscode";
 import { startDebuggingAndWaitForStop } from "../session";
 import {
   activateCopilotDebugger,
+  createNodeServerDebugConfig,
   getExtensionRoot,
+  getFreePort,
   openScriptDocument,
   stopAllDebugSessions,
 } from "./utils/startDebuggerToolTestUtils";
@@ -28,6 +30,8 @@ describe("serverReady breakpoint", function () {
     const workspaceFolder = path.join(extensionRoot, "test-workspace", "node");
     const serverPath = path.join(workspaceFolder, "server.js");
     const userScriptPath = serverPath; // set user breakpoint after serverReady
+    const port = await getFreePort();
+    const serverConfig = createNodeServerDebugConfig({ workspaceFolder, port });
 
     const serverDoc = await vscode.workspace.openTextDocument(serverPath);
     await openScriptDocument(serverDoc.uri);
@@ -54,7 +58,7 @@ describe("serverReady breakpoint", function () {
     const context = await startDebuggingAndWaitForStop({
       sessionName: "",
       workspaceFolder,
-      nameOrConfiguration: "Run node/server.js",
+      nameOrConfiguration: serverConfig,
       timeoutSeconds: 180,
       breakpointConfig: {
         breakpoints: [
@@ -71,7 +75,7 @@ describe("serverReady breakpoint", function () {
         action: {
           type: "shellCommand",
           shellCommand:
-            'node -e "require(\'node:http\').get(\'http://localhost:31337/health\', r=>{let d=\'\';r.on(\'data\',c=>d+=c);r.on(\'end\',()=>console.log(\'health=\'+d));});"',
+            `node -e "require('node:http').get('http://localhost:${port}/health', r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>console.log('health='+d));});"`,
         },
       },
     });
@@ -130,6 +134,8 @@ describe("serverReady breakpoint", function () {
     const extensionRoot = getExtensionRoot();
     const workspaceFolder = path.join(extensionRoot, "test-workspace", "node");
     const serverPath = path.join(workspaceFolder, "server.js");
+    const port = await getFreePort();
+    const serverConfig = createNodeServerDebugConfig({ workspaceFolder, port });
     const serverDoc = await vscode.workspace.openTextDocument(serverPath);
     await openScriptDocument(serverDoc.uri);
     const readyLine
@@ -151,7 +157,7 @@ describe("serverReady breakpoint", function () {
     const context = await startDebuggingAndWaitForStop({
       sessionName: "",
       workspaceFolder,
-      nameOrConfiguration: "Run node/server.js",
+      nameOrConfiguration: serverConfig,
       timeoutSeconds: 180,
       breakpointConfig: {
         breakpoints: [
@@ -165,7 +171,7 @@ describe("serverReady breakpoint", function () {
       },
       serverReady: {
         trigger: { path: serverPath, line: readyLine },
-        action: { type: "httpRequest", url: "http://localhost:31337/health" },
+        action: { type: "httpRequest", url: `http://localhost:${port}/health` },
       },
     });
 

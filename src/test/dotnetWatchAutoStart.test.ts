@@ -7,7 +7,9 @@ import {
 } from "../session";
 import {
   activateCopilotDebugger,
+  createNodeServerDebugConfig,
   getExtensionRoot,
+  getFreePort,
   openScriptDocument,
   stopAllDebugSessions,
 } from "./utils/startDebuggerToolTestUtils";
@@ -37,6 +39,8 @@ describe("dotnet watch auto-start", function () {
 
     const workspaceFolder = path.join(extensionRoot, "test-workspace", "node");
     const serverPath = path.join(workspaceFolder, "server.js");
+    const port = await getFreePort();
+    const serverConfig = createNodeServerDebugConfig({ workspaceFolder, port });
 
     const serverDoc = await vscode.workspace.openTextDocument(serverPath);
     await openScriptDocument(serverDoc.uri);
@@ -85,7 +89,7 @@ describe("dotnet watch auto-start", function () {
       const startStop = await startDebuggingAndWaitForStop({
         sessionName: "",
         workspaceFolder,
-        nameOrConfiguration: "Run node/server.js",
+        nameOrConfiguration: serverConfig,
         timeoutSeconds: 120,
         mode: "inspect",
         watcherTaskLabel,
@@ -146,7 +150,7 @@ describe("dotnet watch auto-start", function () {
         },
         action: {
           type: "httpRequest",
-          url: "http://localhost:31337/api/echo?q=hello",
+          url: `http://localhost:${port}/api/echo?q=hello`,
         },
       });
 

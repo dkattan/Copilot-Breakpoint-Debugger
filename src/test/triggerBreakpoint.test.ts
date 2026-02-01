@@ -7,7 +7,9 @@ import {
 } from "../session";
 import {
   activateCopilotDebugger,
+  createNodeServerDebugConfig,
   getExtensionRoot,
+  getFreePort,
   openScriptDocument,
   stopAllDebugSessions,
 } from "./utils/startDebuggerToolTestUtils";
@@ -24,6 +26,8 @@ describe("triggerBreakpoint", function () {
     const extensionRoot = getExtensionRoot();
     const workspaceFolder = path.join(extensionRoot, "test-workspace", "node");
     const serverPath = path.join(workspaceFolder, "server.js");
+    const port = await getFreePort();
+    const serverConfig = createNodeServerDebugConfig({ workspaceFolder, port });
 
     const serverDoc = await vscode.workspace.openTextDocument(serverPath);
     await openScriptDocument(serverDoc.uri);
@@ -39,7 +43,7 @@ describe("triggerBreakpoint", function () {
     const startStop = await startDebuggingAndWaitForStop({
       sessionName: "",
       workspaceFolder,
-      nameOrConfiguration: "Run node/server.js",
+      nameOrConfiguration: serverConfig,
       timeoutSeconds: 120,
       mode: "inspect",
       breakpointConfig: {
@@ -78,7 +82,7 @@ describe("triggerBreakpoint", function () {
       },
       action: {
         type: "httpRequest",
-        url: "http://localhost:31337/api/echo?q=hello",
+        url: `http://localhost:${port}/api/echo?q=hello`,
       },
     });
 
@@ -100,6 +104,8 @@ describe("triggerBreakpoint", function () {
     const extensionRoot = getExtensionRoot();
     const workspaceFolder = path.join(extensionRoot, "test-workspace", "node");
     const serverPath = path.join(workspaceFolder, "server.js");
+    const port = await getFreePort();
+    const serverConfig = createNodeServerDebugConfig({ workspaceFolder, port });
 
     const serverDoc = await vscode.workspace.openTextDocument(serverPath);
     await openScriptDocument(serverDoc.uri);
@@ -111,7 +117,7 @@ describe("triggerBreakpoint", function () {
 
     const stop = await triggerBreakpointAndWaitForStop({
       workspaceFolder,
-      configurationName: "Run node/server.js",
+      configuration: serverConfig,
       timeoutSeconds: 120,
       mode: "singleShot",
       startupBreakpointConfig: {
@@ -136,7 +142,7 @@ describe("triggerBreakpoint", function () {
       },
       action: {
         type: "httpRequest",
-        url: "http://localhost:31337/api/echo?q=hello",
+        url: `http://localhost:${port}/api/echo?q=hello`,
       },
     });
 
@@ -158,6 +164,8 @@ describe("triggerBreakpoint", function () {
     const extensionRoot = getExtensionRoot();
     const workspaceFolder = path.join(extensionRoot, "test-workspace", "node");
     const serverPath = path.join(workspaceFolder, "server.js");
+    const port = await getFreePort();
+    const serverConfig = createNodeServerDebugConfig({ workspaceFolder, port });
 
     const serverDoc = await vscode.workspace.openTextDocument(serverPath);
     await openScriptDocument(serverDoc.uri);
@@ -169,12 +177,12 @@ describe("triggerBreakpoint", function () {
 
     const stop = await triggerBreakpointAndWaitForStop({
       workspaceFolder,
-      configurationName: "Run node/server.js",
+      configuration: serverConfig,
       timeoutSeconds: 120,
       mode: "singleShot",
       // Use serverReady pattern to ensure server is listening before we hit /api/echo.
       serverReadyTrigger: {
-        pattern: "Server listening on http://localhost:31337",
+        pattern: `Server listening on http://localhost:${port}`,
       },
       breakpointConfig: {
         breakpoints: [
@@ -188,7 +196,7 @@ describe("triggerBreakpoint", function () {
       },
       action: {
         type: "httpRequest",
-        url: "http://localhost:31337/api/echo?q=hello",
+        url: `http://localhost:${port}/api/echo?q=hello`,
       },
     });
 

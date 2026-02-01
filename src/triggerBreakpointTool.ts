@@ -12,7 +12,19 @@ import { triggerBreakpointAndWaitForStop } from "./session";
 import { renderStopInfoMarkdown } from "./stopInfoMarkdown";
 
 export interface TriggerBreakpointToolParameters {
-  sessionId: string
+  sessionId?: string
+  workspaceFolder?: string
+  configurationName?: string
+  watcherTaskLabel?: string
+  existingSessionBehavior?: "useExisting" | "stopExisting" | "ignoreAndCreateNew"
+  serverReadyTrigger?: {
+    path?: string
+    line?: number
+    pattern?: string
+  }
+  startupBreakpointConfig?: {
+    breakpoints: Array<BreakpointDefinition>
+  }
   timeoutSeconds?: number
   mode?: "singleShot" | "inspect"
   breakpointConfig?: {
@@ -45,12 +57,30 @@ implements LanguageModelTool<TriggerBreakpointToolParameters> {
   async invoke(
     options: LanguageModelToolInvocationOptions<TriggerBreakpointToolParameters>,
   ): Promise<LanguageModelToolResult> {
-    const { sessionId, timeoutSeconds, mode, breakpointConfig, action }
+    const {
+      sessionId,
+      workspaceFolder,
+      configurationName,
+      watcherTaskLabel,
+      existingSessionBehavior,
+      serverReadyTrigger,
+      startupBreakpointConfig,
+      timeoutSeconds,
+      mode,
+      breakpointConfig,
+      action,
+    }
       = options.input;
 
     try {
       const stopInfo = await triggerBreakpointAndWaitForStop({
         sessionId,
+        workspaceFolder,
+        configurationName,
+        watcherTaskLabel,
+        existingSessionBehavior,
+        serverReadyTrigger,
+        startupBreakpointConfig,
         timeoutSeconds,
         mode,
         breakpointConfig,
@@ -77,8 +107,11 @@ implements LanguageModelTool<TriggerBreakpointToolParameters> {
   }
 
   prepareInvocation?(options: LanguageModelToolInvocationPrepareOptions<TriggerBreakpointToolParameters>): ProviderResult<vscode.PreparedToolInvocation> {
+    const sessionLabel = options.input.sessionId
+      ? `session '${options.input.sessionId}'`
+      : "a new or existing session";
     return {
-      invocationMessage: `Triggering action and waiting for stop in session '${options.input.sessionId}'`,
+      invocationMessage: `Triggering action and waiting for stop in ${sessionLabel}`,
     };
   }
 }

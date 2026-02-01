@@ -124,6 +124,23 @@
           "default": false,
           "description": "Emit verbose Debug Adapter Protocol trace logs to the output channel for troubleshooting.",
           "scope": "window"
+        },
+        "copilot-debugger.supportsMultipleDebugSessions": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether this workspace supports running multiple simultaneous debug sessions. If false, tools that might create sessions will follow existingSessionBehavior.",
+          "scope": "window"
+        },
+        "copilot-debugger.existingSessionBehavior": {
+          "type": "string",
+          "enum": [
+            "useExisting",
+            "stopExisting",
+            "ignoreAndCreateNew"
+          ],
+          "default": "useExisting",
+          "description": "Behavior when a tool is asked to start a debug session but one or more sessions already exist: useExisting (requires exactly one unless sessionId is provided), stopExisting (terminate existing sessions first), or ignoreAndCreateNew (only valid when supportsMultipleDebugSessions=true).",
+          "scope": "window"
         }
       }
     },
@@ -436,14 +453,96 @@
         "displayName": "Trigger Breakpoint",
         "toolReferenceName": "triggerBreakpoint",
         "canBeReferencedInPrompt": true,
-        "userDescription": "Trigger an external action (httpRequest/shellCommand/vscodeCommand) against an existing debug session, optionally adding breakpoints first, then wait for the next stop.",
-        "modelDescription": "Trigger an external action (fire-and-forget HTTP request, shell command, or VS Code command) against an existing debug session. Optionally set additional snippet-based breakpoints first. After resuming, the tool waits for the next stop and returns the same stop info shape as startDebugSessionWithBreakpoints.",
+        "userDescription": "Trigger an external action (httpRequest/shellCommand/vscodeCommand) against a debug session, optionally starting one, optionally adding breakpoints first, then wait for the next stop.",
+        "modelDescription": "Trigger an external action (fire-and-forget HTTP request, shell command, or VS Code command) against a debug session. If sessionId is omitted, the tool may start or select a session using workspaceFolder/configurationName and workspace settings. Optionally set additional snippet-based breakpoints first. After resuming, the tool waits for the next stop and returns the same stop info shape as startDebugSessionWithBreakpoints.",
         "inputSchema": {
           "type": "object",
           "properties": {
             "sessionId": {
               "type": "string",
-              "description": "ID of the debug session to trigger."
+              "description": "Optional debug session id (UUID). If omitted, provide workspaceFolder to allow the tool to start/select a session."
+            },
+            "workspaceFolder": {
+              "type": "string",
+              "description": "Absolute path of an OPEN workspace folder (required when sessionId is omitted)."
+            },
+            "configurationName": {
+              "type": "string",
+              "description": "Name of launch configuration to start when sessionId is omitted. If omitted uses copilot-debugger.defaultLaunchConfiguration or auto-selects sole configuration if exactly one exists."
+            },
+            "watcherTaskLabel": {
+              "type": "string",
+              "description": "Optional task label to auto-start before launching the debugger when sessionId is omitted (intended for watcher tasks like 'dotnet watch run')."
+            },
+            "existingSessionBehavior": {
+              "type": "string",
+              "enum": [
+                "useExisting",
+                "stopExisting",
+                "ignoreAndCreateNew"
+              ],
+              "description": "Optional per-call override for how to behave when debug sessions already exist. If omitted, uses copilot-debugger.existingSessionBehavior."
+            },
+            "serverReadyTrigger": {
+              "type": "object",
+              "description": "Optional serverReady trigger used only when sessionId is omitted. The tool's 'action' is used as the serverReady action (start + wait for ready + trigger + stop at breakpointConfig).",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "Optional file path for a readiness breakpoint trigger (use with line)."
+                },
+                "line": {
+                  "type": "number",
+                  "description": "Optional 1-based line number for readiness breakpoint trigger (use with path)."
+                },
+                "pattern": {
+                  "type": "string",
+                  "description": "Optional regex pattern to detect readiness in debug output/terminal."
+                }
+              }
+            },
+            "startupBreakpointConfig": {
+              "type": "object",
+              "description": "Optional readiness gate used only when sessionId is omitted. If provided, the tool starts a session and waits until one of these breakpoints is hit before firing the trigger action.",
+              "properties": {
+                "breakpoints": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "description": "File path relative to workspace or absolute."
+                      },
+                      "code": {
+                        "type": "string",
+                        "description": "Exact code snippet (substring) to break on. The tool will search the file and set breakpoints on every matching line."
+                      },
+                      "variable": {
+                        "type": "string",
+                        "description": "Required variable name to focus in output (case-sensitive). Use '*' to opt into capture-all (auto-capture up to captureMaxVariables)."
+                      },
+                      "onHit": {
+                        "type": "string",
+                        "enum": [
+                          "break",
+                          "captureAndContinue",
+                          "captureAndStopDebugging"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "code",
+                      "variable"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "breakpoints"
+              ]
             },
             "timeoutSeconds": {
               "type": "number",
@@ -580,8 +679,21 @@
             }
           },
           "required": [
-            "sessionId",
             "action"
+          ],
+          "anyOf": [
+            {
+              "required": [
+                "sessionId",
+                "action"
+              ]
+            },
+            {
+              "required": [
+                "workspaceFolder",
+                "action"
+              ]
+            }
           ]
         }
       },

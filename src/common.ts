@@ -13,6 +13,36 @@ export const sessionStartEventEmitter = useEventEmitter<vscode.DebugSession>();
 /** Maintain a list of active debug sessions. */
 export const activeSessions: vscode.DebugSession[] = [];
 
+export type DebugSessionRunStateStatus = "paused" | "running" | "terminated";
+
+export interface DebugSessionRunState {
+  status: DebugSessionRunStateStatus
+  lastChanged: number
+}
+
+/** Best-effort per-session run state derived from DAP events. */
+export const sessionRunStateBySessionId = new Map<string, DebugSessionRunState>();
+
+/** Child session id -> parent session id mapping (best-effort; derived from DAP launch args when available). */
+export const sessionParentIdBySessionId = new Map<string, string>();
+
+export function setSessionRunState(sessionId: string, status: DebugSessionRunStateStatus) {
+  if (!sessionId || !sessionId.trim()) {
+    return;
+  }
+  sessionRunStateBySessionId.set(sessionId, { status, lastChanged: Date.now() });
+}
+
+export function setSessionParentId(childSessionId: string, parentSessionId: string) {
+  if (!childSessionId || !childSessionId.trim()) {
+    return;
+  }
+  if (!parentSessionId || !parentSessionId.trim()) {
+    return;
+  }
+  sessionParentIdBySessionId.set(childSessionId, parentSessionId);
+}
+
 /** Event emitter for debug session termination notifications */
 export const sessionTerminateEventEmitter = useEventEmitter<{
   session: vscode.DebugSession
@@ -44,6 +74,7 @@ export interface BreakpointHitInfo {
 const addStartListener = useEvent(vscode.debug.onDidStartDebugSession);
 addStartListener((session) => {
   activeSessions.push(session);
+  setSessionRunState(session.id, "running");
   outputChannel.appendLine(
     `Debug session started: ${session.name} (ID: ${session.id})`,
   );
@@ -65,6 +96,9 @@ addTerminateListener((session) => {
     `Debug session terminated: ${session.name} (ID: ${session.id})`,
   );
   outputChannel.appendLine(`Active sessions: ${activeSessions.length}`);
+
+  setSessionRunState(session.id, "terminated");
+  sessionParentIdBySessionId.delete(session.id);
 
   // Fire termination event for listeners waiting on session end.
   sessionTerminateEventEmitter.fire({

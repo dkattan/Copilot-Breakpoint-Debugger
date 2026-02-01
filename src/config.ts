@@ -3,6 +3,7 @@ import * as Meta from "./generated-meta";
 
 type ServerReadyActionType = "httpRequest" | "shellCommand" | "vscodeCommand";
 type ConsoleLogLevel = "trace" | "debug" | "info" | "warn" | "error" | "off";
+type ExistingSessionBehavior = "useExisting" | "stopExisting" | "ignoreAndCreateNew";
 
 const configDefaults = {
   defaultLaunchConfiguration: (Meta.configs
@@ -28,6 +29,11 @@ const configDefaults = {
     ?? "info") as ConsoleLogLevel,
   enableTraceLogging: (Meta.configs.copilotDebuggerEnableTraceLogging.default
     ?? false) as boolean,
+  supportsMultipleDebugSessions: (Meta.configs
+    .copilotDebuggerSupportsMultipleDebugSessions
+    .default ?? false) as boolean,
+  existingSessionBehavior: (Meta.configs.copilotDebuggerExistingSessionBehavior
+    .default ?? "useExisting") as ExistingSessionBehavior,
 } satisfies {
   defaultLaunchConfiguration: string
   entryTimeoutSeconds: number
@@ -39,6 +45,8 @@ const configDefaults = {
   maxOutputChars: number
   consoleLogLevel: ConsoleLogLevel
   enableTraceLogging: boolean
+  supportsMultipleDebugSessions: boolean
+  existingSessionBehavior: ExistingSessionBehavior
 };
 
 export type CopilotDebuggerConfig = typeof configDefaults;

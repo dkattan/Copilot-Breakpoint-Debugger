@@ -3,7 +3,12 @@ import type { DebugContext } from "./debugUtils";
 
 import { useDisposable, useEventEmitter } from "reactive-vscode";
 import * as vscode from "vscode";
-import { activeSessions, onSessionTerminate } from "./common";
+import {
+  activeSessions,
+  onSessionTerminate,
+  setSessionParentId,
+  setSessionRunState,
+} from "./common";
 import { config } from "./config";
 import { DAPHelpers } from "./debugUtils";
 import { logger } from "./logger";
@@ -99,6 +104,12 @@ interface DebugProtocolResponse extends DebugProtocolMessage {
   command: string
   success: boolean
   body?: unknown
+}
+
+interface DebugProtocolRequest extends DebugProtocolMessage {
+  type: "request"
+  command: string
+  arguments?: unknown
 }
 
 interface DebugProtocolEvent extends DebugProtocolMessage {
@@ -525,6 +536,20 @@ useDisposable(
             return;
           }
 
+          // Track child -> parent relationships for multi-session debuggers (e.g. Node).
+          // The JS debug adapter includes __parentId and __sessionId in launch arguments for child sessions.
+          if (message.type === "request") {
+            const req = message as DebugProtocolRequest;
+            if (req.command === "launch") {
+              const args = req.arguments as unknown as Record<string, unknown> | undefined;
+              const parentId = typeof args?.__parentId === "string" ? args.__parentId : undefined;
+              const sessionId = typeof args?.__sessionId === "string" ? args.__sessionId : undefined;
+              if (parentId && sessionId) {
+                setSessionParentId(sessionId, parentId);
+              }
+            }
+          }
+
           // Capture minimal DAP traffic for diagnostics (e.g. the immediate response/event
           // after a 'continue' request that might explain a stop-wait timeout).
           pushDebugAdapterMessage(session.id, {
@@ -606,10 +631,21 @@ useDisposable(
             return;
           }
 
+          if (event.event === "continued") {
+            setSessionRunState(session.id, "running");
+            return;
+          }
+
+          if (event.event === "terminated") {
+            setSessionRunState(session.id, "terminated");
+            return;
+          }
+
           // Handle exited events for process exit code capture
           if (event.event === "exited") {
             const body = event.body as ExitedEventBody;
             sessionExitCodes.set(session.id, body.exitCode);
+            setSessionRunState(session.id, "terminated");
             logger.debug(
               `Process exited for session ${session.id}: exitCode=${body.exitCode}`,
             );
@@ -620,6 +656,7 @@ useDisposable(
             return;
           }
           const body = event.body as StoppedEventBody;
+          setSessionRunState(session.id, "paused");
           const validReasons = [
             "breakpoint",
             "step",

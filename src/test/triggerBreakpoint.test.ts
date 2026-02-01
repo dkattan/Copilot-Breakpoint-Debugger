@@ -94,4 +94,109 @@ describe("triggerBreakpoint", function () {
       "hitBreakpoint line mismatch for trigger stop",
     );
   });
+
+  it("can auto-start a session (with startupBreakpointConfig) then trigger and stop", async () => {
+    await activateCopilotDebugger();
+    const extensionRoot = getExtensionRoot();
+    const workspaceFolder = path.join(extensionRoot, "test-workspace", "node");
+    const serverPath = path.join(workspaceFolder, "server.js");
+
+    const serverDoc = await vscode.workspace.openTextDocument(serverPath);
+    await openScriptDocument(serverDoc.uri);
+
+    const lines = serverDoc.getText().split(/\r?\n/);
+    const echoSnippet = "const queryParamForDebugger = queryParam";
+    const echoLine = lines.findIndex(l => l.includes(echoSnippet)) + 1;
+    assert.ok(echoLine > 0, "Did not find /api/echo breakpoint target line");
+
+    const stop = await triggerBreakpointAndWaitForStop({
+      workspaceFolder,
+      configurationName: "Run node/server.js",
+      timeoutSeconds: 120,
+      mode: "singleShot",
+      startupBreakpointConfig: {
+        breakpoints: [
+          {
+            path: serverPath,
+            code: "LINE_FOR_SERVER_READY",
+            variable: "started",
+            onHit: "break",
+          },
+        ],
+      },
+      breakpointConfig: {
+        breakpoints: [
+          {
+            path: serverPath,
+            code: echoSnippet,
+            variable: "queryParamForDebugger",
+            onHit: "break",
+          },
+        ],
+      },
+      action: {
+        type: "httpRequest",
+        url: "http://localhost:31337/api/echo?q=hello",
+      },
+    });
+
+    assert.strictEqual(
+      stop.frame.line,
+      echoLine,
+      "Did not pause at expected /api/echo handler line after auto-start trigger",
+    );
+    assert.ok(stop.hitBreakpoint, "hitBreakpoint missing for auto-start trigger stop");
+    assert.strictEqual(
+      stop.hitBreakpoint?.line,
+      echoLine,
+      "hitBreakpoint line mismatch for auto-start trigger stop",
+    );
+  });
+
+  it("can auto-start using serverReadyTrigger (pattern) and stop at breakpointConfig", async () => {
+    await activateCopilotDebugger();
+    const extensionRoot = getExtensionRoot();
+    const workspaceFolder = path.join(extensionRoot, "test-workspace", "node");
+    const serverPath = path.join(workspaceFolder, "server.js");
+
+    const serverDoc = await vscode.workspace.openTextDocument(serverPath);
+    await openScriptDocument(serverDoc.uri);
+
+    const lines = serverDoc.getText().split(/\r?\n/);
+    const echoSnippet = "const queryParamForDebugger = queryParam";
+    const echoLine = lines.findIndex(l => l.includes(echoSnippet)) + 1;
+    assert.ok(echoLine > 0, "Did not find /api/echo breakpoint target line");
+
+    const stop = await triggerBreakpointAndWaitForStop({
+      workspaceFolder,
+      configurationName: "Run node/server.js",
+      timeoutSeconds: 120,
+      mode: "singleShot",
+      // Use serverReady pattern to ensure server is listening before we hit /api/echo.
+      serverReadyTrigger: {
+        pattern: "Server listening on http://localhost:31337",
+      },
+      breakpointConfig: {
+        breakpoints: [
+          {
+            path: serverPath,
+            code: echoSnippet,
+            variable: "queryParamForDebugger",
+            onHit: "break",
+          },
+        ],
+      },
+      action: {
+        type: "httpRequest",
+        url: "http://localhost:31337/api/echo?q=hello",
+      },
+    });
+
+    assert.strictEqual(
+      stop.frame.line,
+      echoLine,
+      "Did not pause at expected /api/echo handler line after serverReadyTrigger auto-start",
+    );
+    assert.ok(stop.hitBreakpoint, "hitBreakpoint missing for serverReadyTrigger stop");
+  });
 });

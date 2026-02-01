@@ -10,7 +10,12 @@ import * as path from "node:path";
 import * as process from "node:process";
 import stripAnsi from "strip-ansi";
 import * as vscode from "vscode";
-import { activeSessions } from "./common";
+import {
+  activeSessions,
+  sessionParentIdBySessionId,
+  sessionRunStateBySessionId,
+  sessionStartEventEmitter,
+} from "./common";
 import { config } from "./config";
 import { DAPHelpers } from "./debugUtils";
 import {
@@ -208,6 +213,8 @@ export interface ServerReadyInfo {
 
 export type DebuggerStateStatus = "paused" | "running" | "terminated";
 
+export type ExistingSessionBehavior = "useExisting" | "stopExisting" | "ignoreAndCreateNew";
+
 export type CopilotDebuggerToolAction
   = | "startDebugSessionWithBreakpoints"
     | "resumeDebugSession"
@@ -338,6 +345,17 @@ export interface DebugSessionListItem {
   request?: string
 }
 
+export interface DebugSessionListTreeItem extends DebugSessionListItem {
+  /** Alias of isActive for clarity: this reflects UI selection, not tool capability. */
+  isSelectedInUI: boolean
+  status: DebuggerStateStatus
+  protocol: CopilotDebuggerProtocol
+  workspaceFolder?: string
+  parentSessionId?: string
+  hasParentSession: boolean
+  children?: DebugSessionListTreeItem[]
+}
+
 export function mapDebugSessionsForTool(params: {
   sessions: Array<{ id?: string, name?: string, configuration?: unknown }>
   activeSessionId?: string
@@ -380,11 +398,114 @@ export function mapDebugSessionsForTool(params: {
  */
 export function listDebugSessionsForTool(): string {
   const activeId = vscode.debug.activeDebugSession?.id;
-  const items = mapDebugSessionsForTool({
+  const baseItems = mapDebugSessionsForTool({
     sessions: activeSessions,
     activeSessionId: activeId,
   });
-  return JSON.stringify({ sessions: items }, null, 2);
+
+  const byId = new Map<string, DebugSessionListTreeItem>();
+  for (const item of baseItems) {
+    const session = activeSessions.find(s => s.id === item.id);
+    const workspaceFolder = session?.workspaceFolder?.uri.fsPath;
+    const parentSessionId = (() => {
+      const dapParent = sessionParentIdBySessionId.get(item.id);
+      if (dapParent) {
+        return dapParent;
+      }
+      const parent = session as unknown as { parentSession?: { id?: unknown } };
+      const parentId = parent?.parentSession?.id;
+      return typeof parentId === "string" ? parentId : undefined;
+    })();
+
+    const status = (() => {
+      const state = sessionRunStateBySessionId.get(item.id);
+      return state?.status ?? "running";
+    })();
+
+    const protocol = buildProtocol({
+      status,
+      sessionId: item.id,
+      sessionName: item.name,
+    });
+
+    byId.set(item.id, {
+      ...item,
+      isSelectedInUI: item.isActive,
+      status,
+      protocol,
+      workspaceFolder,
+      parentSessionId,
+      hasParentSession: !!parentSessionId,
+      children: [],
+    });
+  }
+
+  const roots: DebugSessionListTreeItem[] = [];
+  for (const node of byId.values()) {
+    if (node.parentSessionId && byId.has(node.parentSessionId)) {
+      byId.get(node.parentSessionId)!.children!.push(node);
+    }
+    else {
+      roots.push(node);
+    }
+  }
+
+  const sortTree = (nodes: DebugSessionListTreeItem[]) => {
+    nodes.sort((a, b) => a.toolId - b.toolId);
+    for (const n of nodes) {
+      if (n.children && n.children.length > 0) {
+        sortTree(n.children);
+      }
+      else {
+        delete n.children;
+      }
+    }
+  };
+  sortTree(roots);
+
+  const flatSessions = Array.from(byId.values())
+    .map((s) => {
+      const copy = { ...s };
+      delete copy.children;
+      return copy;
+    })
+    .sort((a, b) => a.toolId - b.toolId);
+
+  return JSON.stringify({ sessions: roots, flatSessions }, null, 2);
+}
+
+function parseExistingSessionBehavior(value: unknown): ExistingSessionBehavior | undefined {
+  if (value === "useExisting" || value === "stopExisting" || value === "ignoreAndCreateNew") {
+    return value;
+  }
+  return undefined;
+}
+
+async function waitForNewDebugSessionStart(params: {
+  excludeSessionIds: Set<string>
+  timeoutMs: number
+}): Promise<vscode.DebugSession> {
+  const { excludeSessionIds, timeoutMs } = params;
+  return await new Promise<vscode.DebugSession>((resolve, reject) => {
+    let disposable: vscode.Disposable | undefined;
+    const timer = setTimeout(() => {
+      disposable?.dispose();
+      reject(
+        new Error(
+          `Timed out waiting for VS Code to start a new debug session after ${timeoutMs}ms.`,
+        ),
+      );
+    }, timeoutMs);
+
+    disposable = sessionStartEventEmitter.event((session) => {
+      if (excludeSessionIds.has(session.id)) {
+        return;
+      }
+      clearTimeout(timer);
+      disposable?.dispose();
+      resolve(session);
+    });
+  });
 }
 
 function collectBuildDiagnostics(workspaceUri: vscode.Uri, maxErrors: number): vscode.Diagnostic[] {
@@ -3989,7 +4110,44 @@ async function applySnippetBreakpointConfigForSession(params: {
 }
 
 export async function triggerBreakpointAndWaitForStop(params: {
-  sessionId: string
+  /**
+   * Optional session id. If omitted, tool may start or select a session based on settings.
+   */
+  sessionId?: string
+  /**
+   * Required when sessionId is omitted and a new session must be started.
+   * Must be an absolute path to an OPEN workspace folder.
+   */
+  workspaceFolder?: string
+  /**
+   * Optional launch configuration name to start when starting a new session.
+   */
+  configurationName?: string
+  /**
+   * Optional task label to auto-start before launching the debugger.
+   */
+  watcherTaskLabel?: string
+  /**
+   * Optional serverReady trigger used only when starting a new session (sessionId omitted).
+   * The triggerBreakpoint 'action' is used as the serverReady action.
+   */
+  serverReadyTrigger?: {
+    path?: string
+    line?: number
+    pattern?: string
+  }
+  /**
+   * Optional per-call override for existing session behavior.
+   */
+  existingSessionBehavior?: ExistingSessionBehavior
+  /**
+   * Optional breakpointConfig used ONLY during auto-start to gate readiness.
+   * If provided, the tool will start a session and wait until one of these breakpoints is hit
+   * before resuming and firing the trigger action.
+   */
+  startupBreakpointConfig?: {
+    breakpoints: Array<BreakpointDefinition>
+  }
   /**
    * Optional timeout in seconds to wait for the next stop after the trigger.
    * Defaults to 30 seconds.
@@ -4015,16 +4173,218 @@ export async function triggerBreakpointAndWaitForStop(params: {
   action: NonNullable<StartDebuggingAndWaitForStopParams["serverReady"]>["action"]
 }): Promise<StartDebuggerStopInfo> {
   const {
-    sessionId,
+    sessionId: sessionIdRaw,
+    workspaceFolder,
+    configurationName,
+    watcherTaskLabel,
+    existingSessionBehavior,
+    serverReadyTrigger,
+    startupBreakpointConfig,
     timeoutSeconds = 30,
     mode = "singleShot",
     breakpointConfig,
     action,
   } = params;
 
-  if (!sessionId || !sessionId.trim()) {
-    throw new Error("sessionId is required.");
+  if (serverReadyTrigger && startupBreakpointConfig?.breakpoints?.length) {
+    throw new Error(
+      "Provide either serverReadyTrigger or startupBreakpointConfig, not both.",
+    );
   }
+
+  const normalizedSessionId = typeof sessionIdRaw === "string" ? sessionIdRaw.trim() : "";
+  let sessionId = normalizedSessionId.length ? normalizedSessionId : undefined;
+
+  const chooseSingleExistingSession = () => {
+    if (activeSessions.length === 1) {
+      return activeSessions[0];
+    }
+    if (activeSessions.length > 1) {
+      throw new Error(
+        `Multiple active debug sessions found (${activeSessions.length}). Provide sessionId (UUID) from listDebugSessions.`,
+      );
+    }
+    return undefined;
+  };
+
+  const supportsMultiple = config.supportsMultipleDebugSessions === true;
+  const behavior
+    = parseExistingSessionBehavior(existingSessionBehavior)
+      ?? parseExistingSessionBehavior(
+        (config as unknown as { existingSessionBehavior?: unknown })
+          .existingSessionBehavior,
+      )
+      ?? "useExisting";
+
+  if (!sessionId) {
+    if (activeSessions.length > 0) {
+      if (!supportsMultiple && behavior === "ignoreAndCreateNew") {
+        throw new Error(
+          "Multiple debug sessions are not supported by this workspace (copilot-debugger.supportsMultipleDebugSessions=false), but existingSessionBehavior=ignoreAndCreateNew was requested. Use existingSessionBehavior=stopExisting or useExisting.",
+        );
+      }
+
+      if (behavior === "useExisting") {
+        const existing = chooseSingleExistingSession();
+        if (existing) {
+          sessionId = existing.id;
+        }
+      }
+      else if (behavior === "stopExisting") {
+        await vscode.debug.stopDebugging();
+        const deadline = Date.now() + 30_000;
+        while (activeSessions.length > 0 && Date.now() < deadline) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        if (activeSessions.length > 0) {
+          throw new Error(
+            `Timed out waiting for existing debug sessions to stop (still running: ${activeSessions.length}).`,
+          );
+        }
+      }
+      else {
+        // ignoreAndCreateNew: proceed to start a new session below
+      }
+    }
+  }
+
+  if (!sessionId) {
+    // Start a new session
+    const resolvedWorkspaceFolder = typeof workspaceFolder === "string" ? workspaceFolder.trim() : "";
+    if (!resolvedWorkspaceFolder) {
+      throw new Error(
+        "workspaceFolder is required when sessionId is omitted and no suitable existing session can be used.",
+      );
+    }
+
+    // If serverReadyTrigger is provided, delegate to startDebuggingAndWaitForStop and return.
+    // This allows triggerBreakpoint to act as the default entry point (start + trigger + wait).
+    if (serverReadyTrigger) {
+      if (!breakpointConfig?.breakpoints?.length) {
+        throw new Error(
+          "breakpointConfig.breakpoints is required when using serverReadyTrigger.",
+        );
+      }
+      const stop = await startDebuggingAndWaitForStop({
+        sessionName: "",
+        workspaceFolder: resolvedWorkspaceFolder,
+        nameOrConfiguration: configurationName,
+        watcherTaskLabel,
+        timeoutSeconds: Math.max(1, timeoutSeconds),
+        mode,
+        breakpointConfig: {
+          breakpoints: breakpointConfig.breakpoints,
+        },
+        serverReady: {
+          trigger: {
+            path: serverReadyTrigger.path,
+            line: serverReadyTrigger.line,
+            pattern: serverReadyTrigger.pattern,
+          },
+          action,
+        },
+      });
+      return stop;
+    }
+
+    if (startupBreakpointConfig?.breakpoints?.length) {
+      // Deterministic path: start and wait until a readiness breakpoint is hit.
+      const startStop = await startDebuggingAndWaitForStop({
+        sessionName: "",
+        workspaceFolder: resolvedWorkspaceFolder,
+        nameOrConfiguration: configurationName,
+        watcherTaskLabel,
+        timeoutSeconds: Math.max(1, timeoutSeconds),
+        mode: "inspect",
+        breakpointConfig: { breakpoints: startupBreakpointConfig.breakpoints },
+      });
+      if (!startStop.debuggerState.sessionId) {
+        throw new Error(
+          "Failed to determine sessionId after starting debug session in inspect mode.",
+        );
+      }
+      sessionId = startStop.debuggerState.sessionId;
+    }
+    else {
+      // Best-effort path: start the session and immediately proceed.
+      if (!path.isAbsolute(resolvedWorkspaceFolder)) {
+        throw new Error(
+          `workspaceFolder must be an absolute path to an open workspace folder. Received '${resolvedWorkspaceFolder}'.`,
+        );
+      }
+      const normalizedRequestedFolder = normalizeFsPath(resolvedWorkspaceFolder);
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      if (!workspaceFolders || workspaceFolders.length === 0) {
+        throw new Error("No workspace folders are currently open.");
+      }
+      const folder = workspaceFolders.find(
+        f => normalizeFsPath(f.uri.fsPath) === normalizedRequestedFolder,
+      );
+      if (!folder) {
+        throw new Error(
+          `Workspace folder '${resolvedWorkspaceFolder}' is not currently open. Open folders: ${workspaceFolders
+            .map(f => f.uri.fsPath)
+            .join(", ")}`,
+        );
+      }
+
+      if (watcherTaskLabel && watcherTaskLabel.trim().length > 0) {
+        await ensureTaskIsRunningByLabel({
+          taskLabel: watcherTaskLabel.trim(),
+          timeoutMs: 30_000,
+        });
+      }
+
+      // Resolve launch configuration name: provided -> setting -> single config auto-select
+      let effectiveLaunchName = configurationName;
+      if (!effectiveLaunchName) {
+        effectiveLaunchName = config.defaultLaunchConfiguration;
+      }
+      const launchConfig = vscode.workspace.getConfiguration("launch", folder.uri);
+      const allConfigs
+        = (launchConfig.get<unknown>(
+          "configurations",
+        ) as vscode.DebugConfiguration[]) || [];
+      if (!effectiveLaunchName) {
+        if (allConfigs.length === 1 && allConfigs[0].name) {
+          effectiveLaunchName = allConfigs[0].name;
+          logger.info(
+            `[triggerBreakpoint] Auto-selected sole launch configuration '${effectiveLaunchName}'.`,
+          );
+        }
+        else {
+          throw new Error(
+            "No launch configuration specified. Provide configurationName, set copilot-debugger.defaultLaunchConfiguration, or define exactly one configuration.",
+          );
+        }
+      }
+      const found = allConfigs.find(c => c.name === effectiveLaunchName);
+      if (!found) {
+        throw new Error(
+          `Launch configuration '${effectiveLaunchName}' not found in ${folder.uri.fsPath}. Add it to .vscode/launch.json.`,
+        );
+      }
+      const resolvedConfig = { ...found };
+      (resolvedConfig as Record<string, unknown>).stopOnEntry = true;
+
+      const existingIds = new Set(activeSessions.map(s => s.id));
+      const sessionStartPromise = waitForNewDebugSessionStart({
+        excludeSessionIds: existingIds,
+        timeoutMs: 10_000,
+      });
+      void sessionStartPromise.catch(() => {});
+
+      const started = await vscode.debug.startDebugging(folder, resolvedConfig);
+      if (!started) {
+        throw new Error(
+          `Failed to start debug session for configuration '${resolvedConfig.name ?? effectiveLaunchName}'.`,
+        );
+      }
+      const newSession = await sessionStartPromise;
+      sessionId = newSession.id;
+    }
+  }
+
   const session = activeSessions.find(s => s.id === sessionId);
   if (!session) {
     throw new Error(

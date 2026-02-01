@@ -52,6 +52,8 @@ export type ConfigKey =
   | "copilot-debugger.maxOutputChars"
   | "copilot-debugger.consoleLogLevel"
   | "copilot-debugger.enableTraceLogging"
+  | "copilot-debugger.supportsMultipleDebugSessions"
+  | "copilot-debugger.existingSessionBehavior"
 
 export interface ConfigKeyTypeMap {
   "copilot-debugger.defaultLaunchConfiguration": string,
@@ -64,6 +66,8 @@ export interface ConfigKeyTypeMap {
   "copilot-debugger.maxOutputChars": unknown,
   "copilot-debugger.consoleLogLevel": ("trace" | "debug" | "info" | "warn" | "error" | "off"),
   "copilot-debugger.enableTraceLogging": boolean,
+  "copilot-debugger.supportsMultipleDebugSessions": boolean,
+  "copilot-debugger.existingSessionBehavior": ("useExisting" | "stopExisting" | "ignoreAndCreateNew"),
 }
 
 export interface ConfigShorthandMap {
@@ -77,6 +81,8 @@ export interface ConfigShorthandMap {
   copilotDebuggerMaxOutputChars: "copilot-debugger.maxOutputChars",
   copilotDebuggerConsoleLogLevel: "copilot-debugger.consoleLogLevel",
   copilotDebuggerEnableTraceLogging: "copilot-debugger.enableTraceLogging",
+  copilotDebuggerSupportsMultipleDebugSessions: "copilot-debugger.supportsMultipleDebugSessions",
+  copilotDebuggerExistingSessionBehavior: "copilot-debugger.existingSessionBehavior",
 }
 
 export interface ConfigShorthandTypeMap {
@@ -90,6 +96,8 @@ export interface ConfigShorthandTypeMap {
   copilotDebuggerMaxOutputChars: unknown,
   copilotDebuggerConsoleLogLevel: ("trace" | "debug" | "info" | "warn" | "error" | "off"),
   copilotDebuggerEnableTraceLogging: boolean,
+  copilotDebuggerSupportsMultipleDebugSessions: boolean,
+  copilotDebuggerExistingSessionBehavior: ("useExisting" | "stopExisting" | "ignoreAndCreateNew"),
 }
 
 export interface ConfigItem<T extends keyof ConfigKeyTypeMap> {
@@ -202,6 +210,26 @@ export const configs = {
     key: "copilot-debugger.enableTraceLogging",
     default: false,
   } as ConfigItem<"copilot-debugger.enableTraceLogging">,
+  /**
+   * Whether this workspace supports running multiple simultaneous debug sessions. If false, tools that might create sessions will follow existingSessionBehavior.
+   * @key `copilot-debugger.supportsMultipleDebugSessions`
+   * @default `false`
+   * @type `boolean`
+   */
+  copilotDebuggerSupportsMultipleDebugSessions: {
+    key: "copilot-debugger.supportsMultipleDebugSessions",
+    default: false,
+  } as ConfigItem<"copilot-debugger.supportsMultipleDebugSessions">,
+  /**
+   * Behavior when a tool is asked to start a debug session but one or more sessions already exist: useExisting (requires exactly one unless sessionId is provided), stopExisting (terminate existing sessions first), or ignoreAndCreateNew (only valid when supportsMultipleDebugSessions=true).
+   * @key `copilot-debugger.existingSessionBehavior`
+   * @default `"useExisting"`
+   * @type `string`
+   */
+  copilotDebuggerExistingSessionBehavior: {
+    key: "copilot-debugger.existingSessionBehavior",
+    default: "useExisting",
+  } as ConfigItem<"copilot-debugger.existingSessionBehavior">,
 }
 
 export interface ScopedConfigKeyTypeMap {
@@ -225,6 +253,8 @@ export interface NestedConfigs {
     "maxOutputChars": unknown,
     "consoleLogLevel": ("trace" | "debug" | "info" | "warn" | "error" | "off"),
     "enableTraceLogging": boolean,
+    "supportsMultipleDebugSessions": boolean,
+    "existingSessionBehavior": ("useExisting" | "stopExisting" | "ignoreAndCreateNew"),
   },
 }
 

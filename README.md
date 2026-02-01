@@ -91,71 +91,83 @@ Command                                                     : `copilotBreakpoint
 <!-- configs-list -->
 
 #### `copilot-debugger.defaultLaunchConfiguration`
-Description                                                                                                                                                                                        : Name of the default launch configuration to use when starting the debugger  
+Description                                                                                                                                                                                                                                                                                  : Name of the default launch configuration to use when starting the debugger  
 Type     : `string`  
 Default        : `""`  
 
 #### `copilot-debugger.entryTimeoutSeconds`
-Description                                                                                                                                                                                        : Timeout in seconds waiting for initial entry stop after launching (before first user breakpoint). Supports long startup/build times; must be &gt; 0.  
+Description                                                                                                                                                                                                                                                                                  : Timeout in seconds waiting for initial entry stop after launching (before first user breakpoint). Supports long startup/build times; must be &gt; 0.  
 Type     : `integer`  
 Default        : `60`  
 
 #### `copilot-debugger.captureMaxVariables`
-Description                                                                                                                                                                                        : Maximum number of variables auto-captured when a breakpoint onHit=captureAndContinue uses variable='*' (capture-all mode).  
+Description                                                                                                                                                                                                                                                                                  : Maximum number of variables auto-captured when a breakpoint onHit=captureAndContinue uses variable='*' (capture-all mode).  
 Type     : `integer`  
 Default        : `40`  
 
 #### `copilot-debugger.serverReadyEnabled`
-Description                                                                                                                                                                                        : Enable serverReady automation (trigger + action). When disabled, provided serverReady payloads are ignored.  
+Description                                                                                                                                                                                                                                                                                  : Enable serverReady automation (trigger + action). When disabled, provided serverReady payloads are ignored.  
 Type     : `boolean`  
 Default        : `true`  
 
 #### `copilot-debugger.serverReadyDefaultActionType`
-Description                                                                                                                                                                                        : Preferred serverReady action type surfaced in samples and quick insert command.  
+Description                                                                                                                                                                                                                                                                                  : Preferred serverReady action type surfaced in samples and quick insert command.  
 Type     : `string`  
 Default        : `"httpRequest"`  
 
 #### `copilot-debugger.maxBuildErrors`
-Description                                                                                                                                                                                        : Maximum number of build diagnostics (from problem matchers) to include in error messages when debug session fails to start.  
+Description                                                                                                                                                                                                                                                                                  : Maximum number of build diagnostics (from problem matchers) to include in error messages when debug session fails to start.  
 Type     : `integer`  
 Default        : `5`  
 
 #### `copilot-debugger.maxOutputLines`
-Description                                                                                                                                                                                        : Maximum number of output lines (stderr/stdout) to buffer per debug session for runtime error reporting.  
+Description                                                                                                                                                                                                                                                                                  : Maximum number of output lines (stderr/stdout) to buffer per debug session for runtime error reporting.  
 Type     : `integer`  
 Default        : `50`  
 
 #### `copilot-debugger.maxOutputChars`
-Description                                                                                                                                                                                        : Maximum number of characters returned by Copilot debugger tools (tool output is truncated with a suffix when exceeded).  
+Description                                                                                                                                                                                                                                                                                  : Maximum number of characters returned by Copilot debugger tools (tool output is truncated with a suffix when exceeded).  
 Type     : `integer`  
 Default        : `8192`  
 
 #### `copilot-debugger.consoleLogLevel`
-Description                                                                                                                                                                                        : Controls how verbosely logs are mirrored to the developer console (Output panel always receives every log; this only gates console.* mirroring). Changes take effect immediately without reloading.  
+Description                                                                                                                                                                                                                                                                                  : Controls how verbosely logs are mirrored to the developer console (Output panel always receives every log; this only gates console.* mirroring). Changes take effect immediately without reloading.  
 Type     : `string`  
 Default        : `"info"`  
 
 #### `copilot-debugger.enableTraceLogging`
-Description                                                                                                                                                                                        : Emit verbose Debug Adapter Protocol trace logs to the output channel for troubleshooting.  
+Description                                                                                                                                                                                                                                                                                  : Emit verbose Debug Adapter Protocol trace logs to the output channel for troubleshooting.  
 Type     : `boolean`  
 Default        : `false`  
+
+#### `copilot-debugger.supportsMultipleDebugSessions`
+Description                                                                                                                                                                                                                                                                                  : Whether this workspace supports running multiple simultaneous debug sessions. If false, tools that might create sessions will follow existingSessionBehavior.  
+Type     : `boolean`  
+Default        : `false`  
+
+#### `copilot-debugger.existingSessionBehavior`
+Description                                                                                                                                                                                                                                                                                  : Behavior when a tool is asked to start a debug session but one or more sessions already exist: useExisting (requires exactly one unless sessionId is provided), stopExisting (terminate existing sessions first), or ignoreAndCreateNew (only valid when supportsMultipleDebugSessions=true).  
+Type     : `string`  
+Default        : `"useExisting"`  
 
 <!-- configs-list -->
 
 <!-- configs -->
 
-| Key                                             | Description                                                                                                                                                                                         | Type      | Default         |
-| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | --------------- |
-| `copilot-debugger.defaultLaunchConfiguration`   | Name of the default launch configuration to use when starting the debugger                                                                                                                          | `string`  | `""`            |
-| `copilot-debugger.entryTimeoutSeconds`          | Timeout in seconds waiting for initial entry stop after launching (before first user breakpoint). Supports long startup/build times; must be &gt; 0.                                                | `integer` | `60`            |
-| `copilot-debugger.captureMaxVariables`          | Maximum number of variables auto-captured when a breakpoint onHit=captureAndContinue uses variable='*' (capture-all mode).                                                                          | `integer` | `40`            |
-| `copilot-debugger.serverReadyEnabled`           | Enable serverReady automation (trigger + action). When disabled, provided serverReady payloads are ignored.                                                                                         | `boolean` | `true`          |
-| `copilot-debugger.serverReadyDefaultActionType` | Preferred serverReady action type surfaced in samples and quick insert command.                                                                                                                     | `string`  | `"httpRequest"` |
-| `copilot-debugger.maxBuildErrors`               | Maximum number of build diagnostics (from problem matchers) to include in error messages when debug session fails to start.                                                                         | `integer` | `5`             |
-| `copilot-debugger.maxOutputLines`               | Maximum number of output lines (stderr/stdout) to buffer per debug session for runtime error reporting.                                                                                             | `integer` | `50`            |
-| `copilot-debugger.maxOutputChars`               | Maximum number of characters returned by Copilot debugger tools (tool output is truncated with a suffix when exceeded).                                                                             | `integer` | `8192`          |
-| `copilot-debugger.consoleLogLevel`              | Controls how verbosely logs are mirrored to the developer console (Output panel always receives every log; this only gates console.* mirroring). Changes take effect immediately without reloading. | `string`  | `"info"`        |
-| `copilot-debugger.enableTraceLogging`           | Emit verbose Debug Adapter Protocol trace logs to the output channel for troubleshooting.                                                                                                           | `boolean` | `false`         |
+| Key                                              | Description                                                                                                                                                                                                                                                                                   | Type      | Default         |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | --------------- |
+| `copilot-debugger.defaultLaunchConfiguration`    | Name of the default launch configuration to use when starting the debugger                                                                                                                                                                                                                    | `string`  | `""`            |
+| `copilot-debugger.entryTimeoutSeconds`           | Timeout in seconds waiting for initial entry stop after launching (before first user breakpoint). Supports long startup/build times; must be &gt; 0.                                                                                                                                          | `integer` | `60`            |
+| `copilot-debugger.captureMaxVariables`           | Maximum number of variables auto-captured when a breakpoint onHit=captureAndContinue uses variable='*' (capture-all mode).                                                                                                                                                                    | `integer` | `40`            |
+| `copilot-debugger.serverReadyEnabled`            | Enable serverReady automation (trigger + action). When disabled, provided serverReady payloads are ignored.                                                                                                                                                                                   | `boolean` | `true`          |
+| `copilot-debugger.serverReadyDefaultActionType`  | Preferred serverReady action type surfaced in samples and quick insert command.                                                                                                                                                                                                               | `string`  | `"httpRequest"` |
+| `copilot-debugger.maxBuildErrors`                | Maximum number of build diagnostics (from problem matchers) to include in error messages when debug session fails to start.                                                                                                                                                                   | `integer` | `5`             |
+| `copilot-debugger.maxOutputLines`                | Maximum number of output lines (stderr/stdout) to buffer per debug session for runtime error reporting.                                                                                                                                                                                       | `integer` | `50`            |
+| `copilot-debugger.maxOutputChars`                | Maximum number of characters returned by Copilot debugger tools (tool output is truncated with a suffix when exceeded).                                                                                                                                                                       | `integer` | `8192`          |
+| `copilot-debugger.consoleLogLevel`               | Controls how verbosely logs are mirrored to the developer console (Output panel always receives every log; this only gates console.* mirroring). Changes take effect immediately without reloading.                                                                                           | `string`  | `"info"`        |
+| `copilot-debugger.enableTraceLogging`            | Emit verbose Debug Adapter Protocol trace logs to the output channel for troubleshooting.                                                                                                                                                                                                     | `boolean` | `false`         |
+| `copilot-debugger.supportsMultipleDebugSessions` | Whether this workspace supports running multiple simultaneous debug sessions. If false, tools that might create sessions will follow existingSessionBehavior.                                                                                                                                 | `boolean` | `false`         |
+| `copilot-debugger.existingSessionBehavior`       | Behavior when a tool is asked to start a debug session but one or more sessions already exist: useExisting (requires exactly one unless sessionId is provided), stopExisting (terminate existing sessions first), or ignoreAndCreateNew (only valid when supportsMultipleDebugSessions=true). | `string`  | `"useExisting"` |
 
 <!-- configs -->
 

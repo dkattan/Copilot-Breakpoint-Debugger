@@ -1,3 +1,105 @@
+## [0.0.60] - 2026-02-01
+
+## Release Notes - Version 0.0.60
+
+### Summary
+
+This release introduces major improvements to debug session management and autonomous debugger control. The extension can now automatically start debug sessions, intelligently handle multiple concurrent sessions, and provide richer status information about active debugging contexts. These enhancements significantly improve the experience for AI-assisted debugging workflows.
+
+---
+
+### New Features
+
+#### Autonomous Debug Session Management
+- **Auto-start capability**: `triggerBreakpoint` can now create and launch debug sessions automatically without requiring manual pre-configuration
+- **Smart session selection**: When no session ID is provided, the tool can intelligently select an existing session or create a new one based on workspace settings
+- **Launch configuration support**: Specify which launch configuration to use via `configurationName` parameter, with automatic fallback to workspace defaults or sole configuration
+- **Workspace folder targeting**: Target specific workspace folders when starting new debug sessions via `workspaceFolder` parameter
+
+#### Multiple Debug Session Support
+- **New configuration setting**: `copilot-debugger.supportsMultipleDebugSessions` controls whether workspaces allow concurrent debug sessions (default: `false`)
+- **Flexible session policies**: New `copilot-debugger.existingSessionBehavior` setting with three strategies:
+  - `"useExisting"` (default): Use existing session if available, error if multiple exist without explicit session ID
+  - `"stopExisting"`: Automatically terminate existing sessions before starting a new one
+  - `"ignoreAndCreateNew"`: Create new session alongside existing ones (requires `supportsMultipleDebugSessions: true`)
+- **Per-call overrides**: Override global session behavior on individual tool calls via `existingSessionBehavior` parameter
+
+#### Enhanced Debug Session Listing
+- **Session status tracking**: Debug session list now includes current execution state (`"paused"`, `"running"`, or `"terminated"`)
+- **Protocol guidance**: Each session includes `protocol` information showing allowed next actions based on current state
+- **Hierarchical session view**: Parent-child session relationships are now tracked and displayed in tree structure
+- **Dual output formats**: Returns both hierarchical tree view (`sessions`) and flat array (`flatSessions`) for flexibility
+
+#### Build and Startup Integration
+- **Task auto-start**: Launch watcher tasks before debugging via `watcherTaskLabel` parameter (e.g., `"dotnet watch run"`)
+- **Startup readiness gates**: Set breakpoints that must be hit before proceeding with main debugging workflow via `startupBreakpointConfig`
+- **Server ready triggers**: Enhanced `serverReadyTrigger` support for waiting until applications are fully initialized
+
+---
+
+### Improvements
+
+- **Smarter configuration resolution**: Automatic single launch configuration detection eliminates need for explicit specification
+- **Better error messages**: More specific guidance when configurations aren't found or workspace folders aren't open
+- **Workspace validation**: Validates that workspace folders are absolute paths and actually open in VS Code
+- **Enhanced protocol-driven navigation**: Session listings include context-aware suggestions for next steps based on debugger state
+- **Comprehensive test coverage**: Added three new test suites covering session behavior, status listing, and breakpoint triggering
+
+---
+
+### Breaking Changes
+
+#### API Changes (Backward Compatible)
+
+**`triggerBreakpoint` tool signature**:
+- `sessionId` parameter changed from required to optional
+- Existing code passing `sessionId` continues to work unchanged
+- New optional parameters only activate when `sessionId` is omitted
+
+**`listDebugSessionsForTool()` output format**:
+- Returns both `sessions` (tree structure) and `flatSessions` (flat array) instead of just `sessions` array
+- Consumers expecting flat array should use `flatSessions` field
+- Tree structure provides hierarchical parent-child relationships
+
+---
+
+### Configuration
+
+Two new workspace settings:
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `copilot-debugger.supportsMultipleDebugSessions` | Whether this workspace supports running multiple simultaneous debug sessions | `false` |
+| `copilot-debugger.existingSessionBehavior` | Behavior when starting a session while others exist: `"useExisting"`, `"stopExisting"`, or `"ignoreAndCreateNew"` | `"useExisting"` |
+
+---
+
+### Technical Details
+
+**Files Changed**:
+- `src/session.ts`: +374 lines (core session management)
+- `src/triggerBreakpointTool.ts`: +39 lines (tool integration)
+- `src/common.ts`: +34 lines (shared types and state)
+- `src/events.ts`: +39 lines (session state tracking)
+- `src/config.ts`: +8 lines (configuration settings)
+- `package.json`: +120 lines (tool schema updates)
+- `README.md`: Updated configuration documentation
+
+**New Test Files**:
+- `src/test/existingSessionBehavior.test.ts`: Tests for session behavior policies
+- `src/test/listDebugSessionsStatus.test.ts`: Tests for enhanced session listing
+- `src/test/triggerBreakpoint.test.ts`: Tests for autonomous session startup
+
+---
+
+### Migration Guide
+
+For most users, this release is fully backward compatible. If you have existing integrations:
+
+1. **Tool consumers**: If parsing `listDebugSessions` output, use the new `flatSessions` field for flat array format
+2. **Configuration**: Review new session behavior settings to optimize for your workflow
+3. **Multi-session workspaces**: Set `supportsMultipleDebugSessions: true` if you regularly debug multiple processes
+
 ## [0.0.59] - 2026-01-27
 
 Credit balance is too low

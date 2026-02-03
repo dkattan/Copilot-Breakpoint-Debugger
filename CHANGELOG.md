@@ -1,3 +1,115 @@
+## [0.0.63] - 2026-02-03
+
+## Release Notes - Version 0.0.63
+
+### Summary
+
+This release includes a major refactoring that modernizes the breakpoint triggering API. The legacy `serverReady.action` structure has been removed in favor of a cleaner, more maintainable design that separates server readiness detection from breakpoint triggering actions. This change improves clarity, enables new features like dynamic port substitution, and establishes a more robust foundation for future development.
+
+### Breaking Changes
+
+⚠️ **API Restructuring**
+
+The API shape for triggering actions on server readiness has changed significantly:
+
+- **Moved**: `serverReady.action` → `breakpointConfig.breakpointTrigger`
+- **Moved**: `serverReady.trigger.path` → `serverReady.path`
+- **Moved**: `serverReady.trigger.pattern` → `serverReady.pattern`
+- **Changed**: `serverReady.trigger.line` (number) → `serverReady.code` (string snippet)
+
+**Migration Example:**
+
+```diff
+  {
+-   serverReady: {
+-     trigger: { 
+-       path: "src/server.ts", 
+-       line: 27,
+-       pattern: "listening on .*:(\\d+)" 
+-     },
+-     action: { 
+-       type: "httpRequest", 
+-       url: "http://localhost:3000/health" 
+-     }
+-   }
++   serverReady: {
++     path: "src/server.ts",
++     code: "console.log('listening')",
++     pattern: "listening on .*:(\\d+)"
++   },
++   breakpointConfig: {
++     breakpoints: [...],
++     breakpointTrigger: {
++       type: "httpRequest",
++       url: "http://localhost:%PORT%/health"
++     }
++   }
+  }
+```
+
+**triggerBreakpoint Tool Changes:**
+
+- Removed standalone `action` parameter
+- `breakpointConfig` is now required (previously optional)
+- `breakpointConfig.breakpointTrigger` must be provided
+
+**Legacy Format Removal:**
+
+- No longer accepts nested union format (e.g., `{ httpRequest: { url: "..." } }`)
+- Actions without a `type` discriminator field will now error
+- Validation warnings have been converted to errors that will halt execution
+
+### New Features
+
+🎯 **Dynamic Port Token Substitution**
+
+Actions can now use the `%PORT%` token, which will be replaced with the port number captured from the `serverReady.pattern` regex. This enables dynamic configuration based on runtime port allocation.
+
+- Works in: `url`, `headers`, `body`, and `shellCommand` fields
+- Port is extracted from the first capture group in `serverReady.pattern`
+- Example: `url: "http://localhost:%PORT%/swagger"` with pattern `listening on .*:(\\d+)`
+
+🔍 **Code-based Line Resolution**
+
+Line numbers for server readiness breakpoints are now resolved by searching for a code snippet rather than requiring hardcoded line numbers.
+
+- Use `serverReady.code` with a substring from the target line
+- More resilient to code changes
+- Consistent with how other breakpoints work in the system
+- Example: `code: "console.log('listening')"` finds the line containing that text
+
+### Improvements
+
+✨ **Cleaner Architecture**
+
+- Clear separation between server readiness detection (`serverReady`) and breakpoint triggering (`breakpointConfig.breakpointTrigger`)
+- Single discriminated union format (no legacy compatibility layer)
+- Reduced code complexity (~200 lines of legacy handling removed)
+
+📝 **Better Error Messages**
+
+- Specific, actionable error messages for each validation failure
+- Errors include expected format and what was provided
+- Invalid configurations now fail fast with clear guidance
+
+📚 **Enhanced Documentation**
+
+- README updated with new API structure and examples
+- Added `%PORT%` token documentation
+- Clarified serverReady modes (breakpoint, pattern, immediate attach)
+- All examples updated to reflect current best practices
+
+### Bug Fixes
+
+🐛 **Minor Fixes**
+
+- Fixed logging typo: `$${line}` → `:${line}` in session.ts:2462
+- Improved pattern matching to properly capture groups using `.exec()` instead of `.test()`
+
+---
+
+**Full Changelog**: https://github.com/anthropics/copilot-breakpoint-debugger/compare/0.0.62...0.0.63
+
 ## [0.0.62] - 2026-02-01
 
 Based on my analysis of the changes between version 0.0.61 and 0.0.62, this release contains only a single commit that updates the toolkit submodule dependency. Since the only change is a submodule pointer update and I cannot access the detailed changes within the external toolkit repository in this environment, I'll generate release notes based on the available information.

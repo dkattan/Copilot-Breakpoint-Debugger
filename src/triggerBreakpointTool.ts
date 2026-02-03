@@ -19,7 +19,7 @@ export interface TriggerBreakpointToolParameters {
   existingSessionBehavior?: "useExisting" | "stopExisting" | "ignoreAndCreateNew"
   serverReadyTrigger?: {
     path?: string
-    line?: number
+    code?: string
     pattern?: string
   }
   startupBreakpointConfig?: {
@@ -27,29 +27,23 @@ export interface TriggerBreakpointToolParameters {
   }
   timeoutSeconds?: number
   mode?: "singleShot" | "inspect"
-  breakpointConfig?: {
+  breakpointConfig: {
     breakpoints?: Array<BreakpointDefinition>
-  }
-  action:
-    | {
-      type: "httpRequest"
-      url: string
-      method?: string
-      headers?: Record<string, string>
-      body?: string
-    }
-    | { type: "shellCommand", shellCommand: string }
-    | { type: "vscodeCommand", command: string, args?: unknown[] }
-    | { shellCommand: string }
-    | {
-      httpRequest: {
+    /**
+     * Optional trigger action to execute after resuming.
+     * Required for triggerBreakpoint.
+     */
+    breakpointTrigger:
+      | {
+        type: "httpRequest"
         url: string
         method?: string
         headers?: Record<string, string>
         body?: string
       }
-    }
-    | { vscodeCommand: { command: string, args?: unknown[] } }
+      | { type: "shellCommand", shellCommand: string }
+      | { type: "vscodeCommand", command: string, args?: unknown[] }
+  }
 }
 
 export class TriggerBreakpointTool
@@ -68,7 +62,6 @@ implements LanguageModelTool<TriggerBreakpointToolParameters> {
       timeoutSeconds,
       mode,
       breakpointConfig,
-      action,
     }
       = options.input;
 
@@ -84,7 +77,6 @@ implements LanguageModelTool<TriggerBreakpointToolParameters> {
         timeoutSeconds,
         mode,
         breakpointConfig,
-        action,
       });
 
       return createTruncatedToolResult(

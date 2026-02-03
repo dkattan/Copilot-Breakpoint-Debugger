@@ -36,12 +36,13 @@ describe("serverReady breakpoint", function () {
     const serverDoc = await vscode.workspace.openTextDocument(serverPath);
     await openScriptDocument(serverDoc.uri);
 
-    // Find serverReady line (contains marker comment)
+    // Find serverReady marker snippet
+    const readySnippet = "LINE_FOR_SERVER_READY";
     const readyLine
       = serverDoc
         .getText()
         .split(/\r?\n/)
-        .findIndex(l => l.includes("LINE_FOR_SERVER_READY")) + 1; // convert to 1-based
+        .findIndex(l => l.includes(readySnippet)) + 1; // convert to 1-based
     assert.ok(readyLine > 0, "Did not find serverReady marker line");
 
     const userBreakpointSnippet = "TICK_FOR_USER_BREAKPOINT";
@@ -69,14 +70,15 @@ describe("serverReady breakpoint", function () {
             onHit: "break",
           },
         ],
-      },
-      serverReady: {
-        trigger: { path: serverPath, line: readyLine },
-        action: {
+        breakpointTrigger: {
           type: "shellCommand",
           shellCommand:
             `node -e "require('node:http').get('http://localhost:${port}/health', r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>console.log('health='+d));});"`,
         },
+      },
+      serverReady: {
+        path: serverPath,
+        code: readySnippet,
       },
     });
     assert.strictEqual(
@@ -138,11 +140,12 @@ describe("serverReady breakpoint", function () {
     const serverConfig = createNodeServerDebugConfig({ workspaceFolder, port });
     const serverDoc = await vscode.workspace.openTextDocument(serverPath);
     await openScriptDocument(serverDoc.uri);
+    const readySnippet = "LINE_FOR_SERVER_READY";
     const readyLine
       = serverDoc
         .getText()
         .split(/\r?\n/)
-        .findIndex(l => l.includes("LINE_FOR_SERVER_READY")) + 1;
+        .findIndex(l => l.includes(readySnippet)) + 1;
     assert.ok(readyLine > 0, "Did not find serverReady marker line");
     const userBreakpointSnippet = "TICK_FOR_USER_BREAKPOINT";
     const userBreakpointLine
@@ -168,10 +171,11 @@ describe("serverReady breakpoint", function () {
             onHit: "break",
           },
         ],
+        breakpointTrigger: { type: "httpRequest", url: `http://localhost:${port}/health` },
       },
       serverReady: {
-        trigger: { path: serverPath, line: readyLine },
-        action: { type: "httpRequest", url: `http://localhost:${port}/health` },
+        path: serverPath,
+        code: readySnippet,
       },
     });
 
@@ -244,12 +248,10 @@ describe("serverReady breakpoint", function () {
             onHit: "break",
           },
         ],
+        breakpointTrigger: { type: "httpRequest", url: "http://localhost:31338/health" },
       },
       serverReady: {
-        trigger: {
-          pattern: "Pattern server listening on http://localhost:31338",
-        },
-        action: { type: "httpRequest", url: "http://localhost:31338/health" },
+        pattern: "Pattern server listening on http://localhost:31338",
       },
     });
     assert.strictEqual(
@@ -279,6 +281,65 @@ describe("serverReady breakpoint", function () {
     );
   });
 
+  it("substitutes %PORT% in serverReady action url from trigger.pattern capture group", async () => {
+    await activateCopilotDebugger();
+    const extensionRoot = getExtensionRoot();
+    const workspaceFolder = path.join(extensionRoot, "test-workspace", "node");
+    const serverPath = path.join(workspaceFolder, "serverPatternPortToken.js");
+    const serverDoc = await vscode.workspace.openTextDocument(serverPath);
+    await openScriptDocument(serverDoc.uri);
+
+    const userBreakpointSnippet = "SWAGGER_HANDLER_BREAKPOINT";
+    const userBreakpointLine
+      = serverDoc
+        .getText()
+        .split(/\r?\n/)
+        .findIndex(l => l.includes(userBreakpointSnippet)) + 1;
+    assert.ok(
+      userBreakpointLine > 0,
+      "Did not find expected swagger handler breakpoint snippet line",
+    );
+
+    const context = await startDebuggingAndWaitForStop({
+      sessionName: "",
+      workspaceFolder,
+      nameOrConfiguration: "Run node/serverPatternPortToken.js",
+      timeoutSeconds: 120,
+      breakpointConfig: {
+        breakpoints: [
+          {
+            path: serverPath,
+            code: userBreakpointSnippet,
+            variable: "swaggerHits",
+            onHit: "break",
+          },
+        ],
+        breakpointTrigger: {
+          type: "httpRequest",
+          url: "http://127.0.0.1:%PORT%/swagger",
+        },
+      },
+      serverReady: {
+        pattern: "listening on .*:(\\d+)",
+      },
+    });
+
+    assert.strictEqual(
+      context.serverReadyInfo.triggerMode,
+      "pattern",
+      "serverReady trigger mode should be pattern (%PORT%)",
+    );
+    assert.ok(
+      context.serverReadyInfo.phases.some(phase => phase.phase === "immediate"),
+      "serverReady pattern should execute immediate phase (%PORT%)",
+    );
+    assert.strictEqual(
+      context.frame.line,
+      userBreakpointLine,
+      "Did not pause at expected /swagger handler breakpoint line",
+    );
+  });
+
   it("demo scenario: httpRequest includes query param and captures queryParam at API handler breakpoint", async () => {
     await activateCopilotDebugger();
     const extensionRoot = getExtensionRoot();
@@ -295,10 +356,10 @@ describe("serverReady breakpoint", function () {
           variable: string
           onHit: "break" | "captureAndContinue" | "captureAndStopDebugging"
         }>
+        breakpointTrigger: { type: "httpRequest", url: string }
       }
       serverReady: {
-        trigger: { pattern: string }
-        action: { type: "httpRequest", url: string }
+        pattern: string
       }
     };
 
@@ -340,7 +401,7 @@ describe("serverReady breakpoint", function () {
       "Did not find expected API query breakpoint snippet line",
     );
 
-    const readyPattern = sharedRequest.serverReady.trigger.pattern;
+    const readyPattern = sharedRequest.serverReady.pattern;
 
     const context = await startDebuggingAndWaitForStop({
       sessionName: "",
@@ -356,13 +417,13 @@ describe("serverReady breakpoint", function () {
             onHit: demoBreakpoint.onHit,
           },
         ],
+        breakpointTrigger: {
+          type: "httpRequest",
+          url: sharedRequest.breakpointConfig.breakpointTrigger.url,
+        },
       },
       serverReady: {
-        trigger: { pattern: readyPattern },
-        action: {
-          type: "httpRequest",
-          url: sharedRequest.serverReady.action.url,
-        },
+        pattern: readyPattern,
       },
     });
 

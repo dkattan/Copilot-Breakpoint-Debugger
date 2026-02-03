@@ -62,15 +62,15 @@ describe("serverReady vscodeCommand action", () => {
             onHit: "break",
           },
         ],
-      },
-      serverReady: {
-        trigger: { pattern: readyPattern },
-        action: {
+        breakpointTrigger: {
           type: "vscodeCommand",
           // Use a non-UI command that resolves quickly and is safe in headless extension tests.
           command: "setContext",
           args: ["copilotBreakpointDebugger.test.serverReady", true],
         },
+      },
+      serverReady: {
+        pattern: readyPattern,
       },
     });
 

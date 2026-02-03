@@ -141,7 +141,7 @@ export const configs = {
     default: 40,
   } as ConfigItem<"copilot-debugger.captureMaxVariables">,
   /**
-   * Enable serverReady automation (trigger + action). When disabled, provided serverReady payloads are ignored.
+   * Enable serverReady automation (trigger + breakpointTrigger). When disabled, provided serverReady payloads are ignored.
    * @key `copilot-debugger.serverReadyEnabled`
    * @default `true`
    * @type `boolean`
@@ -151,7 +151,7 @@ export const configs = {
     default: true,
   } as ConfigItem<"copilot-debugger.serverReadyEnabled">,
   /**
-   * Preferred serverReady action type surfaced in samples and quick insert command.
+   * Preferred serverReady breakpointTrigger type surfaced in samples and quick insert command.
    * @key `copilot-debugger.serverReadyDefaultActionType`
    * @default `"httpRequest"`
    * @type `string`

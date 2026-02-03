@@ -561,14 +561,21 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [0.0.21] - 2025-11-21
 
-**Breaking:** Removed legacy `serverReady` shape (`path`, `line`, `command`, `httpRequest`, `pattern`, `immediateOnAttach`). Introduced unified object:
+**Breaking:** Server readiness + trigger action contract updated.
 
 ```ts
-serverReady: {
- trigger?: { path?: string; line?: number; pattern?: string }; // omit for immediate attach
- action: { shellCommand: string } |
-     { httpRequest: { url: string; method?: string; headers?: Record<string,string>; body?: string } } |
-     { vscodeCommand: { command: string; args?: unknown[] } };
+serverReady?: {
+  path?: string
+  code?: string
+  pattern?: string
+}
+
+breakpointConfig: {
+  breakpoints: Array<{ path: string; code: string; variable: string; onHit?: string }>
+  breakpointTrigger?:
+    | { type: "httpRequest"; url: string; method?: string; headers?: Record<string, string>; body?: string }
+    | { type: "shellCommand"; shellCommand: string }
+    | { type: "vscodeCommand"; command: string; args?: unknown[] }
 }
 ```
 
@@ -586,7 +593,7 @@ serverReady: {
 
 **Internal:** Introduced helper `executeServerReadyAction` in `session.ts` to centralize serverReady action dispatch phases (`entry`, `late`, `immediate`). Simplified advancement logic after serverReady breakpoint hits. Ensured NO FALLBACK principle by eliminating legacy field tolerance and not inferring triggers.
 
-**Upgrade Guidance:** Update any invocations supplying legacy fields to new `trigger`/`action` structure. For prior immediate attach usage (`immediateOnAttach: true`), simply omit `trigger` and keep the action. For breakpoint mode wrap former `path`/`line` in `trigger`. For pattern mode wrap former `pattern` in `trigger.pattern`.
+**Upgrade Guidance:** Move readiness fields to `serverReady.{path,code,pattern}` and move the trigger action to `breakpointConfig.breakpointTrigger` using the discriminated `type` form.
 
 **Impact:** Tool consumers (LLMs / prompts) gain clearer, future-extensible readiness API while reducing ambiguity and validation branching.
 

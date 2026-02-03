@@ -1,0 +1,24 @@
+{
+  "input": {
+    "workspaceFolder": "__WORKSPACE_B__",
+    "configurationName": "Run node/server.js",
+    "mode": "singleShot",
+    "breakpointConfig": {
+      "breakpoints": [
+        {
+          "path": "server.js",
+          "code": "queryParamForDebugger = queryParam",
+          "variable": "queryParam",
+          "onHit": "captureAndStopDebugging"
+        }
+      ],
+      "breakpointTrigger": {
+        "type": "httpRequest",
+        "url": "http://localhost:31337/api/echo?q=from-demo"
+      }
+    },
+    "serverReadyTrigger": {
+      "pattern": "Server listening on http://localhost:31337"
+    }
+  }
+}

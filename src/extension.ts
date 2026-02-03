@@ -258,10 +258,10 @@ function registerTools(context: vscode.ExtensionContext) {
                 variable: "PORT",
               },
             ],
+            breakpointTrigger: serverReadySampleAction,
           },
           serverReady: {
-            trigger: { pattern: "listening on .*:(\\d+)" },
-            action: serverReadySampleAction,
+            pattern: "listening on .*:(\\d+)",
           },
         };
         const doc = await vscode.workspace.openTextDocument({

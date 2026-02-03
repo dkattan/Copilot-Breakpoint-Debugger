@@ -240,6 +240,8 @@ export default antfu(
       "external/**",
       "coverage/**",
       "out/**",
+      "pw-test-results/**",
+      "test-results/**",
       "**/*.yml",
       "test-workspace/**",
       "src/generated-meta.ts",

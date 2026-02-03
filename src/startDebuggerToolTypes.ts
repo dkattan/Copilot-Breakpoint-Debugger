@@ -2,28 +2,23 @@ import type { BreakpointDefinition } from "./BreakpointDefinition";
 
 export interface BreakpointConfiguration {
   breakpoints: BreakpointDefinition[]
+  /**
+   * Optional serverReady breakpoint trigger executed when the server is ready.
+   * Used together with StartDebuggerToolParameters.serverReady.
+   */
+  breakpointTrigger?: ServerReadyAction
 }
 
 type ServerReadyAction
-  = | { shellCommand: string }
-    | {
-      httpRequest: {
-        url: string
-        method?: string
-        headers?: Record<string, string>
-        body?: string
-      }
-    }
-    | { vscodeCommand: { command: string, args?: unknown[] } }
-    | {
-      type: "httpRequest"
-      url: string
-      method?: string
-      headers?: Record<string, string>
-      body?: string
-    }
-    | { type: "shellCommand", shellCommand: string }
-    | { type: "vscodeCommand", command: string, args?: unknown[] };
+  = | {
+    type: "httpRequest"
+    url: string
+    method?: string
+    headers?: Record<string, string>
+    body?: string
+  }
+  | { type: "shellCommand", shellCommand: string }
+  | { type: "vscodeCommand", command: string, args?: unknown[] };
 
 export interface StartDebuggerToolParameters {
   workspaceFolder: string
@@ -42,15 +37,12 @@ export interface StartDebuggerToolParameters {
   breakpointConfig: BreakpointConfiguration
   /**
    * Optional serverReady configuration.
-   * trigger: defines when to run the action (breakpoint path+line OR pattern). If omitted and request === 'attach' the action runs immediately after attach (default immediate attach mode).
-   * action: exactly one of shellCommand | httpRequest | vscodeCommand.
+   * Defines when to run breakpointConfig.breakpointTrigger (breakpoint path+code OR pattern).
+   * If omitted and request === 'attach', the trigger runs immediately after attach (default immediate attach mode).
    */
   serverReady?: {
-    trigger?: {
-      path?: string
-      line?: number
-      pattern?: string
-    }
-    action: ServerReadyAction
+    path?: string
+    code?: string
+    pattern?: string
   }
 }

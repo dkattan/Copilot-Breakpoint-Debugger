@@ -112,8 +112,11 @@ describe("existingSessionBehavior", function () {
                 onHit: "break",
               },
             ],
+            breakpointTrigger: {
+              type: "vscodeCommand",
+              command: "workbench.action.files.newUntitledFile",
+            },
           },
-          action: { type: "vscodeCommand", command: "workbench.action.files.newUntitledFile" },
         });
       },
       (err: unknown) =>
@@ -184,10 +187,10 @@ describe("existingSessionBehavior", function () {
                 onHit: "break",
               },
             ],
-          },
-          action: {
-            type: "httpRequest",
-            url: "http://localhost:1/api/echo?q=hello",
+            breakpointTrigger: {
+              type: "httpRequest",
+              url: "http://localhost:1/api/echo?q=hello",
+            },
           },
         });
       },

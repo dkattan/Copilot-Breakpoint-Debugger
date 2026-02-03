@@ -14,6 +14,7 @@
 
 const { spawnSync } = require("node:child_process");
 const { createRequire } = require("node:module");
+const path = require("node:path");
 const process = require("node:process");
 
 function fail(message) {
@@ -55,8 +56,13 @@ catch {
 }
 
 const args = process.argv.slice(2);
+const repoRoot = path.resolve(__dirname, "..");
 const res = spawnSync(process.execPath, [playwrightCli, ...args], {
   stdio: "inherit",
+  env: {
+    ...process.env,
+    COPILOT_DEMO_ARTIFACT_DIR: repoRoot,
+  },
 });
 
 // Node may report null if the child was terminated by a signal.

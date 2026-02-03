@@ -75,7 +75,7 @@
         "copilot-debugger.serverReadyEnabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable serverReady automation (trigger + action). When disabled, provided serverReady payloads are ignored."
+          "description": "Enable serverReady automation (trigger + breakpointTrigger). When disabled, provided serverReady payloads are ignored."
         },
         "copilot-debugger.serverReadyDefaultActionType": {
           "type": "string",
@@ -85,7 +85,7 @@
             "vscodeCommand"
           ],
           "default": "httpRequest",
-          "description": "Preferred serverReady action type surfaced in samples and quick insert command."
+          "description": "Preferred serverReady breakpointTrigger type surfaced in samples and quick insert command."
         },
         "copilot-debugger.maxBuildErrors": {
           "type": "integer",
@@ -151,7 +151,7 @@
         "toolReferenceName": "startDebugSessionWithBreakpoints",
         "canBeReferencedInPrompt": true,
         "userDescription": "Start a debug session, set breakpoints, and wait until a breakpoint is hit. Supports onHit behaviors: break (pause), captureAndContinue (collect variables then auto-resume), captureAndStopDebugging (terminate after hit). For capture actions, the tool automatically steps once (F10 / DAP 'next') before capturing variables to avoid the common pre-assignment value trap. Supports autoStepOver to capture variables before and after a single step-over (useful for assignments/invocations). Default mode is singleShot: the tool terminates the session before returning so the model cannot accidentally run external curl/browser probes against a paused debuggee. If you need an interactive paused workflow, set mode=inspect.",
-        "modelDescription": "Start a debug session using the configured default launch configuration or an explicitly provided configurationName. Auto-selects sole launch config when none specified and no default setting is present. Defaults to 'singleShot' mode (safest), which runs the session, hits a breakpoint, collects data, and terminates automatically. Use 'inspect' mode to pause at a breakpoint for interactive debugging; while paused, use debugger tools (evaluateExpression) instead of external requests (curl) which may block. Supports 'serverReady' to automatically wait for app startup and trigger a request to hit your breakpoints. Breakpoints support path, code snippet, onHit behavior (break, captureAndContinue, captureAndStopDebugging), variable (exact name or '*' for capture-all), condition, hitCount, and autoStepOver (capture variables before and after stepping over once; helpful for post-assignment values).",
+        "modelDescription": "Start a debug session using the configured default launch configuration or an explicitly provided configurationName. Auto-selects sole launch config when none specified and no default setting is present. Defaults to 'singleShot' mode (safest), which runs the session, hits a breakpoint, collects data, and terminates automatically. Use 'inspect' mode to pause at a breakpoint for interactive debugging; while paused, use debugger tools (evaluateExpression) instead of external requests (curl) which may block. Supports 'serverReady' to automatically wait for app startup and trigger a request to hit your breakpoints. If the user specifically wants to fire an HTTP request / shell command into a breakpoint (\"trigger\" a breakpoint), prefer the Trigger Breakpoint tool (triggerBreakpoint) which is designed for start+trigger+wait flows.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -234,34 +234,10 @@
                     ]
                   },
                   "description": "Breakpoints to add before starting session."
-                }
-              }
-            },
-            "serverReady": {
-              "type": "object",
-              "description": "Optional server readiness automation (trigger + action). Canonical pattern for driving a request into a breakpoint is action.type=httpRequest (tool-executed with timeout handling). shellCommand is allowed (including curl), but it can block if it performs a request that hits a break breakpoint. NOTE: the most common failure mode is external curl AFTER the tool returned while paused (inspect mode).",
-              "properties": {
-                "trigger": {
-                  "type": "object",
-                  "description": "Readiness trigger. Provide either path+line for breakpoint or pattern for output-based readiness. Omit entirely for immediate attach execution.",
-                  "properties": {
-                    "path": {
-                      "type": "string",
-                      "description": "Breakpoint file path (relative or absolute)."
-                    },
-                    "line": {
-                      "type": "integer",
-                      "description": "1-based line number for breakpoint trigger."
-                    },
-                    "pattern": {
-                      "type": "string",
-                      "description": "Regex pattern matched against debug/task output for readiness."
-                    }
-                  }
                 },
-                "action": {
+                "breakpointTrigger": {
                   "type": "object",
-                  "description": "Action executed when ready. Flat schema with discriminator 'type'. Blocking behavior: shellCommand runs in a terminal and may block if it performs a request that hits a break breakpoint; httpRequest is executed by the tool with timeout handling and is recommended for triggering breakpoints.",
+                  "description": "Optional breakpoint trigger executed when serverReady conditions are satisfied. Flat schema with discriminator 'type'. Blocking behavior: shellCommand runs in a terminal and may block if it performs a request that hits a break breakpoint; httpRequest is executed by the tool with timeout handling and is recommended for triggering breakpoints.",
                   "properties": {
                     "type": {
                       "type": "string",
@@ -311,10 +287,25 @@
                     "type"
                   ]
                 }
-              },
-              "required": [
-                "action"
-              ]
+              }
+            },
+            "serverReady": {
+              "type": "object",
+              "description": "Optional server readiness trigger. When provided, the tool waits for readiness (pattern or breakpoint) and then executes breakpointConfig.breakpointTrigger (if provided).",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "Readiness breakpoint file path (relative or absolute)."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "Code snippet (substring) used to locate a 1-based line in the file. Must be present on the intended line."
+                },
+                "pattern": {
+                  "type": "string",
+                  "description": "Regex pattern matched against debug/task output for readiness."
+                }
+              }
             }
           },
           "required": [
@@ -332,19 +323,17 @@
                     "path": "src/server.ts",
                     "code": "console.log('listening')",
                     "variable": "PORT",
-                    "onHit": "captureAndContinue",
+                    "onHit": "captureAndStopDebugging",
                     "logMessage": "port={PORT}"
                   }
-                ]
-              },
-              "serverReady": {
-                "trigger": {
-                  "pattern": "listening on .*:(\\d+)"
-                },
-                "action": {
+                ],
+                "breakpointTrigger": {
                   "type": "httpRequest",
                   "url": "http://localhost:%PORT%/swagger"
                 }
+              },
+              "serverReady": {
+                "pattern": "listening on .*:(\\d+)"
               }
             },
             {
@@ -358,13 +347,14 @@
                     "variable": "*",
                     "onHit": "break"
                   }
-                ]
+                ],
+                "breakpointTrigger": {
+                  "type": "shellCommand",
+                  "shellCommand": "echo serverReady breakpointTrigger executed"
+                }
               },
               "serverReady": {
-                "action": {
-                  "type": "shellCommand",
-                  "shellCommand": "curl -sS http://localhost:3000/health || exit 1"
-                }
+                "pattern": "ready"
               }
             }
           ]
@@ -454,7 +444,7 @@
         "toolReferenceName": "triggerBreakpoint",
         "canBeReferencedInPrompt": true,
         "userDescription": "Trigger an external action (httpRequest/shellCommand/vscodeCommand) against a debug session, optionally starting one, optionally adding breakpoints first, then wait for the next stop.",
-        "modelDescription": "Trigger an external action (fire-and-forget HTTP request, shell command, or VS Code command) against a debug session. If sessionId is omitted, the tool may start or select a session using workspaceFolder/configurationName and workspace settings. Optionally set additional snippet-based breakpoints first. After resuming, the tool waits for the next stop and returns the same stop info shape as startDebugSessionWithBreakpoints.",
+        "modelDescription": "Trigger a breakpoint by firing an external action (HTTP request, shell command, or VS Code command) and wait for the next debugger stop. Use this when a user asks to: start debugging, wait until the app is ready, then trigger a request (e.g., GET /api/foo) that should hit a breakpoint and capture variables. If sessionId is omitted, the tool can start or select a session using workspaceFolder/configurationName. Prefer breakpointConfig.breakpointTrigger.type=httpRequest for reliability (fire-and-forget) when the debuggee might pause on breakpoints.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -485,15 +475,15 @@
             },
             "serverReadyTrigger": {
               "type": "object",
-              "description": "Optional serverReady trigger used only when sessionId is omitted. The tool's 'action' is used as the serverReady action (start + wait for ready + trigger + stop at breakpointConfig).",
+              "description": "Optional serverReady trigger used only when sessionId is omitted. The tool uses breakpointConfig.breakpointTrigger as the serverReady breakpointTrigger (start + wait for ready + trigger + stop at breakpointConfig.breakpoints).",
               "properties": {
                 "path": {
                   "type": "string",
-                  "description": "Optional file path for a readiness breakpoint trigger (use with line)."
+                  "description": "Optional file path for a readiness breakpoint trigger (use with code)."
                 },
-                "line": {
-                  "type": "number",
-                  "description": "Optional 1-based line number for readiness breakpoint trigger (use with path)."
+                "code": {
+                  "type": "string",
+                  "description": "Optional code snippet (substring) used to locate a 1-based line for readiness breakpoint trigger (use with path)."
                 },
                 "pattern": {
                   "type": "string",
@@ -601,97 +591,95 @@
                       "variable"
                     ]
                   }
+                },
+                "breakpointTrigger": {
+                  "type": "object",
+                  "description": "Trigger action to execute after resuming. Prefer the discriminator form with 'type'. httpRequest is fire-and-forget to avoid deadlocks when the handler hits a breakpoint.",
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "const": "httpRequest"
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "method": {
+                          "type": "string"
+                        },
+                        "headers": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "body": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "url"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "const": "shellCommand"
+                        },
+                        "shellCommand": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "shellCommand"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "const": "vscodeCommand"
+                        },
+                        "command": {
+                          "type": "string"
+                        },
+                        "args": {
+                          "type": "array",
+                          "description": "Optional VS Code command arguments.",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "command"
+                      ]
+                    }
+                  ]
                 }
               },
               "required": [
-                "breakpoints"
-              ]
-            },
-            "action": {
-              "type": "object",
-              "description": "Trigger action to execute after resuming. Prefer the discriminator form with 'type'. httpRequest is fire-and-forget to avoid deadlocks when the handler hits a breakpoint.",
-              "oneOf": [
-                {
-                  "type": "object",
-                  "properties": {
-                    "type": {
-                      "const": "httpRequest"
-                    },
-                    "url": {
-                      "type": "string"
-                    },
-                    "method": {
-                      "type": "string"
-                    },
-                    "headers": {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      }
-                    },
-                    "body": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "type",
-                    "url"
-                  ]
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "type": {
-                      "const": "shellCommand"
-                    },
-                    "shellCommand": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "type",
-                    "shellCommand"
-                  ]
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "type": {
-                      "const": "vscodeCommand"
-                    },
-                    "command": {
-                      "type": "string"
-                    },
-                    "args": {
-                      "type": "array",
-                      "description": "Optional VS Code command arguments.",
-                      "items": {
-                        "type": "string"
-                      }
-                    }
-                  },
-                  "required": [
-                    "type",
-                    "command"
-                  ]
-                }
+                "breakpointTrigger"
               ]
             }
           },
           "required": [
-            "action"
+            "breakpointConfig"
           ],
           "anyOf": [
             {
               "required": [
-                "sessionId",
-                "action"
+                "sessionId"
               ]
             },
             {
               "required": [
-                "workspaceFolder",
-                "action"
+                "workspaceFolder"
               ]
             }
           ]
@@ -796,11 +784,12 @@
     "watch:tsc": "tsc --noEmit --watch -p ./",
     "build:dist": "cross-env NODE_OPTIONS= node esbuild.js --production",
     "package": "npm run build:dist",
-    "vsix:local": "npm run vscode:prepublish && npx --yes @vscode/vsce package --out copilot-breakpoint-debugger-local.vsix && code --install-extension copilot-breakpoint-debugger-local.vsix --force",
+    "vsix:local": "npm run vscode:prepublish && npx --yes @vscode/vsce package --no-dependencies --out copilot-breakpoint-debugger-local.vsix && code --install-extension copilot-breakpoint-debugger-local.vsix --force",
     "demo:pw:prep": "npx tsc -p external/vscode-test-playwright/tsconfig.json",
-    "demo:pw": "npm run demo:pw:prep && cross-env NODE_OPTIONS= node scripts/playwright-cli-from-vscode-test-playwright.cjs test --config playwright.config.ts playwright/demo.spec.ts",
-    "test:pw": "npm run demo:pw:prep && cross-env NODE_OPTIONS= node scripts/playwright-cli-from-vscode-test-playwright.cjs test --config playwright.config.ts",
+    "demo:pw": "npm run demo:pw:prep && cross-env PW_VSCODE_TEST_WS_CONNECT_TIMEOUT_MS=120000 PW_VSCODE_FIRST_WINDOW_TIMEOUT_MS=120000 NODE_OPTIONS= node scripts/playwright-cli-from-vscode-test-playwright.cjs test --config playwright.config.ts playwright/demo.spec.ts",
+    "test:pw": "npm run demo:pw:prep && cross-env PW_VSCODE_TEST_WS_CONNECT_TIMEOUT_MS=120000 PW_VSCODE_FIRST_WINDOW_TIMEOUT_MS=120000 NODE_OPTIONS= node scripts/playwright-cli-from-vscode-test-playwright.cjs test --config playwright.config.ts",
     "demo:pw:videos": "npm run demo:pw && npm --prefix external/playwright-test-videos ci && npm --prefix external/playwright-test-videos run build && cross-env NODE_OPTIONS= node external/playwright-test-videos/dist/cli.js --from test-results --to docs/pw-videos --readme README.md --max 1 --name demo.mp4 --dedupe",
+    "demo:pw:video:preview": "npm run demo:pw:videos && pwsh -NoProfile -File scripts/preview-demo-video.ps1",
     "demo:pw:update-readme": "npm run demo:pw:videos",
     "typecheck:playwright": "npm run demo:pw:prep && tsc --noEmit -p playwright/tsconfig.json",
     "compile-tests": "tsc -p ./",

@@ -10,6 +10,10 @@ const repoRoot = __dirname;
 const config = {
   testDir: path.join(repoRoot, "playwright"),
   reporter: [["list"]],
+  // Keep Playwright artifacts (including chat export attachments) even on success,
+  // and avoid collisions with the harness-managed `test-results/` directory.
+  outputDir: path.join(repoRoot, "pw-test-results"),
+  preserveOutput: "always",
   // Keep runs consistent across environments; connection diagnostics should not depend on long timeouts.
   timeout: 90_000,
   expect: {
@@ -31,6 +35,9 @@ const config = {
   projects: [
     {
       name: "vscode-chat-demo",
+      // The demo drives Copilot Chat (network + model latency) and VS Code UI.
+      // Keep this high to avoid flakiness from cold starts.
+      timeout: 240_000,
       use: {
         // The `vscode-test-playwright` fixtures read these options.
         vscodeVersion: "stable",

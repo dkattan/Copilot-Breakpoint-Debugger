@@ -1490,12 +1490,11 @@ function monitorTask(taskExecution: vscode.TaskExecution, baseCwd: string): Prom
  * @param params.timeoutSeconds - Optional timeout in seconds to wait for a breakpoint hit (default: 60).
  * @param params.breakpointConfig - Optional configuration for managing breakpoints during the debug session.
  * @param params.breakpointConfig.breakpoints - Array of breakpoint configurations to set before starting the session.
- * @param params.serverReady - Optional server readiness automation descriptor.
- * @param params.serverReady.trigger - Optional readiness trigger (breakpoint path+line or pattern). If omitted and request==='attach', action executes immediately post-attach.
- * @param params.serverReady.trigger.path - Breakpoint file path.
- * @param params.serverReady.trigger.line - Breakpoint 1-based line number.
- * @param params.serverReady.trigger.pattern - Regex pattern for output readiness via injected serverReadyAction.
- * @param params.serverReady.action - Action executed when ready (one of: { shellCommand }, { httpRequest }, { vscodeCommand }).
+ * @param params.serverReady - Optional server readiness trigger descriptor.
+ * @param params.serverReady.path - Breakpoint file path.
+ * @param params.serverReady.code - Breakpoint code snippet (substring) used to locate a 1-based line.
+ * @param params.serverReady.pattern - Regex pattern for output readiness via injected serverReadyAction.
+ * @param params.breakpointConfig.breakpointTrigger - Action executed when ready (one of: { type: 'shellCommand' | 'httpRequest' | 'vscodeCommand' }).
  * @param params.useExistingBreakpoints - When true, caller intends to use already-set workspace breakpoints (manual command).
  */
 export interface StartDebuggingAndWaitForStopParams {
@@ -1516,20 +1515,7 @@ export interface StartDebuggingAndWaitForStopParams {
   mode?: "singleShot" | "inspect"
   breakpointConfig: {
     breakpoints: Array<BreakpointDefinition>
-  }
-  serverReady?: {
-    trigger?: { path?: string, line?: number, pattern?: string }
-    action:
-      | { shellCommand: string }
-      | {
-        httpRequest: {
-          url: string
-          method?: string
-          headers?: Record<string, string>
-          body?: string
-        }
-      }
-      | { vscodeCommand: { command: string, args?: unknown[] } }
+    breakpointTrigger?:
       | {
         type: "httpRequest"
         url: string
@@ -1539,6 +1525,11 @@ export interface StartDebuggingAndWaitForStopParams {
       }
       | { type: "shellCommand", shellCommand: string }
       | { type: "vscodeCommand", command: string, args?: unknown[] }
+  }
+  serverReady?: {
+    path?: string
+    code?: string
+    pattern?: string
   }
   /**
    * When true, the caller indicates the debug session should use the user's existing breakpoints
@@ -2018,20 +2009,22 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
   }
 
   let serverReadyPatternRegex: RegExp | undefined;
-  if (serverReady?.trigger?.pattern) {
+  if (serverReady?.pattern) {
     try {
-      serverReadyPatternRegex = new RegExp(serverReady.trigger.pattern);
+      serverReadyPatternRegex = new RegExp(serverReady.pattern);
     }
     catch (err) {
       throw new Error(
         `Invalid serverReady trigger pattern '${
-          serverReady.trigger.pattern
+          serverReady.pattern
         }': ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }
   let serverReadyTriggerSummary: string | undefined;
   let serverReadyPatternMatched = false;
+  let serverReadyPatternCaptureGroups: string[] = [];
+  let serverReadyCapturedPort: string | undefined;
   let serverReadyPatternScanTimer: ReturnType<typeof setInterval> | undefined;
   const pendingTerminalPatternLines: string[] = [];
   let terminalPatternEvaluationEnabled = false;
@@ -2045,8 +2038,8 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
       ? "disabled"
       : serverReadyPatternRegex
         ? "pattern"
-        : serverReady.trigger?.path
-          && typeof serverReady.trigger.line === "number"
+        : serverReady.path
+          && typeof serverReady.code === "string"
           ? "breakpoint"
           : "immediate";
   const serverReadyPhaseExecutions: Array<{
@@ -2060,55 +2053,43 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
     if (!serverReady) {
       return;
     }
+
+    const actionConfig = breakpointConfig.breakpointTrigger;
+    if (!actionConfig) {
+      return;
+    }
+
+    const substituteServerReadyTokens = (value: string) => {
+      if (!value.includes("%PORT%")) {
+        return value;
+      }
+      if (!serverReadyCapturedPort) {
+        throw new Error(
+          "serverReady action includes %PORT% but no port was captured. Ensure serverReady.pattern has a capture group for the port (e.g. '(\\\\d+)') and the pattern actually matches output before the action executes.",
+        );
+      }
+      return value.replaceAll("%PORT%", serverReadyCapturedPort);
+    };
+
     serverReadyPhaseExecutions.push({ phase, when: Date.now() });
     try {
-      // Determine action shape (new flat with type discriminator OR legacy union)
-      type FlatAction
-        = | {
-          type: "httpRequest"
-          url: string
-          method?: string
-          headers?: Record<string, string>
-          body?: string
-        }
-        | { type: "shellCommand", shellCommand: string }
-        | { type: "vscodeCommand", command: string, args?: unknown[] };
-      type LegacyAction
-        = | { shellCommand: string }
-          | {
-            httpRequest: {
-              url: string
-              method?: string
-              headers?: Record<string, string>
-              body?: string
-            }
-          }
-          | { vscodeCommand: { command: string, args?: unknown[] } };
-      const actionAny: FlatAction | LegacyAction = serverReady.action as
-        | FlatAction
-        | LegacyAction;
-      let discriminator: string | undefined;
-      if ("type" in (actionAny as object)) {
-        discriminator = (actionAny as { type: string }).type;
+      const actionAny = actionConfig as unknown as Record<string, unknown>;
+      const kind = typeof actionAny.type === "string" ? actionAny.type : undefined;
+      if (!kind) {
+        throw new Error(
+          "breakpointConfig.breakpointTrigger must include a discriminator 'type' ('httpRequest'|'shellCommand'|'vscodeCommand').",
+        );
       }
-      const kind
-        = discriminator
-          || ("shellCommand" in actionAny
-            ? "shellCommand"
-            : "httpRequest" in actionAny
-              ? "httpRequest"
-              : "vscodeCommand" in actionAny
-                ? "vscodeCommand"
-                : undefined);
+
       switch (kind) {
         case "shellCommand": {
-          const cmd = discriminator
-            ? (actionAny as FlatAction & { shellCommand: string }).shellCommand
-            : (actionAny as { shellCommand: string }).shellCommand;
-          if (!cmd) {
-            logger.warn("serverReady shellCommand missing command text.");
-            return;
+          const cmd = actionAny.shellCommand;
+          if (typeof cmd !== "string" || !cmd.trim()) {
+            throw new Error(
+              "breakpointTrigger.type='shellCommand' requires non-empty 'shellCommand'.",
+            );
           }
+          const substitutedCmd = substituteServerReadyTokens(cmd);
           const terminal = vscode.window.createTerminal({
             name: `serverReady-${phase}`,
             isTransient: true,
@@ -2136,44 +2117,46 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
               }
             },
           );
-          terminal.sendText(cmd, true);
-          logger.info(`Executed serverReady shellCommand (${phase}): ${cmd}`);
+          terminal.sendText(substitutedCmd, true);
+          logger.info(
+            `Executed serverReady shellCommand (${phase}): ${substitutedCmd}`,
+          );
           break;
         }
         case "httpRequest": {
-          const url = discriminator
-            ? (actionAny as FlatAction & { url: string }).url
-            : (actionAny as { httpRequest?: { url?: string } }).httpRequest?.url;
-          if (!url) {
-            logger.warn("serverReady httpRequest missing url.");
-            return;
+          const url = actionAny.url;
+          if (typeof url !== "string" || !url.trim()) {
+            throw new Error(
+              "breakpointTrigger.type='httpRequest' requires non-empty 'url'.",
+            );
           }
-          const method = discriminator
-            ? ((actionAny as FlatAction & { method?: string }).method ?? "GET")
-            : ((actionAny as { httpRequest?: { method?: string } }).httpRequest?.method ?? "GET");
-          const headers = discriminator
-            ? (actionAny as FlatAction & { headers?: Record<string, string> })
-                .headers
-            : (
-                actionAny as {
-                  httpRequest?: { headers?: Record<string, string> }
-                }
-              ).httpRequest?.headers;
-          const body = discriminator
-            ? (actionAny as FlatAction & { body?: string }).body
-            : (actionAny as { httpRequest?: { body?: string } }).httpRequest?.body;
+          const substitutedUrl = substituteServerReadyTokens(url);
+          const method = typeof actionAny.method === "string" ? actionAny.method : "GET";
+          const headers = actionAny.headers as Record<string, string> | undefined;
+          const body = typeof actionAny.body === "string" ? actionAny.body : undefined;
+          const substitutedHeaders = headers
+            ? Object.fromEntries(
+                Object.entries(headers).map(([k, v]) => [
+                  k,
+                  substituteServerReadyTokens(v),
+                ]),
+              )
+            : undefined;
+          const substitutedBody = body
+            ? substituteServerReadyTokens(body)
+            : undefined;
           logger.info(
-            `Dispatching serverReady httpRequest (${phase}) to ${url} method=${method}`,
+            `Dispatching serverReady httpRequest (${phase}) to ${substitutedUrl} method=${method}`,
           );
           // IMPORTANT: do not await the response.
           // If the request handler hits a break breakpoint, the debuggee pauses and
           // the HTTP response may never complete until resumed. We bound the request
           // lifetime with a timeout to prevent resource leaks.
           fireAndForgetHttpRequest({
-            url,
+            url: substitutedUrl,
             method,
-            headers,
-            body,
+            headers: substitutedHeaders,
+            body: substitutedBody,
             timeoutMs: 15_000,
             onDone: (statusCode) => {
               logger.info(
@@ -2193,20 +2176,13 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
           break;
         }
         case "vscodeCommand": {
-          const command = discriminator
-            ? (actionAny as FlatAction & { command: string }).command
-            : (actionAny as { vscodeCommand?: { command?: string } })
-                .vscodeCommand
-                ?.command;
-          if (!command) {
-            logger.warn("serverReady vscodeCommand missing command id.");
-            return;
+          const command = actionAny.command;
+          if (typeof command !== "string" || !command.trim()) {
+            throw new Error(
+              "breakpointTrigger.type='vscodeCommand' requires non-empty 'command'.",
+            );
           }
-          const args = discriminator
-            ? ((actionAny as FlatAction & { args?: unknown[] }).args ?? [])
-            : ((actionAny as { vscodeCommand?: { args?: unknown[] } })
-                .vscodeCommand
-                ?.args ?? []);
+          const args = Array.isArray(actionAny.args) ? actionAny.args : [];
           logger.info(
             `Executing serverReady vscodeCommand (${phase}): ${command}`,
           );
@@ -2231,7 +2207,11 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
           break;
         }
         default:
-          logger.warn("serverReady action type not recognized; skipping.");
+          throw new Error(
+            `breakpointConfig.breakpointTrigger.type '${String(
+              kind,
+            )}' is not recognized. Expected 'httpRequest'|'shellCommand'|'vscodeCommand'.`,
+          );
       }
     }
     catch (err) {
@@ -2408,40 +2388,51 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
   }
   // Optional serverReady breakpoint (declare early so scope is available later)
   let serverReadySource: vscode.SourceBreakpoint | undefined;
-  if (
-    serverReady?.trigger?.path
-    && typeof serverReady.trigger.line === "number"
-  ) {
-    const serverReadyPath = path.isAbsolute(serverReady.trigger.path)
-      ? serverReady.trigger.path!
-      : path.join(folderFsPath, serverReady.trigger.path!);
+  let serverReadyResolvedLine: number | undefined;
+  if (serverReady?.path && typeof serverReady.code === "string") {
+    const serverReadyPath = path.isAbsolute(serverReady.path)
+      ? serverReady.path
+      : path.join(folderFsPath, serverReady.path);
     try {
       const doc = await vscode.workspace.openTextDocument(
         vscode.Uri.file(serverReadyPath),
       );
       const lineCount = doc.lineCount;
+      const triggerCode = serverReady.code.trim();
+      if (!triggerCode) {
+        throw new Error(
+          "serverReady.code must be a non-empty string when serverReady.path is provided.",
+        );
+      }
+      const matchLine
+        = doc
+          .getText()
+          .split(/\r?\n/)
+          .findIndex(l => l.includes(triggerCode)) + 1;
+      if (matchLine < 1 || matchLine > lineCount) {
+        throw new Error(
+          `serverReady trigger code was not found in '${serverReadyPath}'. Provide a substring present on the intended line.`,
+        );
+      }
+      serverReadyResolvedLine = matchLine;
       const duplicate = validated.some((v) => {
         const existingPath = v.sb.location.uri.fsPath;
         const existingLine = v.sb.location.range.start.line + 1;
         return (
           existingPath === serverReadyPath
-          && existingLine === serverReady.trigger!.line
+          && existingLine === serverReadyResolvedLine
         );
       });
-      if (
-        serverReady.trigger.line! < 1
-        || serverReady.trigger.line! > lineCount
-        || duplicate
-      ) {
+      if (duplicate) {
         logger.warn(
-          `ServerReady breakpoint invalid or duplicate (${serverReadyPath}:${serverReady.trigger.line}); ignoring.`,
+          `ServerReady breakpoint invalid or duplicate (${serverReadyPath}:${serverReadyResolvedLine}); ignoring.`,
         );
       }
       else {
         serverReadySource = new vscode.SourceBreakpoint(
           new vscode.Location(
             vscode.Uri.file(serverReadyPath),
-            new vscode.Position(serverReady.trigger.line! - 1, 0),
+            new vscode.Position(serverReadyResolvedLine - 1, 0),
           ),
           true,
         );
@@ -2468,7 +2459,7 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
     logger.info(
       `Added serverReady breakpoint at ${
         serverReadySource.location.uri.fsPath
-      }:$${serverReadySource.location.range.start.line + 1}`,
+      }:${serverReadySource.location.range.start.line + 1}`,
     );
   }
 
@@ -2495,10 +2486,13 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
       return;
     }
     serverReadyPatternRegex.lastIndex = 0;
-    if (!serverReadyPatternRegex.test(normalized)) {
+    const match = serverReadyPatternRegex.exec(normalized);
+    if (!match) {
       return;
     }
     serverReadyPatternMatched = true;
+    serverReadyPatternCaptureGroups = match.slice(1);
+    serverReadyCapturedPort = serverReadyPatternCaptureGroups[0];
     serverReadyTriggerSummary = `${
       source === "terminal" ? "Terminal" : "Debug output"
     } matched: ${truncateLine(normalized)}`;
@@ -3121,20 +3115,22 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
     await configureExceptions(entryStop.session);
 
     const sessionId = entryStop.session.id;
-    // Determine if entry stop is serverReady breakpoint
+    // Determine if entry stop is serverReady breakpoint.
     // Tolerate serverReady breakpoint being the first ("entry") stop even if a user breakpoint
     // might also be hit first in some adapters. We only require line equality; path mismatch is
     // highly unlikely and path normalization differences previously caused false negatives.
     // This broadened check ensures we properly detect and continue past serverReady to user breakpoint.
     const isServerReadyHit
-      = !!serverReadySource && entryStop.line === serverReady?.trigger?.line;
+      = !!serverReadySource
+        && typeof entryStop.line === "number"
+        && entryStop.line === serverReadyResolvedLine;
     // Decide whether to continue immediately (entry not at user breakpoint OR serverReady hit)
     const entryLineOneBased = entryStop.line ?? -1;
     const hitRequestedBreakpoint
       = entryLineOneBased > 0
         && validated.some(v => v.resolvedLine === entryLineOneBased);
     logger.info(
-      `EntryStop diagnostics: line=${entryStop.line} serverReadyLine=${serverReady?.trigger?.line} isServerReadyHit=${isServerReadyHit} hitRequestedBreakpoint=${hitRequestedBreakpoint}`,
+      `EntryStop diagnostics: line=${entryStop.line} serverReadyLine=${serverReadyResolvedLine} isServerReadyHit=${isServerReadyHit} hitRequestedBreakpoint=${hitRequestedBreakpoint}`,
     );
     if (!hitRequestedBreakpoint || isServerReadyHit) {
       logger.debug(
@@ -3144,8 +3140,8 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
       );
       if (isServerReadyHit && serverReady) {
         if (!serverReadyTriggerSummary) {
-          serverReadyTriggerSummary = serverReady.trigger?.path
-            ? `Breakpoint ${serverReady.trigger.path}:${serverReady.trigger.line}`
+          serverReadyTriggerSummary = serverReady.path
+            ? `Breakpoint ${serverReady.path}:${serverReadyResolvedLine ?? "?"}`
             : "serverReady breakpoint hit";
         }
         await executeServerReadyAction("entry");
@@ -3186,14 +3182,14 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
             serverReady
             && serverReadySource
             && typeof nextStop.line === "number"
-            && nextStop.line === serverReady.trigger?.line
+            && nextStop.line === serverReadyResolvedLine
           ) {
             logger.info(
               `Hit serverReady breakpoint during startup hops at line ${nextStop.line}; executing action then continuing to user breakpoint.`,
             );
             if (!serverReadyTriggerSummary) {
-              serverReadyTriggerSummary = serverReady.trigger?.path
-                ? `Breakpoint ${serverReady.trigger.path}:${serverReady.trigger.line}`
+              serverReadyTriggerSummary = serverReady.path
+                ? `Breakpoint ${serverReady.path}:${serverReadyResolvedLine ?? "?"}`
                 : "serverReady breakpoint hit";
             }
             await executeServerReadyAction("late");
@@ -3248,14 +3244,14 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
       !isServerReadyHit
       && serverReady
       && serverReadySource
-      && finalStop.line === serverReady.trigger?.line
+      && finalStop.line === serverReadyResolvedLine
     ) {
       logger.info(
         `Processing serverReady breakpoint post-entry at line ${finalStop.line}. Executing serverReady action then continuing to user breakpoint.`,
       );
       if (!serverReadyTriggerSummary) {
-        serverReadyTriggerSummary = serverReady.trigger?.path
-          ? `Breakpoint ${serverReady.trigger.path}:${serverReady.trigger.line}`
+        serverReadyTriggerSummary = serverReady.path
+          ? `Breakpoint ${serverReady.path}:${serverReadyResolvedLine ?? "?"}`
           : "serverReady breakpoint hit";
       }
       await executeServerReadyAction("late");
@@ -3284,16 +3280,16 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
     // If still on serverReady and a user breakpoint exists immediately after, perform explicit step(s) to reach it.
     if (
       isServerReadyHit
-      && serverReady?.trigger?.line
-      && finalStop.line === serverReady.trigger.line
+      && typeof serverReadyResolvedLine === "number"
+      && finalStop.line === serverReadyResolvedLine
     ) {
-      const userNextLine = serverReady.trigger.line + 1;
+      const userNextLine = serverReadyResolvedLine + 1;
       const hasUserNext = validated.some(
         v => v.sb.location.range.start.line === userNextLine - 1,
       );
       if (hasUserNext) {
         logger.info(
-          `Advancing from serverReady line ${serverReady.trigger.line} to user breakpoint line ${userNextLine} via step(s).`,
+          `Advancing from serverReady line ${serverReadyResolvedLine} to user breakpoint line ${userNextLine} via step(s).`,
         );
         for (let attempt = 0; attempt < 3; attempt++) {
           try {
@@ -4146,11 +4142,11 @@ export async function triggerBreakpointAndWaitForStop(params: {
   watcherTaskLabel?: string
   /**
    * Optional serverReady trigger used only when starting a new session (sessionId omitted).
-   * The triggerBreakpoint 'action' is used as the serverReady action.
+   * The tool uses breakpointConfig.breakpointTrigger as the serverReady breakpointTrigger.
    */
   serverReadyTrigger?: {
     path?: string
-    line?: number
+    code?: string
     pattern?: string
   }
   /**
@@ -4180,14 +4176,14 @@ export async function triggerBreakpointAndWaitForStop(params: {
    * Optional breakpoint configuration to add before resuming + triggering.
    * Paths may be absolute or relative to the debug session's workspace folder.
    */
-  breakpointConfig?: {
+  breakpointConfig: {
     breakpoints?: Array<BreakpointDefinition>
+    /**
+     * Trigger action to execute after resuming.
+     * IMPORTANT: httpRequest is fire-and-forget to avoid deadlocks when the handler hits a breakpoint.
+     */
+    breakpointTrigger: NonNullable<StartDebuggingAndWaitForStopParams["breakpointConfig"]>["breakpointTrigger"]
   }
-  /**
-   * Trigger action to execute after resuming.
-   * IMPORTANT: httpRequest is fire-and-forget to avoid deadlocks when the handler hits a breakpoint.
-   */
-  action: NonNullable<StartDebuggingAndWaitForStopParams["serverReady"]>["action"]
 }): Promise<StartDebuggerStopInfo> {
   const {
     sessionId: sessionIdRaw,
@@ -4201,8 +4197,9 @@ export async function triggerBreakpointAndWaitForStop(params: {
     timeoutSeconds = 30,
     mode = "singleShot",
     breakpointConfig,
-    action,
   } = params;
+
+  const triggerAction = breakpointConfig.breakpointTrigger;
 
   if (serverReadyTrigger && startupBreakpointConfig?.breakpoints?.length) {
     throw new Error(
@@ -4298,14 +4295,12 @@ export async function triggerBreakpointAndWaitForStop(params: {
         mode,
         breakpointConfig: {
           breakpoints: breakpointConfig.breakpoints,
+          breakpointTrigger: triggerAction,
         },
         serverReady: {
-          trigger: {
-            path: serverReadyTrigger.path,
-            line: serverReadyTrigger.line,
-            pattern: serverReadyTrigger.pattern,
-          },
-          action,
+          path: serverReadyTrigger.path,
+          code: serverReadyTrigger.code,
+          pattern: serverReadyTrigger.pattern,
         },
       });
       return stop;
@@ -4480,27 +4475,21 @@ export async function triggerBreakpointAndWaitForStop(params: {
   }
 
   const executeTriggerAction = async () => {
-    // Determine action shape (new flat with type discriminator OR legacy union)
-    const actionAny = action as unknown as Record<string, unknown>;
-    const discriminator
-      = typeof actionAny.type === "string" ? (actionAny.type as string) : undefined;
-    const kind = discriminator
-      || (typeof actionAny.shellCommand === "string"
-        ? "shellCommand"
-        : typeof actionAny.httpRequest === "object" && actionAny.httpRequest
-          ? "httpRequest"
-          : typeof actionAny.vscodeCommand === "object" && actionAny.vscodeCommand
-            ? "vscodeCommand"
-            : undefined);
+    const actionAny = triggerAction as unknown as Record<string, unknown>;
+    const kind = typeof actionAny.type === "string" ? actionAny.type : undefined;
+    if (!kind) {
+      throw new Error(
+        "breakpointConfig.breakpointTrigger must include a discriminator 'type' ('httpRequest'|'shellCommand'|'vscodeCommand').",
+      );
+    }
 
     switch (kind) {
       case "shellCommand": {
-        const cmd
-          = discriminator
-            ? (actionAny.shellCommand as string | undefined)
-            : (actionAny.shellCommand as string | undefined);
-        if (!cmd) {
-          throw new Error("trigger action shellCommand missing command text.");
+        const cmd = actionAny.shellCommand;
+        if (typeof cmd !== "string" || !cmd.trim()) {
+          throw new Error(
+            "breakpointTrigger.type='shellCommand' requires non-empty 'shellCommand'.",
+          );
         }
         const terminal = vscode.window.createTerminal({
           name: "triggerBreakpoint",
@@ -4528,25 +4517,15 @@ export async function triggerBreakpointAndWaitForStop(params: {
         break;
       }
       case "httpRequest": {
-        const url
-          = discriminator
-            ? (actionAny.url as string | undefined)
-            : (actionAny.httpRequest as { url?: string } | undefined)?.url;
-        if (!url) {
-          throw new Error("trigger action httpRequest missing url.");
+        const url = actionAny.url;
+        if (typeof url !== "string" || !url.trim()) {
+          throw new Error(
+            "breakpointTrigger.type='httpRequest' requires non-empty 'url'.",
+          );
         }
-        const legacyReq = discriminator
-          ? undefined
-          : (actionAny.httpRequest as Record<string, unknown> | undefined);
-        const method = discriminator
-          ? ((actionAny.method as string | undefined) ?? "GET")
-          : (typeof legacyReq?.method === "string" ? legacyReq.method : "GET");
-        const headers = discriminator
-          ? (actionAny.headers as Record<string, string> | undefined)
-          : (legacyReq?.headers as Record<string, string> | undefined);
-        const body = discriminator
-          ? (actionAny.body as string | undefined)
-          : (typeof legacyReq?.body === "string" ? legacyReq.body : undefined);
+        const method = typeof actionAny.method === "string" ? actionAny.method : "GET";
+        const headers = actionAny.headers as Record<string, string> | undefined;
+        const body = typeof actionAny.body === "string" ? actionAny.body : undefined;
 
         logger.info(
           `Dispatching triggerBreakpoint httpRequest to ${url} method=${method}`,
@@ -4575,25 +4554,23 @@ export async function triggerBreakpointAndWaitForStop(params: {
         break;
       }
       case "vscodeCommand": {
-        const command
-          = discriminator
-            ? (actionAny.command as string | undefined)
-            : (actionAny.vscodeCommand as { command?: string } | undefined)
-                ?.command;
-        if (!command) {
-          throw new Error("trigger action vscodeCommand missing command id.");
+        const command = actionAny.command;
+        if (typeof command !== "string" || !command.trim()) {
+          throw new Error(
+            "breakpointTrigger.type='vscodeCommand' requires non-empty 'command'.",
+          );
         }
-        const args
-          = discriminator
-            ? ((actionAny.args as unknown[] | undefined) ?? [])
-            : (((actionAny.vscodeCommand as { args?: unknown[] } | undefined)
-                ?.args as unknown[] | undefined) ?? []);
+        const args = Array.isArray(actionAny.args) ? actionAny.args : [];
         logger.info(`Executing triggerBreakpoint vscodeCommand: ${command}`);
         await vscode.commands.executeCommand(command, ...args);
         break;
       }
       default:
-        throw new Error("trigger action type not recognized.");
+        throw new Error(
+          `breakpointConfig.breakpointTrigger.type '${String(
+            kind,
+          )}' is not recognized. Expected 'httpRequest'|'shellCommand'|'vscodeCommand'.`,
+        );
     }
   };
 

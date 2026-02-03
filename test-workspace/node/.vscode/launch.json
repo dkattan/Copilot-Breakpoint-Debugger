@@ -33,6 +33,14 @@
       "program": "${workspaceFolder}/serverPattern.js",
       "cwd": "${workspaceFolder}",
       "console": "internalConsole"
+    },
+    {
+      "name": "Run node/serverPatternPortToken.js",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/serverPatternPortToken.js",
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole"
     }
   ]
 }

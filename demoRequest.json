@@ -10,15 +10,13 @@
         "variable": "queryParam",
         "onHit": "captureAndStopDebugging"
       }
-    ]
-  },
-  "serverReady": {
-    "trigger": {
-      "pattern": "Server listening on http://localhost:31337"
-    },
-    "action": {
+    ],
+    "breakpointTrigger": {
       "type": "httpRequest",
       "url": "http://localhost:31337/api/echo?q=from-demo"
     }
+  },
+  "serverReady": {
+    "pattern": "Server listening on http://localhost:31337"
   }
 }

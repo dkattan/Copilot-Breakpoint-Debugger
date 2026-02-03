@@ -147,10 +147,10 @@ describe("dotnet watch auto-start", function () {
               onHit: "break",
             },
           ],
-        },
-        action: {
-          type: "httpRequest",
-          url: `http://localhost:${port}/api/echo?q=hello`,
+          breakpointTrigger: {
+            type: "httpRequest",
+            url: `http://localhost:${port}/api/echo?q=hello`,
+          },
         },
       });
 

@@ -106,12 +106,12 @@ Type     : `integer`
 Default        : `40`  
 
 #### `copilot-debugger.serverReadyEnabled`
-Description                                                                                                                                                                                                                                                                                  : Enable serverReady automation (trigger + action). When disabled, provided serverReady payloads are ignored.  
+Description                                                                                                                                                                                                                                                                                  : Enable serverReady automation (trigger + breakpointTrigger). When disabled, provided serverReady payloads are ignored.  
 Type     : `boolean`  
 Default        : `true`  
 
 #### `copilot-debugger.serverReadyDefaultActionType`
-Description                                                                                                                                                                                                                                                                                  : Preferred serverReady action type surfaced in samples and quick insert command.  
+Description                                                                                                                                                                                                                                                                                  : Preferred serverReady breakpointTrigger type surfaced in samples and quick insert command.  
 Type     : `string`  
 Default        : `"httpRequest"`  
 
@@ -159,8 +159,8 @@ Default        : `"useExisting"`
 | `copilot-debugger.defaultLaunchConfiguration`    | Name of the default launch configuration to use when starting the debugger                                                                                                                                                                                                                    | `string`  | `""`            |
 | `copilot-debugger.entryTimeoutSeconds`           | Timeout in seconds waiting for initial entry stop after launching (before first user breakpoint). Supports long startup/build times; must be &gt; 0.                                                                                                                                          | `integer` | `60`            |
 | `copilot-debugger.captureMaxVariables`           | Maximum number of variables auto-captured when a breakpoint onHit=captureAndContinue uses variable='*' (capture-all mode).                                                                                                                                                                    | `integer` | `40`            |
-| `copilot-debugger.serverReadyEnabled`            | Enable serverReady automation (trigger + action). When disabled, provided serverReady payloads are ignored.                                                                                                                                                                                   | `boolean` | `true`          |
-| `copilot-debugger.serverReadyDefaultActionType`  | Preferred serverReady action type surfaced in samples and quick insert command.                                                                                                                                                                                                               | `string`  | `"httpRequest"` |
+| `copilot-debugger.serverReadyEnabled`            | Enable serverReady automation (trigger + breakpointTrigger). When disabled, provided serverReady payloads are ignored.                                                                                                                                                                        | `boolean` | `true`          |
+| `copilot-debugger.serverReadyDefaultActionType`  | Preferred serverReady breakpointTrigger type surfaced in samples and quick insert command.                                                                                                                                                                                                    | `string`  | `"httpRequest"` |
 | `copilot-debugger.maxBuildErrors`                | Maximum number of build diagnostics (from problem matchers) to include in error messages when debug session fails to start.                                                                                                                                                                   | `integer` | `5`             |
 | `copilot-debugger.maxOutputLines`                | Maximum number of output lines (stderr/stdout) to buffer per debug session for runtime error reporting.                                                                                                                                                                                       | `integer` | `50`            |
 | `copilot-debugger.maxOutputChars`                | Maximum number of characters returned by Copilot debugger tools (tool output is truncated with a suffix when exceeded).                                                                                                                                                                       | `integer` | `8192`          |
@@ -257,55 +257,46 @@ In other words, the timeout is actionable guidance rather than a suggestion to "
 
 Example settings snippet:
 
-### Server Readiness Automation (Unified `trigger` + `action`)
+### Server Readiness Automation (`serverReady` + `breakpointConfig.breakpointTrigger`)
 
 You may supply a `serverReady` object when starting the debugger to run an automated action (shell command, HTTP request, or VS Code command) once the target is "ready".
 
-> **Important (don’t use `curl` with breakpoints):** If any breakpoint `onHit` is `break`, **do not** use `serverReady.action.type = "shellCommand"` with `curl`/`wget`/etc to call an endpoint that can hit that breakpoint. The request will often **hang** because the debuggee is paused and cannot finish responding.
+> **Important (don’t use `curl` with breakpoints):** If any breakpoint `onHit` is `break`, **do not** use `breakpointConfig.breakpointTrigger.type = "shellCommand"` with `curl`/`wget`/etc to call an endpoint that can hit that breakpoint. The request will often **hang** because the debuggee is paused and cannot finish responding.
 >
-> Prefer `serverReady.action.type = "httpRequest"` when you intend to **trigger a breakpoint** and capture state.
+> Prefer `breakpointConfig.breakpointTrigger.type = "httpRequest"` when you intend to **trigger a breakpoint** and capture state.
 
-Structure (legacy union still accepted; new flat shape preferred):
+Structure:
 
-```ts
-// New flat schema (with discriminator) recommended – mirrors package.json tool schema
-interface ServerReadyFlat {
-  trigger?: { path?: string, line?: number, pattern?: string }
-  action:
-    | { type: "shellCommand", shellCommand: string }
+```text
+interface ServerReady {
+  path?: string,
+  code?: string,
+  pattern?: string,
+}
+type BreakpointTrigger
+  = | { type: "shellCommand", shellCommand: string }
     | {
-      type: "httpRequest"
-      url: string
-      method?: string
-      headers?: Record<string, string>
-      body?: string
+      type: "httpRequest",
+      url: string,
+      method?: string,
+      headers?: Record<string, string>,
+      body?: string,
     }
     | { type: "vscodeCommand", command: string, args?: unknown[] }
-}
-// Legacy (still supported for backward compatibility)
-interface ServerReadyLegacy {
-  trigger?: { path?: string, line?: number, pattern?: string }
-  action:
-    | { shellCommand: string }
-    | {
-      httpRequest: {
-        url: string
-        method?: string
-        headers?: Record<string, string>
-        body?: string
-      }
-    }
-    | { vscodeCommand: { command: string, args?: unknown[] } }
+
+interface BreakpointConfig {
+  breakpoints: unknown[],
+  breakpointTrigger?: BreakpointTrigger,
 }
 ```
 
 ````
 
-Modes (decided by `trigger`):
+Modes (decided by `serverReady`):
 
-1. Breakpoint trigger – provide `trigger.path` + `trigger.line`. When that source breakpoint is hit (whether first or after entry) the action executes, then the session automatically continues to the first user breakpoint.
-2. Pattern trigger – provide `trigger.pattern` (regex). A VS Code `serverReadyAction` URI is injected; built-in output detectors (debug console / task terminal) fire it when the pattern appears. Action executes asynchronously (fire‑and‑forget) without blocking normal breakpoint flow.
-3. Immediate attach – omit `trigger` entirely for `request: "attach"` configurations (e.g., Azure Functions). The action runs immediately after attach since output may have scrolled before the adapter connected.
+1. Breakpoint trigger – provide `serverReady.path` + `serverReady.code`. When that source breakpoint is hit (whether first or after entry) the breakpoint trigger executes, then the session automatically continues to the first user breakpoint.
+2. Pattern trigger – provide `serverReady.pattern` (regex). A VS Code `serverReadyAction` URI is injected; built-in output detectors (debug console / task terminal) fire it when the pattern appears. Action executes asynchronously (fire‑and‑forget) without blocking normal breakpoint flow.
+3. Immediate attach – provide `serverReady: {}` for `request: "attach"` configurations (e.g., Azure Functions). The action runs immediately after attach since output may have scrolled before the adapter connected.
 
 Actions:
 
@@ -320,7 +311,7 @@ Actions:
 
 **Recommended patterns:**
 
-- **To hit a breakpoint (and capture state):** use `serverReady.action.type = "httpRequest"`.
+- **To hit a breakpoint (and capture state):** use `breakpointConfig.breakpointTrigger.type = "httpRequest"`.
 - **To run a smoke command after you’ve resumed:** use `shellCommand` **after** you resume (e.g., via a separate task/command), not as `serverReady`.
 
 **Common failure mode:** configuring `serverReady` with `curl http://localhost/...` while also setting a `break` breakpoint on the request handler causes the `curl` command to hang and the debug session to appear stuck.
@@ -330,48 +321,81 @@ Examples:
 ```jsonc
 // Pattern-based readiness executing an HTTP health probe
 {
-  "serverReady": {
-    "trigger": { "pattern": "listening on .*:3000" },
-    "action": { "type": "httpRequest", "url": "http://localhost:3000/health" }
+  "breakpointConfig": {
+    "breakpoints": [
+      {
+        "path": "src/server.ts",
+        "code": "USER_BREAKPOINT_SNIPPET",
+        "variable": "*",
+        "onHit": "break"
+      }
+    ],
+    "breakpointTrigger": { "type": "httpRequest", "url": "http://localhost:3000/health" }
   },
+  "serverReady": { "pattern": "listening on .*:3000" }
 }
 ````
 
 ```jsonc
 // Breakpoint-triggered shell command (use for non-HTTP actions)
 {
-  "serverReady": {
-    "trigger": { "path": "src/server.ts", "line": 27 },
-    "action": {
+  "breakpointConfig": {
+    "breakpoints": [
+      {
+        "path": "src/server.ts",
+        "code": "USER_BREAKPOINT_SNIPPET",
+        "variable": "*",
+        "onHit": "break"
+      }
+    ],
+    "breakpointTrigger": {
       "type": "shellCommand",
-      "shellCommand": "echo serverReady action executed"
+      "shellCommand": "echo serverReady breakpointTrigger executed"
     }
-  }
+  },
+  "serverReady": { "path": "src/server.ts", "code": "LINE_FOR_SERVER_READY" }
 }
 ```
 
 ```jsonc
-// Immediate attach (Azure Functions) – no trigger; action fires right after attach
+// Immediate action (attach scenarios): provide empty serverReady
 {
-  "serverReady": {
-    "action": {
+  "breakpointConfig": {
+    "breakpoints": [
+      {
+        "path": "src/server.ts",
+        "code": "USER_BREAKPOINT_SNIPPET",
+        "variable": "*",
+        "onHit": "break"
+      }
+    ],
+    "breakpointTrigger": {
       "type": "httpRequest",
       "url": "http://localhost:7071/api/status"
     }
-  }
+  },
+  "serverReady": {}
 }
 ```
 
 ```jsonc
 // VS Code command action (e.g., close panel after readiness)
 {
-  "serverReady": {
-    "trigger": { "path": "src/server.ts", "line": 10 },
-    "action": {
+  "breakpointConfig": {
+    "breakpoints": [
+      {
+        "path": "src/server.ts",
+        "code": "USER_BREAKPOINT_SNIPPET",
+        "variable": "*",
+        "onHit": "break"
+      }
+    ],
+    "breakpointTrigger": {
       "type": "vscodeCommand",
       "command": "workbench.action.closePanel"
     }
-  }
+  },
+  "serverReady": { "pattern": "ready" }
 }
 ```
 
@@ -441,28 +465,29 @@ Start debug with configurationName "Run test.js" and capture action at test-work
 {
   "workspaceFolder": "/abs/path/project",
   "configurationName": "Run test.js",
+  "mode": "inspect",
   "breakpointConfig": {
     "breakpoints": [
       {
         "path": "src/server.ts",
-        "line": 27,
-        "action": "capture",
-        "logMessage": "port={PORT}",
-        "variable": "PORT"
+        "code": "console.log('listening')",
+        "variable": "PORT",
+        "onHit": "captureAndContinue",
+        "logMessage": "port={PORT}"
       }
-    ]
-  },
-  "serverReady": {
-    "trigger": { "pattern": "listening on .*:(\\d+)" },
-    "action": {
+    ],
+    "breakpointTrigger": {
       "type": "httpRequest",
       "url": "http://localhost:%PORT%/swagger"
     }
+  },
+  "serverReady": {
+    "pattern": "listening on .*:(\\d+)"
   }
 }
 ```
 
-The `%PORT%` token is substituted from the captured log message interpolation / variable value (pattern group extraction occurs in the debug adapter output before the action executes). If the token cannot be resolved the raw string is used. This encourages discovery of port token replacement without extra explanation.
+The `%PORT%` token is substituted from the first capture group of `serverReady.pattern` (e.g. the `(\\d+)` in the pattern above). If your pattern has no capture group (or never matches output), `%PORT%` substitution will fail.
 
 ````
 

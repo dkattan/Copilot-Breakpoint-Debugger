@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Aspire Build Error Test",
+      "type": "aspire",
+      "request": "launch",
+      "preLaunchTask": "dotnet build apphost with syntax error",
+      "program": "${workspaceFolder}/AppHost/AppHost.csproj"
+    },
+    {
+      "name": "Aspire Adapter Build Error Test",
+      "type": "aspire",
+      "request": "launch",
+      "program": "${workspaceFolder}/AppHost/AppHost.csproj"
+    }
+  ]
+}

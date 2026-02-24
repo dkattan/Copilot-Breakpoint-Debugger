@@ -294,6 +294,13 @@ Run only tests whose names match a pattern (passthrough after `--`):
 npm test -- --grep "timeout behavior"
 ```
 
+### Aspire Build-Error Test Fixture
+
+- A dedicated fixture exists at `test-workspace/aspire-build-error-test` to validate build diagnostics for Aspire launch configurations.
+- `test-workspace/aspire-build-error-test/.vscode/launch.json` defines `Aspire Build Error Test` with `type: "aspire"` and a preLaunchTask.
+- The AppHost source intentionally contains a syntax error in `AppHost/AppHost.cs` so `dotnet build` fails and StartDebugger tool output can be asserted.
+- Coverage lives in `src/test/aspireBuildError.test.ts` and should continue asserting compiler diagnostics are surfaced in tool output.
+
 ## Release & Versioning (LLM-Focused)
 
 This project is primarily consumed by language models, so release metadata emphasizes machine-readable consistency over human upgrade narratives.

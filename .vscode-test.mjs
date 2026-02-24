@@ -30,17 +30,15 @@ export default defineConfig({
   // Run with a temporary profile for isolation between test runs.
   launchArgs: [
     resolve(__dirname, "test-workspace", "test-workspace.code-workspace"),
-    // '--profile-temp',
     "--disable-workspace-trust",
     "--skip-welcome",
     "--skip-release-notes",
-    "--disable-extensions",
     "--enable-proposed-api",
     "dkattan.copilot-breakpoint-debugger",
   ],
   // Request automatic installation of required marketplace extensions for tests.
   // @vscode/test-cli will ensure these are present before running.
-  // extensions: ['ms-vscode.powershell'],
+  installExtensions: ["microsoft-aspire.aspire-vscode"],
   coverage: {
     reporter: ["text", "html", "lcov"],
     exclude: ["src/test/**", "**/node_modules/**"],

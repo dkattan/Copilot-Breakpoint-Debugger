@@ -3067,9 +3067,10 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
     timeoutMs: startDebuggingTimeoutMs,
     failureContext: `configuration='${resolvedConfig.name}' sessionName='${effectiveSessionName}'`,
   });
-
-  taskTrackingArmed = false;
   if (!success) {
+    // If VS Code reports it couldn't start debugging, stop tracking tasks now and
+    // return the best failure details we have.
+    taskTrackingArmed = false;
     const baseMessage = `Failed to start debug session '${effectiveSessionName}'.`;
     const augmented = await buildFailureDetails(baseMessage);
     throw new Error(augmented ?? baseMessage);
@@ -3094,6 +3095,9 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
     | undefined;
   try {
     entryStop = await entryStopPromise;
+    // After we observe the entry stop, we no longer need to track startup tasks.
+    // This avoids unrelated later tasks polluting build-failure reporting.
+    taskTrackingArmed = false;
     const afterEntry = Date.now();
     remainingMs = Math.max(0, remainingMs - (afterEntry - startT));
     if (entryStop.reason === "terminated") {
@@ -3625,12 +3629,33 @@ export async function startDebuggingAndWaitForStop(params: StartDebuggingAndWait
         terminalLines: terminalLinesForAnalysis,
         maxLines: maxRuntimeOutputLines,
       });
-      throw new Error(enriched);
+      // If startup timed out, also include any build/task failure details we observed.
+      const augmented = await buildFailureDetails(enriched);
+      throw new Error(augmented ?? enriched);
     }
     const baseMessage = error instanceof Error ? error.message : String(error);
-    const augmented = await buildFailureDetails(baseMessage);
+
+    // Best-effort: attach runtime diagnostics even when we don't have build diagnostics.
+    // This helps scenarios where the debug adapter emits build failures via output/terminal
+    // rather than VS Code problem matchers.
+    const sessionIdForRuntime = (() => {
+      if (entryStop?.session?.id) {
+        return entryStop.session.id;
+      }
+      // If exactly one new session started, attribute terminal/output diagnostics to it.
+      const newSessions = activeSessions.filter(s => !existingIds.includes(s.id));
+      return newSessions.length === 1 ? newSessions[0].id : undefined;
+    })();
+    const runtimeMessage = /\nRuntime diagnostics:\n/i.test(baseMessage)
+      ? baseMessage
+      : withRuntimeDiagnostics(baseMessage, sessionIdForRuntime);
+
+    const augmented = await buildFailureDetails(runtimeMessage);
     if (augmented) {
       throw new Error(augmented);
+    }
+    if (runtimeMessage !== baseMessage) {
+      throw new Error(runtimeMessage);
     }
     throw error;
   }
